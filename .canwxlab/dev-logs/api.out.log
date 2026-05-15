@@ -2613,4 +2613,156 @@ INFO:     127.0.0.1:54001 - "GET /api/sources/status HTTP/1.1" 200 OK
 {"name": "watchfiles.main", "message": "33 changes detected", "taskName": null, "timestamp": "2026-05-15 11:40:50,815", "level": "INFO"}
 INFO:     127.0.0.1:54043 - "GET /api/sources/status HTTP/1.1" 200 OK
 {"name": "watchfiles.main", "message": "4 changes detected", "taskName": null, "timestamp": "2026-05-15 11:41:08,373", "level": "INFO"}
+ INFO:     127.0.0.1:57664 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "255 changes detected", "taskName": null, "timestamp": "2026-05-15 11:41:35,129", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:41:47,462", "level": "INFO"}
+{"name": "watchfiles.main", "message": "2 changes detected", "taskName": null, "timestamp": "2026-05-15 11:41:52,764", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:41:53,372", "level": "INFO"}
+INFO:     127.0.0.1:49378 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:42:04,882", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:42:11,040", "level": "INFO"}
+INFO:     127.0.0.1:56470 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:42:32,664", "level": "INFO"}
+{"name": "watchfiles.main", "message": "4 changes detected", "taskName": null, "timestamp": "2026-05-15 11:42:45,667", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:42:56,655", "level": "INFO"}
+{"name": "watchfiles.main", "message": "3 changes detected", "taskName": null, "timestamp": "2026-05-15 11:42:57,007", "level": "INFO"}
+{"name": "watchfiles.main", "message": "4 changes detected", "taskName": null, "timestamp": "2026-05-15 11:43:00,098", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:43:01,362", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:43:12,311", "level": "INFO"}
+INFO:     127.0.0.1:56653 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56653 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56655 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56654 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56658 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56656 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56657 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56654 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56658 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56654 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56655 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56657 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56653 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56655 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "3 changes detected", "taskName": null, "timestamp": "2026-05-15 11:43:21,346", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:22,606", "level": "INFO"}
+{"name": "watchfiles.main", "message": "32 changes detected", "taskName": null, "timestamp": "2026-05-15 11:43:28,563", "level": "INFO"}
+{"name": "watchfiles.main", "message": "58 changes detected", "taskName": null, "timestamp": "2026-05-15 11:43:28,915", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:29,276", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:29,632", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:29,988", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:30,348", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:30,705", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:31,065", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:31,475", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:31,878", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:32,285", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:32,689", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:33,092", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:33,494", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:33,899", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:34,304", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:34,708", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:35,113", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:35,530", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:35,935", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:36,338", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:36,745", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:37,147", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:37,504", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:37,915", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:38,332", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:38,738", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:39,154", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:39,557", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:39,961", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:40,366", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:40,769", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:41,138", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:41,549", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:41,954", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:42,357", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:42,763", "level": "INFO"}
+INFO:     127.0.0.1:53296 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:43,168", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:43,584", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:43,989", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:44,395", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:44,765", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:45,182", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:45,585", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:45,989", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:46,392", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:46,822", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:47,182", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:47,590", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:47,993", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:48,398", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:48,803", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:49,220", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:49,624", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:50,027", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:50,431", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:50,837", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:51,239", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:51,641", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:52,046", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:52,449", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:52,856", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:53,262", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:53,666", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:54,068", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:54,472", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:54,833", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:55,242", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:55,660", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:56,064", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:56,468", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:56,871", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:57,274", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:57,677", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:58,086", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:58,488", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:58,891", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:59,306", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:43:59,710", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:00,075", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:00,484", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:00,901", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:01,318", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:01,685", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:02,092", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:02,494", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:02,899", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:03,303", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:03,707", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:04,112", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:04,520", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:04,924", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:05,328", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:05,731", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:06,134", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:06,539", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:06,954", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:07,358", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:07,763", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:08,179", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:08,537", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:08,945", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:09,361", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:09,766", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:10,167", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:10,571", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:10,988", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:11,391", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:11,749", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:12,152", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:12,570", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:12,976", "level": "INFO"}
+INFO:     127.0.0.1:53307 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:13,380", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:13,783", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:14,187", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:14,589", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:14,992", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:44:15,346", "level": "INFO"}
  
