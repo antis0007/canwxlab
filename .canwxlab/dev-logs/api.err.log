@@ -60,3 +60,20 @@ INFO:     Finished server process [34652]
 INFO:     Started server process [38612]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services\api\canwxlab_api\routes\verification.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38612]
+WARNING:  WatchFiles detected changes in 'services\api\canwxlab_api\routes\simulations.py', 'services\api\tests\test_verification_cases.py', 'services\api\canwxlab_api\routes\verification.py'. Reloading...
+INFO:     Started server process [39084]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [39084]
+INFO:     Started server process [13920]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services\api\tests\test_simulation_bridge.py'. Reloading...

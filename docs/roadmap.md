@@ -27,12 +27,24 @@
 - Plugin manifest discovery API and frontend plugin manager
 - Inspector and render diagnostics upgrades
 
-## Phase 3: Live Raster Timeline + Forecast Metadata (Next)
+## Phase 3: Live Raster Timeline + Forecast Metadata (In Progress)
 
-- Verified ECCC radar and GOES WMS layer mapping
-- Time-dimension animation playback for WMS layers
-- Forecast model metadata ingestion (HRDPS/RDPS/GDPS)
-- Richer legend and provenance wiring for operational-like timelines
+- [x] Demo/mock layers gated off in live/hybrid mode (decontamination).
+- [x] TOML-driven curated ECCC WMS layer list with exact-match resolution
+      against `GetCapabilities` (no keyword fallback).
+- [x] WMS base URL surfaced via diagnostics; frontend no longer hardcodes it.
+- [x] Low-res fallback basemap clearly badged; `VITE_MAP_STYLE_URL` is the
+      production path.
+- [x] Verification cases + diff API scaffold (deterministic mock grid).
+- [x] Simulation CLI bridge skeleton with `stub`/`cli` modes; failure path
+      handled gracefully when the binary is missing.
+- [ ] Frontend: render diff overlay (deck.gl grid) from
+      `/api/verification/cases/{id}/diff/{field}`.
+- [ ] Frontend: poll simulation runs and surface `queued/running/failed`.
+- [ ] Confirm and flip `verified = true` on curated WMS entries against the
+      production GeoMet capabilities document.
+- [ ] Time-dimension animation playback for WMS layers.
+- [ ] Forecast model metadata ingestion (HRDPS/RDPS/GDPS).
 
 ## Phase 4: Historical Archive
 

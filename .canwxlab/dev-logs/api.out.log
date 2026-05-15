@@ -2765,4 +2765,16 @@ INFO:     127.0.0.1:53307 - "GET /api/sources/status HTTP/1.1" 200 OK
 {"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:14,589", "level": "INFO"}
 {"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:44:14,992", "level": "INFO"}
 {"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:44:15,346", "level": "INFO"}
+ INFO:     127.0.0.1:53314 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53376 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53378 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51489 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "94 changes detected", "taskName": null, "timestamp": "2026-05-15 11:46:35,387", "level": "INFO"}
+ {"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:46:36,050", "level": "INFO"}
+INFO:     127.0.0.1:61029 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "9 changes detected", "taskName": null, "timestamp": "2026-05-15 11:47:01,956", "level": "INFO"}
+INFO:     127.0.0.1:61044 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60555 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "61 changes detected", "taskName": null, "timestamp": "2026-05-15 11:47:49,160", "level": "INFO"}
+{"name": "watchfiles.main", "message": "4 changes detected", "taskName": null, "timestamp": "2026-05-15 11:48:00,320", "level": "INFO"}
  
