@@ -418,7 +418,6 @@ export function MapView({
       overlayRef.current = null;
       setMapReady(false);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

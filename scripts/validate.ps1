@@ -56,7 +56,9 @@ try {
   Invoke-Step "cargo test" { cargo test }
 
   Invoke-Step "ruff check services/api" { & $pythonExe -m ruff check services/api }
-  Invoke-Step "pytest services/api/tests -q" { & $pythonExe -m pytest services/api/tests -q }
+  $pytestTmp = Join-Path $repoRoot ".canwxlab/pytest-tmp"
+  if (-not (Test-Path $pytestTmp)) { New-Item -ItemType Directory -Force -Path $pytestTmp | Out-Null }
+  Invoke-Step "pytest services/api/tests -q" { & $pythonExe -m pytest services/api/tests -q --basetemp="$pytestTmp" }
 
   Invoke-Step "pnpm web test" { corepack pnpm --filter @canwxlab/web test }
   Invoke-Step "pnpm web build" { corepack pnpm --filter @canwxlab/web build }

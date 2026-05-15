@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { Fragment, useState, useMemo } from "react";
 import { StatusBadge } from "./StatusBadge";
 
 import { colorRamps } from "../../layers/colorRamps";
@@ -564,10 +564,9 @@ export function LeftSidebar(props: LeftSidebarProps) {
           // Small divider before the last group
           const addDivider = idx === NAV_TABS.length - 2;
           return (
-            <>
-              {addDivider && <div key={`div-${tab.id}`} className="wb-nav-divider" />}
+            <Fragment key={tab.id}>
+              {addDivider && <div className="wb-nav-divider" />}
               <button
-                key={tab.id}
                 type="button"
                 className={`wb-nav-btn${isActive ? " active" : ""}`}
                 onClick={() => props.onTabChange(tab.id)}
@@ -577,7 +576,7 @@ export function LeftSidebar(props: LeftSidebarProps) {
               >
                 {tab.icon}
               </button>
-            </>
+            </Fragment>
           );
         })}
       </nav>

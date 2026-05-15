@@ -176,7 +176,7 @@ export default function App() {
         layerEngine.toggleLayer(layer.id);
       }
     });
-  }, [layerEngine.orderedLayers, layerEngine.runtimeState, layerEngine.toggleLayer]);
+  }, [layerEngine]);
 
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);

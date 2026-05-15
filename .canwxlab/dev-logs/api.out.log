@@ -1,0 +1,1506 @@
+Starting API on http://127.0.0.1:8787
+INFO:     127.0.0.1:53310 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53312 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53307 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53309 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53311 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53308 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53312 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53310 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53307 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53311 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53309 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53308 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53311 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53308 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53316 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53324 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57607 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59586 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59590 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59595 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59594 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59591 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59592 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59593 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59596 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56315 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58612 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58620 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58628 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53452 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53453 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53458 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53457 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53454 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53456 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53455 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53456 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53457 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53454 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53458 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53455 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53453 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53453 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53456 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53458 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53454 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53455 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53457 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53461 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53472 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52326 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63064 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63065 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63083 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63087 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63088 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63084 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63085 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63086 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63083 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63084 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63085 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63088 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63086 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63083 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63087 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63084 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62768 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55962 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55966 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58044 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58048 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60239 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55934 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 02:34:55,361", "level": "INFO"}
+INFO:     127.0.0.1:55940 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55942 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55941 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55945 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55944 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55943 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55940 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55941 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55942 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55941 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55942 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55940 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55945 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55941 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 02:35:01,259", "level": "INFO"}
+INFO:     127.0.0.1:55953 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55955 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55954 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55960 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55959 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55957 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55953 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55954 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55960 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55953 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55955 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55957 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55959 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55954 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 02:35:09,823", "level": "INFO"}
+INFO:     127.0.0.1:55970 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55980 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55981 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55976 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55974 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55979 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55980 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55970 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55974 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55976 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55979 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55970 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55981 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55974 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 02:35:15,663", "level": "INFO"}
+INFO:     127.0.0.1:55990 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55994 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55992 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55991 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55995 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55993 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55990 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55991 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55992 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55995 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55991 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55995 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55992 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55991 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 02:35:22,600", "level": "INFO"}
+INFO:     127.0.0.1:56001 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56003 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56002 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56004 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56009 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56008 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56004 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56002 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56008 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56009 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56003 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56001 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56002 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56009 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56012 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56031 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52463 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 02:37:06,313", "level": "INFO"}
+INFO:     127.0.0.1:57082 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 02:37:38,114", "level": "INFO"}
+INFO:     127.0.0.1:57086 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57602 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57937 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 02:39:15,706", "level": "INFO"}
+INFO:     127.0.0.1:57946 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 02:39:33,500", "level": "INFO"}
+INFO:     127.0.0.1:59866 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 02:39:58,498", "level": "INFO"}
+INFO:     127.0.0.1:59872 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59875 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59886 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58468 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63822 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63825 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63836 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63877 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63985 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54001 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54011 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54021 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52805 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57603 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57610 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57614 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57626 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57634 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50596 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56243 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61581 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61587 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61594 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60751 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60759 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60763 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60776 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60783 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61321 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51116 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51121 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51124 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61604 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51346 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57608 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57732 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50374 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50384 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50391 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56439 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57877 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57880 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57888 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57936 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58755 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58759 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62416 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60133 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60138 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50983 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50988 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53504 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57631 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57641 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59872 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63654 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63665 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63669 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63676 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58647 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56517 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54434 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54440 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54446 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54453 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54463 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54469 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57599 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51821 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51523 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51536 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51539 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65109 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65118 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63960 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63973 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63978 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63983 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52679 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59581 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59586 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59592 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50851 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50854 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53998 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54010 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54017 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54023 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54028 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61468 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62205 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62208 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56093 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52806 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52813 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52826 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52832 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52837 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52845 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57605 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62486 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62489 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62497 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54337 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54344 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54354 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54360 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54365 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52049 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60255 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60261 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60264 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60276 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51575 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52444 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52454 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52463 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52468 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52510 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58172 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58177 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58180 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58187 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52772 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50546 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53118 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53134 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53141 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53152 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61884 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61889 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61896 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63413 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59109 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59117 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59131 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56653 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56658 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56670 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52965 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49317 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49323 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49331 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55613 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55618 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55632 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55636 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51138 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51815 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61851 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61855 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61860 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62402 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52756 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52764 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55785 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53061 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53067 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64480 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51581 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51585 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51593 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51599 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56313 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61505 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61518 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61522 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61527 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61534 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57600 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49818 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49823 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53922 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51565 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51569 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51581 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51586 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51592 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51599 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52574 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58280 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58285 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58292 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61153 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61158 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61181 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61185 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62978 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54916 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56697 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50839 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50844 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50855 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52196 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62366 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62379 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62384 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62392 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62398 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52889 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56294 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56298 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49840 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60634 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62320 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62334 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62338 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62350 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59176 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56031 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49242 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49747 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49757 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51321 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51332 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51338 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51349 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51354 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49922 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60260 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60264 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59919 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59923 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59927 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49764 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49769 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49776 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51944 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64385 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64390 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64398 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51977 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51991 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63477 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63489 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63495 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63500 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63511 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62858 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62865 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62869 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62874 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61998 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59057 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59067 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59071 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59080 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59088 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64702 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64707 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64712 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53895 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51919 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51923 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51934 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51942 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51948 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51954 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49328 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54004 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54008 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54016 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50687 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50693 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54569 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54579 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54584 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49317 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51761 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51767 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51771 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51783 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54951 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63639 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62888 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62893 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62899 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62907 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52685 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52690 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52694 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52700 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63294 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58968 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58980 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58986 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58994 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59002 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51670 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51675 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51680 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63453 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59658 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59664 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58005 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58023 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58027 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58033 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59120 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60355 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60360 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60368 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54454 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54459 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54470 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63357 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50457 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50064 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52260 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52266 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52272 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57603 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56387 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58285 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58295 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55071 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55075 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54526 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53859 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53899 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53905 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53911 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64756 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62017 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62031 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62040 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50930 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49522 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53139 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53143 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53151 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57091 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55848 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60602 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60615 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60619 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60624 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64192 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50075 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52165 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52172 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52177 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60364 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60367 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60379 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60382 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60389 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53485 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62229 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62233 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62243 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62251 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63040 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49636 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49648 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49652 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49658 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58847 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61216 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61222 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61227 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51156 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59547 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59558 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59563 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59571 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59577 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63101 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63104 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52984 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51850 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51867 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51882 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49457 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49466 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49472 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49478 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49328 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57645 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59349 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59358 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59367 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59370 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59385 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59390 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59397 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49474 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59369 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59372 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49269 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54862 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54876 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60805 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60818 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60825 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60830 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60836 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62066 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62070 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62075 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52488 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52498 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62698 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53219 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53223 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53229 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53236 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59406 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59410 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55173 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58868 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58877 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58880 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57732 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57738 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57743 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57750 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52584 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52589 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52600 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57904 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51626 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51628 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51640 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57600 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55838 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55841 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49888 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49892 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49902 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49913 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57600 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57604 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57622 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57626 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57633 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57639 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53532 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53534 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53541 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53545 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56734 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56737 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56751 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56787 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56797 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52482 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57889 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57891 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59863 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59873 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53416 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53418 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53432 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53437 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53443 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53447 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56539 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56545 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56553 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56557 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57663 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57665 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57677 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57680 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51370 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51374 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62757 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62761 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62772 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62782 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65041 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65043 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65056 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65059 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65065 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65071 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55196 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55198 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55205 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55209 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62056 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62065 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63520 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63524 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63531 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63535 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51885 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51893 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52706 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52720 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56635 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56645 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56658 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56667 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56678 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56693 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58635 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58637 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58644 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58649 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49993 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49995 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50072 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50079 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61960 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61966 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57945 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57950 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57960 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57971 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50731 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50735 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50750 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57876 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57884 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57889 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55910 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55916 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55923 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55927 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49672 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49675 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49691 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49695 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60825 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60830 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55073 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55077 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56780 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63131 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55836 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55838 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55851 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55858 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55870 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55874 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60603 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60605 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60611 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60617 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51358 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51364 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51377 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51381 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61879 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64677 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57093 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57599 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57608 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57624 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64025 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64063 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64078 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64088 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64096 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64101 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59840 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59843 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59848 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59854 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50738 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50742 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50759 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50764 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50770 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59819 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49883 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58270 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63930 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63942 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55168 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55171 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55183 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55188 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55196 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55202 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50629 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63924 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63930 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63936 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50485 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50488 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50502 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50506 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60101 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60106 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59768 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59772 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52516 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52528 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52848 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52854 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57608 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57614 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57622 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57629 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65256 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65259 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65264 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55513 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55257 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55260 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55275 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55281 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55288 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55293 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52265 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52268 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57082 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55708 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55716 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55721 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55732 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55736 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55748 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55755 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57602 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57608 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57617 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55481 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55489 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55493 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55508 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55512 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59017 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59024 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54528 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54531 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54540 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56493 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58003 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58010 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58023 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58027 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58037 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58046 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50958 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50962 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50967 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55969 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51370 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51373 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53499 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53503 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61542 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61550 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62091 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62094 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60658 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58581 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62222 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62225 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62310 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62317 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62322 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62331 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62030 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62033 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51959 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53859 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53864 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64443 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57085 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57092 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55575 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52304 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50711 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50715 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62138 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61166 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57083 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53698 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51273 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51280 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59721 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59735 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57603 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57606 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57614 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49724 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62214 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62217 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61498 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61502 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62186 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50992 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50201 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50205 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53183 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50949 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50958 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50962 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55272 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61395 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61400 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61408 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58911 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58916 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60675 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52836 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52842 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55979 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49478 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49483 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58488 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60259 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61117 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61124 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62859 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62275 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59298 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59301 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64279 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64281 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57601 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50130 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50137 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50139 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59674 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64639 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58496 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58497 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62312 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62321 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62332 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60557 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55015 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55017 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63334 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54251 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51945 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51947 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51960 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51969 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57604 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58169 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53016 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53020 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53145 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54553 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54563 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54564 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57602 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57611 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53165 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56255 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56263 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64018 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59700 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59707 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57692 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55419 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55430 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55432 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64923 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63966 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63976 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61960 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54266 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54270 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49686 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56792 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56800 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56803 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55242 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51636 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51648 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51656 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53420 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53430 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61901 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61908 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58800 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60411 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62114 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61048 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57766 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57767 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59662 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59666 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59674 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59681 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56012 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56014 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52190 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51783 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51796 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51800 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49371 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49389 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65455 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65462 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52380 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52382 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52393 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53021 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57084 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57086 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59356 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59359 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52733 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52742 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52806 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52807 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57631 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55984 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53682 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53688 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49777 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64168 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64183 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59973 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63827 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63831 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63840 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52656 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64659 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64662 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64669 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57657 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63831 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63840 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63848 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63851 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61156 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64808 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64823 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64825 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54917 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61372 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57601 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57610 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50738 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50742 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64023 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60881 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60888 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60890 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53230 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63001 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60245 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60253 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60261 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60265 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51174 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51013 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51020 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51025 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60348 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63666 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63679 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63695 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58298 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58308 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58318 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54950 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49265 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49267 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62073 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54874 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49370 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49381 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49390 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56502 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62694 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63674 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63682 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63691 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52592 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56825 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56834 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56846 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56736 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56740 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59377 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50917 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50928 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50932 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65523 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64787 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52476 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52488 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52910 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52913 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64016 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54213 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57089 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57096 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51215 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61136 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64363 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64372 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64378 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64383 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59054 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52067 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55336 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55338 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59263 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52553 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52560 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52569 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56258 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63864 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59084 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59545 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59555 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59557 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59567 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64663 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55229 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55240 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55246 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59356 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59363 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52499 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52505 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52510 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52519 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57599 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58868 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54167 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54176 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62459 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62466 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64127 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59800 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51642 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52222 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64318 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64328 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58669 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58675 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59411 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59419 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59279 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54237 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60879 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60887 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56011 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56020 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57718 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57727 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57731 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62786 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63001 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63012 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55844 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55854 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61503 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61779 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:37:41,039", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:37:49,571", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:37:59,710", "level": "INFO"}
+INFO:     127.0.0.1:58410 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:38:13,242", "level": "INFO"}
+{"name": "watchfiles.main", "message": "3 changes detected", "taskName": null, "timestamp": "2026-05-15 10:38:26,715", "level": "INFO"}
+{"name": "watchfiles.main", "message": "2 changes detected", "taskName": null, "timestamp": "2026-05-15 10:38:30,738", "level": "INFO"}
+INFO:     127.0.0.1:58420 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58435 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58440 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58439 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58436 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58438 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58437 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58437 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58436 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58440 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58435 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58438 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58439 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58436 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58435 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53271 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:39:23,974", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:39:35,270", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:39:48,551", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:39:56,048", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:40:03,222", "level": "INFO"}
+{"name": "watchfiles.main", "message": "3 changes detected", "taskName": null, "timestamp": "2026-05-15 10:40:12,273", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 10:40:13,544", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 10:40:20,625", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 10:40:26,317", "level": "INFO"}
+INFO:     127.0.0.1:56043 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 10:40:52,707", "level": "INFO"}
+INFO:     127.0.0.1:54950 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54957 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54963 - "HEAD /api/sources/status HTTP/1.1" 405 Method Not Allowed
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:42:28,778", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:42:35,824", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:42:44,788", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:42:50,645", "level": "INFO"}
+{"name": "watchfiles.main", "message": "3 changes detected", "taskName": null, "timestamp": "2026-05-15 10:43:00,081", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 10:43:01,291", "level": "INFO"}
+INFO:     127.0.0.1:59800 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59806 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59805 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59801 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59802 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59804 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59800 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59802 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59801 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59806 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59804 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59805 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59801 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59806 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59829 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60632 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51450 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63319 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52369 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52372 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60129 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54604 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "2 changes detected", "taskName": null, "timestamp": "2026-05-15 10:47:57,578", "level": "INFO"}
+{"name": "watchfiles.main", "message": "2 changes detected", "taskName": null, "timestamp": "2026-05-15 10:47:57,935", "level": "INFO"}
+{"name": "watchfiles.main", "message": "2 changes detected", "taskName": null, "timestamp": "2026-05-15 10:47:58,290", "level": "INFO"}
+INFO:     127.0.0.1:54638 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54647 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54654 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54671 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52784 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62473 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59936 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59968 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59979 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51633 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53877 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53890 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55306 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55350 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55399 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "65 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:39,509", "level": "INFO"}
+{"name": "watchfiles.main", "message": "178 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:40,322", "level": "INFO"}
+{"name": "watchfiles.main", "message": "166 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:40,994", "level": "INFO"}
+{"name": "watchfiles.main", "message": "53 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:41,357", "level": "INFO"}
+{"name": "watchfiles.main", "message": "8 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:41,919", "level": "INFO"}
+{"name": "watchfiles.main", "message": "4 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:42,272", "level": "INFO"}
+{"name": "watchfiles.main", "message": "4 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:42,836", "level": "INFO"}
+{"name": "watchfiles.main", "message": "11 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:44,453", "level": "INFO"}
+{"name": "watchfiles.main", "message": "17 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:45,026", "level": "INFO"}
+{"name": "watchfiles.main", "message": "347 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:47,104", "level": "INFO"}
+{"name": "watchfiles.main", "message": "4 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:47,526", "level": "INFO"}
+{"name": "watchfiles.main", "message": "349 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:48,483", "level": "INFO"}
+{"name": "watchfiles.main", "message": "188 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:49,038", "level": "INFO"}
+{"name": "watchfiles.main", "message": "2 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:49,396", "level": "INFO"}
+INFO:     127.0.0.1:55429 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "3 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:55,952", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 10:55:57,276", "level": "INFO"}
+{"name": "watchfiles.main", "message": "11 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:58,900", "level": "INFO"}
+{"name": "watchfiles.main", "message": "42 changes detected", "taskName": null, "timestamp": "2026-05-15 10:55:59,265", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 10:56:05,785", "level": "INFO"}
+{"name": "watchfiles.main", "message": "3 changes detected", "taskName": null, "timestamp": "2026-05-15 10:56:06,139", "level": "INFO"}
+{"name": "watchfiles.main", "message": "4 changes detected", "taskName": null, "timestamp": "2026-05-15 10:56:09,989", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:56:11,441", "level": "INFO"}
+INFO:     127.0.0.1:55440 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55673 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63842 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55417 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55432 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 10:58:45,200", "level": "INFO"}
+ INFO:     127.0.0.1:64540 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64560 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64568 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64578 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64582 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64587 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61804 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56518 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52130 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52147 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52154 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52159 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52171 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52181 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52189 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64982 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54671 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54684 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61783 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61810 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61819 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61831 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61840 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63537 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57858 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57902 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54474 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54484 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52370 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52385 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52392 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61487 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61501 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55452 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55455 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55463 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55463 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55474 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55475 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55472 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55471 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55473 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55463 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55471 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "595 changes detected", "taskName": null, "timestamp": "2026-05-15 11:16:32,401", "level": "INFO"}
+ {"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:16:33,037", "level": "INFO"}
+INFO:     127.0.0.1:55478 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55477 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55480 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55481 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55479 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55476 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:33,693", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:34,059", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:34,469", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:16:34,824", "level": "INFO"}
+INFO:     127.0.0.1:55477 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55481 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55479 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55480 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55476 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55478 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55477 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55479 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55481 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55478 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55476 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55480 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55478 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55478 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:35,178", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:35,539", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:35,900", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:36,255", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:36,621", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:37,035", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:37,439", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:37,841", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:38,247", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:38,652", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:39,056", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:39,459", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:39,864", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:40,265", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:40,720", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:41,081", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:41,487", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:41,892", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:42,295", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:42,702", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:43,119", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 11:16:43,473", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:43,829", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:44,187", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:44,545", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:44,903", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:45,260", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:45,670", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:46,074", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:46,480", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:46,885", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:47,290", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:47,694", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:48,098", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:48,501", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:48,867", "level": "INFO"}
+INFO:     127.0.0.1:50771 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50772 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50767 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50768 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50769 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50770 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50768 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50769 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50772 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50768 - "GET /api/layers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50770 - "GET /api/alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50767 - "GET /api/observations/stations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50768 - "GET /api/sources/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50768 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:49,278", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:49,684", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:50,089", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:50,493", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:50,896", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:51,302", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:51,725", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:52,128", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:52,533", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:52,940", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:53,344", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:53,749", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:54,153", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:54,558", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:54,964", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:55,368", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:55,773", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:56,175", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:56,583", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:56,999", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:57,407", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:57,776", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:58,181", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:58,584", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:58,989", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:59,392", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:16:59,796", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:00,199", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:00,601", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:01,007", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:01,424", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:01,827", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:02,234", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:02,648", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:03,064", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:03,468", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:03,873", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:04,226", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:04,652", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:05,106", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:05,509", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:05,914", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:06,318", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:06,724", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:07,125", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:07,531", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:07,887", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:08,344", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:08,708", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:09,117", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:09,519", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:09,926", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:10,330", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:10,758", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:11,167", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:11,569", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:11,970", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:12,375", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:12,778", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:13,145", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:13,553", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:13,956", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:14,359", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:14,761", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:15,216", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:15,582", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:15,990", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:16,397", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:16,799", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:17,202", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:17,612", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:18,021", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:18,437", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:18,839", "level": "INFO"}
+INFO:     127.0.0.1:64678 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:19,245", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:19,649", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:20,102", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:20,455", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:20,861", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:21,278", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:21,683", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:22,099", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:22,502", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:22,907", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:23,309", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:23,714", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:24,117", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:24,520", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:24,925", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:25,331", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:25,738", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:26,139", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:26,543", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:26,947", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:27,350", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:27,755", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:28,160", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:28,527", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:28,984", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:29,349", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:29,772", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:30,178", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:30,581", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:30,986", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:31,407", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:31,810", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:32,215", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:32,653", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:33,018", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:33,424", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:33,829", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:34,234", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:34,648", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:35,062", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:35,466", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:35,868", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:36,273", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:36,690", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:37,093", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:37,496", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:37,898", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:38,303", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:38,705", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:39,109", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:39,474", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:39,883", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:40,285", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:40,691", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:41,093", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:41,499", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:41,904", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:42,311", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:42,715", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:43,081", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:43,437", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:43,796", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:44,147", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:44,501", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:44,857", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:45,265", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:45,668", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:46,069", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:46,472", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:46,838", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:47,247", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:47,664", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:48,070", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:48,474", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:48,840", "level": "INFO"}
+INFO:     127.0.0.1:50162 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:49,247", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:49,651", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:50,053", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:50,460", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 11:17:50,862", "level": "INFO"}
