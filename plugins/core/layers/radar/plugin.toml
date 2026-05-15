@@ -1,0 +1,14 @@
+id = "core_radar_layer"
+name = "Radar Layer Renderer"
+version = "0.1.0"
+author = "CanWxLab Core"
+api_version = "0.1"
+plugin_type = "layer"
+safety_level = "core"
+required_variables = ["precipitation_rate"]
+produced_variables = ["radar_visual_layer"]
+description = "Core radar visualization layer manifest. Dynamic loading is future work."
+
+[config_schema]
+type = "object"
+properties = { color_ramp = { type = "string" }, opacity = { type = "number" } }

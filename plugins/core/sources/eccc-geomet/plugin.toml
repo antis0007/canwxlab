@@ -1,0 +1,14 @@
+id = "eccc_geomet"
+name = "ECCC MSC GeoMet Source"
+version = "0.1.0"
+author = "CanWxLab Core"
+api_version = "0.1"
+plugin_type = "source"
+safety_level = "core"
+required_variables = []
+produced_variables = ["radar", "satellite", "alerts", "observations", "forecast_grids"]
+description = "Skeleton source plugin for public ECCC/MSC GeoMet OGC API and MSC Datamart weather products."
+
+[config_schema]
+type = "object"
+required = []

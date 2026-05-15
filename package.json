@@ -1,0 +1,18 @@
+{
+  "name": "canwxlab",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Self-hostable Canadian weather visualization, simulation, and verification platform.",
+  "scripts": {
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1",
+    "dev:api": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-api.ps1",
+    "dev:web": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-web.ps1",
+    "dev:sim-sample": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-sim-sample.ps1",
+    "stop:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-dev.ps1",
+    "validate": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate.ps1",
+    "build:web": "pnpm --filter @canwxlab/web build",
+    "lint:web": "pnpm --filter @canwxlab/web lint",
+    "test:web": "pnpm --filter @canwxlab/web test"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

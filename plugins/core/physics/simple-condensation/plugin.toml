@@ -1,0 +1,14 @@
+id = "simple_condensation"
+name = "Simple Condensation Physics"
+version = "0.1.0"
+author = "CanWxLab Core"
+api_version = "0.1"
+plugin_type = "physics"
+safety_level = "core"
+required_variables = ["temperature", "moisture", "cloud_water"]
+produced_variables = ["temperature", "moisture", "cloud_water", "precipitation"]
+description = "Core toy physics module that converts moisture above a threshold into cloud water and precipitation."
+
+[config_schema]
+type = "object"
+properties = { saturation_threshold = { type = "number" }, condensation_rate = { type = "number" }, precipitation_rate = { type = "number" } }

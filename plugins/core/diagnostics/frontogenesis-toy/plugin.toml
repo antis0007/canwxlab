@@ -1,0 +1,14 @@
+id = "frontogenesis_toy"
+name = "Toy Frontogenesis Diagnostic"
+version = "0.1.0"
+author = "CanWxLab Core"
+api_version = "0.1"
+plugin_type = "diagnostic"
+safety_level = "safe_wasm"
+required_variables = ["temperature", "u_wind", "v_wind"]
+produced_variables = ["frontogenesis_index"]
+description = "Example diagnostic manifest for future front-detection plugins."
+
+[config_schema]
+type = "object"
+properties = { smoothing_radius_cells = { type = "integer" } }
