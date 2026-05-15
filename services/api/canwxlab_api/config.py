@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     env: str = "development"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     data_mode: Literal["mock", "live", "hybrid"] = "hybrid"
-    enable_live_eccc: bool = False
+    enable_live_eccc: bool = True
     eccc_ogc_api_base: str = "https://api.weather.gc.ca"
     eccc_wms_base: str = "https://geo.weather.gc.ca/geomet"
     http_timeout_seconds: float = 10.0

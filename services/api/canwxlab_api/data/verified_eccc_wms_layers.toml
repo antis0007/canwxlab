@@ -11,6 +11,9 @@
 # `verified` is a documentation hint only: it indicates whether the candidate
 # names have been confirmed against the GeoMet WMS at the time of editing.
 # Runtime status is always derived from live capabilities, not from this flag.
+#
+# Confirmed against live GeoMet GetCapabilities on 2026-05-15
+# (https://geo.weather.gc.ca/geomet?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0).
 
 [[layer]]
 id = "eccc_radar_1km_rrai"
@@ -21,8 +24,8 @@ candidate_layer_names = ["RADAR_1KM_RRAI"]
 required_keywords = []
 source = "eccc_geomet_wms"
 attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
-notes = "GeoMet national radar mosaic, 1 km, rain rate (RRAI). Confirm exact layer name against current GetCapabilities."
-verified = false
+notes = "GeoMet national radar mosaic, 1 km, rain rate (RRAI)."
+verified = true
 
 [[layer]]
 id = "eccc_radar_1km_rsno"
@@ -32,52 +35,49 @@ intended_product_type = "radar"
 candidate_layer_names = ["RADAR_1KM_RSNO"]
 source = "eccc_geomet_wms"
 attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
-verified = false
+notes = "GeoMet national radar mosaic, 1 km, snow rate (RSNO)."
+verified = true
 
 [[layer]]
 id = "eccc_gdps_tt_sfc"
 title = "ECCC GDPS — Surface Air Temperature"
 category = "forecast"
 intended_product_type = "temperature"
-candidate_layer_names = ["GDPS.ETA_TT", "GDPS.DIAG_TT_SFC"]
+candidate_layer_names = ["GDPS.ETA_TT"]
 source = "eccc_geomet_wms"
 attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
-notes = "Surface temperature from GDPS. Candidate names vary by GeoMet version; both are listed for runtime resolution."
-verified = false
+notes = "Surface air temperature from the Global Deterministic Prediction System."
+verified = true
 
 [[layer]]
 id = "eccc_hrdps_tt_sfc"
 title = "ECCC HRDPS — Surface Air Temperature"
 category = "forecast"
 intended_product_type = "temperature"
-candidate_layer_names = ["HRDPS.CONTINENTAL_TT", "HRDPS.NATIONAL_TT"]
+candidate_layer_names = ["HRDPS.CONTINENTAL_TT"]
 source = "eccc_geomet_wms"
 attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
-verified = false
+notes = "Surface air temperature from the High Resolution Deterministic Prediction System (continental domain)."
+verified = true
 
 [[layer]]
 id = "eccc_goes_east_natural"
 title = "ECCC GOES-East — Natural Colour"
 category = "satellite"
 intended_product_type = "satellite"
-candidate_layer_names = [
-  "GOES-East_1km_NaturalColor",
-  "GOES-East_2km_NaturalColor",
-]
+candidate_layer_names = ["GOES-East_1km_NaturalColor"]
 source = "eccc_geomet_wms"
 attribution = "Environment and Climate Change Canada / NOAA."
-notes = "GOES-East natural colour composite. Candidate names vary by spatial resolution channel."
-verified = false
+notes = "GOES-East natural colour composite at 1 km."
+verified = true
 
 [[layer]]
 id = "eccc_goes_east_ir"
-title = "ECCC GOES-East — Infrared"
+title = "ECCC GOES-East — Night IR"
 category = "satellite"
 intended_product_type = "satellite"
-candidate_layer_names = [
-  "GOES-East_1km_Infrared",
-  "GOES-East_2km_Infrared",
-]
+candidate_layer_names = ["GOES-East_2km_NightIR", "GOES-East_1km_DayVis-NightIR"]
 source = "eccc_geomet_wms"
 attribution = "Environment and Climate Change Canada / NOAA."
-verified = false
+notes = "GOES-East infrared imagery; 2 km Night IR preferred, 1 km DayVis/NightIR as fallback."
+verified = true

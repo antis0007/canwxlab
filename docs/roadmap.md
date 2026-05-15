@@ -41,8 +41,8 @@
 - [ ] Frontend: render diff overlay (deck.gl grid) from
       `/api/verification/cases/{id}/diff/{field}`.
 - [ ] Frontend: poll simulation runs and surface `queued/running/failed`.
-- [ ] Confirm and flip `verified = true` on curated WMS entries against the
-      production GeoMet capabilities document.
+- [x] Confirm and flip `verified = true` on curated WMS entries against the
+      production GeoMet capabilities document (2026-05-15).
 - [ ] Time-dimension animation playback for WMS layers.
 - [ ] Forecast model metadata ingestion (HRDPS/RDPS/GDPS).
 

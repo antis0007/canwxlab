@@ -45,8 +45,10 @@ editing frontend source.
 
 ## Verifying / amending the curated list
 
-`verified_eccc_wms_layers.toml` ships with `verified = false` on every entry as
-documentation. The runtime status is always derived from live capabilities,
-not from this flag. Before flipping `verified = true`, confirm the candidate
-names appear in `GET /api/eccc/wms/layers` against the production GeoMet
-endpoint.
+The shipped entries in `verified_eccc_wms_layers.toml` have been confirmed
+against live GeoMet `GetCapabilities` (2026-05-15) and are marked
+`verified = true`. The runtime status is still always derived from live
+capabilities at request time, not from this flag — the flag is purely a
+documentation hint. When adding new curated entries, hit
+`https://geo.weather.gc.ca/geomet?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0`
+(or check `GET /api/eccc/wms/diagnostics`) before flipping the flag.
