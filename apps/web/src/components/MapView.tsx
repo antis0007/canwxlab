@@ -23,6 +23,7 @@ import {
   sampleMockWeatherPoint,
 } from "../layers/renderers/mockWeatherFields";
 import { syncWmsLayers } from "../layers/renderers/maplibreRaster";
+import type { BasemapId } from "./LayersPicker";
 
 interface MapInspectPayload {
   longitude: number;
@@ -45,36 +46,153 @@ interface MapViewProps {
   cameraTarget: CameraState | null;
   onCameraChange: (state: CameraState) => void;
   globalTimeMs: number;
+  basemap: BasemapId;
+  photorealisticGlobe: boolean;
 }
 
-const defaultBaseStyle: StyleSpecification = {
-  version: 8,
-  sources: {
-    "carto-dark": {
+interface BasemapPreset {
+  id: BasemapId;
+  style: StyleSpecification;
+}
+
+function rasterStyle(spec: {
+  background: string;
+  tiles: string[];
+  attribution: string;
+  tileSize?: number;
+  maxzoom?: number;
+  overlayTiles?: string[];
+  overlayAttribution?: string;
+}): StyleSpecification {
+  const sources: StyleSpecification["sources"] = {
+    base: {
       type: "raster",
+      tiles: spec.tiles,
+      tileSize: spec.tileSize ?? 256,
+      maxzoom: spec.maxzoom ?? 19,
+      attribution: spec.attribution,
+    },
+  };
+  const layers: StyleSpecification["layers"] = [
+    { id: "background", type: "background", paint: { "background-color": spec.background } },
+    { id: "base-tiles", type: "raster", source: "base" },
+  ];
+  if (spec.overlayTiles) {
+    (sources as any)["overlay"] = {
+      type: "raster",
+      tiles: spec.overlayTiles,
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: spec.overlayAttribution ?? "",
+    };
+    layers.push({ id: "overlay-tiles", type: "raster", source: "overlay" });
+  }
+  return { version: 8, sources, layers };
+}
+
+const BASEMAP_PRESETS: BasemapPreset[] = [
+  {
+    id: "dark",
+    style: rasterStyle({
+      background: "#090d14",
       tiles: [
-        "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+      ],
+      tileSize: 512,
+      maxzoom: 20,
+      attribution: "© OpenStreetMap contributors © CARTO",
+    }),
+  },
+  {
+    id: "light",
+    style: rasterStyle({
+      background: "#e8eef5",
+      tiles: [
+        "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png",
+        "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png",
+        "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png",
+      ],
+      tileSize: 512,
+      maxzoom: 20,
+      attribution: "© OpenStreetMap contributors © CARTO",
+    }),
+  },
+  {
+    id: "satellite",
+    style: rasterStyle({
+      background: "#0a0d12",
+      tiles: [
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       ],
       tileSize: 256,
-      attribution: "© OpenStreetMap contributors © CARTO",
-    },
+      maxzoom: 19,
+      attribution: "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics",
+    }),
   },
-  layers: [
-    { id: "background", type: "background", paint: { "background-color": "#090d14" } },
-    {
-      id: "base-tiles",
-      type: "raster",
-      source: "carto-dark",
-      paint: { "raster-opacity": 0.72, "raster-saturation": -0.3 },
-    },
-  ],
-};
+  {
+    id: "hybrid",
+    style: rasterStyle({
+      background: "#0a0d12",
+      tiles: [
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      ],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: "Tiles © Esri — Imagery + Boundaries/Labels",
+      overlayTiles: [
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+      ],
+      overlayAttribution: "Labels © Esri",
+    }),
+  },
+  {
+    id: "terrain",
+    style: rasterStyle({
+      background: "#1a1f1a",
+      tiles: [
+        "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+        "https://b.tile.opentopomap.org/{z}/{x}/{y}.png",
+        "https://c.tile.opentopomap.org/{z}/{x}/{y}.png",
+      ],
+      tileSize: 256,
+      maxzoom: 17,
+      attribution: "© OpenStreetMap contributors, SRTM | OpenTopoMap (CC-BY-SA)",
+    }),
+  },
+  {
+    id: "blue_marble",
+    style: rasterStyle({
+      background: "#06101c",
+      tiles: [
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/500m/{z}/{y}/{x}.jpeg",
+      ],
+      tileSize: 256,
+      maxzoom: 8,
+      attribution: "NASA EOSDIS GIBS — Blue Marble: Shaded Relief and Bathymetry",
+    }),
+  },
+  {
+    id: "topo_dark",
+    style: rasterStyle({
+      background: "#0a0f18",
+      tiles: [
+        "https://a.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}@2x.png",
+        "https://b.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}@2x.png",
+        "https://c.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}@2x.png",
+      ],
+      tileSize: 512,
+      maxzoom: 20,
+      attribution: "© OpenStreetMap contributors © CARTO",
+    }),
+  },
+];
 
-function styleFromEnvironment(): string | StyleSpecification {
+export function getBasemapStyle(id: BasemapId): string | StyleSpecification {
   const configured = import.meta.env.VITE_MAP_STYLE_URL;
-  return configured && configured.trim().length > 0 ? configured : defaultBaseStyle;
+  if (configured && configured.trim().length > 0) return configured;
+  return BASEMAP_PRESETS.find((p) => p.id === id)?.style ?? BASEMAP_PRESETS[0].style;
 }
 
 function activeAlertAtPoint(alerts: AlertFeature[], longitude: number, latitude: number): string | null {
@@ -192,6 +310,8 @@ export function MapView({
   cameraTarget,
   onCameraChange,
   globalTimeMs,
+  basemap,
+  photorealisticGlobe,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -203,8 +323,6 @@ export function MapView({
   const observationsRef = useRef<Observation[]>(observations);
   const alertsRef = useRef<AlertFeature[]>(alerts);
 
-  // Stable callback refs — updated every render so handlers always see latest values
-  // but never trigger map re-creation.
   const onInspectRef = useRef(onInspect);
   const onGlobeSupportDetectedRef = useRef(onGlobeSupportDetected);
   const onCameraChangeRef = useRef(onCameraChange);
@@ -217,25 +335,13 @@ export function MapView({
     [layers, layerState],
   );
 
-  useEffect(() => {
-    activeLayersRef.current = activeLayers;
-  }, [activeLayers]);
-
-  useEffect(() => {
-    animationFrameRef.current = animationFrame;
-  }, [animationFrame]);
-
-  useEffect(() => {
-    observationsRef.current = observations;
-  }, [observations]);
-
-  useEffect(() => {
-    alertsRef.current = alerts;
-  }, [alerts]);
+  useEffect(() => { activeLayersRef.current = activeLayers; }, [activeLayers]);
+  useEffect(() => { animationFrameRef.current = animationFrame; }, [animationFrame]);
+  useEffect(() => { observationsRef.current = observations; }, [observations]);
+  useEffect(() => { alertsRef.current = alerts; }, [alerts]);
 
   const deckLayers = useMemo(() => {
     const list: any[] = [];
-
     const getRuntime = (layerId: string) => layerState[layerId];
 
     const temperatureLayer = activeLayers.find((layer) =>
@@ -284,10 +390,7 @@ export function MapView({
           id: "demo-cloud-grid",
           data: createCloudOverlay(animationFrame),
           valueKey: "cloudOpacity",
-          runtime: {
-            ...runtime,
-            opacity: runtime.controls.cloudOpacity,
-          },
+          runtime: { ...runtime, opacity: runtime.controls.cloudOpacity },
           min: runtime.controls.min,
           max: runtime.controls.max,
         }));
@@ -315,9 +418,7 @@ export function MapView({
     const alertLayer = activeLayers.find((layer) => layer.variable?.includes("alert"));
     if (alertLayer) {
       const runtime = getRuntime(alertLayer.id);
-      if (runtime) {
-        list.push(createAlertPolygonLayer({ id: "alerts", alerts, runtime }));
-      }
+      if (runtime) list.push(createAlertPolygonLayer({ id: "alerts", alerts, runtime }));
     }
 
     const stationLayer = activeLayers.find((layer) =>
@@ -325,9 +426,7 @@ export function MapView({
     );
     if (stationLayer) {
       const runtime = getRuntime(stationLayer.id);
-      if (runtime) {
-        list.push(createStationLayer({ id: "stations", observations, runtime }));
-      }
+      if (runtime) list.push(createStationLayer({ id: "stations", observations, runtime }));
     }
 
     const simLayer = activeLayers.find((layer) => layer.id === "canwxsim_output");
@@ -361,18 +460,21 @@ export function MapView({
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: styleFromEnvironment(),
+      style: getBasemapStyle(basemap),
       center: [-97, 57],
       zoom: 3,
       minZoom: 2,
-      maxZoom: 12,
+      maxZoom: 18,
       attributionControl: false,
     });
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+    if (typeof (maplibregl as any).GlobeControl === "function") {
+      map.addControl(new (maplibregl as any).GlobeControl(), "top-right");
+    }
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
-    const overlay = new MapboxOverlay({ layers: [], interleaved: false });
+    const overlay = new MapboxOverlay({ layers: [], interleaved: true });
     map.addControl(overlay as unknown as maplibregl.IControl);
 
     map.on("click", (event) => {
@@ -394,8 +496,7 @@ export function MapView({
 
     map.on("load", () => {
       setMapReady(true);
-      const supportsGlobe = typeof (map as any).setProjection === "function";
-      onGlobeSupportDetectedRef.current(supportsGlobe);
+      onGlobeSupportDetectedRef.current(true);
     });
 
     map.on("moveend", () => {
@@ -418,6 +519,7 @@ export function MapView({
       overlayRef.current = null;
       setMapReady(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -440,27 +542,50 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-
-    const supportsGlobe = typeof (map as any).setProjection === "function";
-    onGlobeSupportDetectedRef.current(supportsGlobe);
-
-    if (viewMode === "globe" && supportsGlobe) {
-      (map as any).setProjection({ type: "globe" });
+    onGlobeSupportDetectedRef.current(true);
+    try {
+      if (viewMode === "globe") {
+        if (typeof (map as any).setProjection === "function") {
+          (map as any).setProjection({ type: "globe" });
+        }
+        if (typeof (map as any).setSky === "function") {
+          if (photorealisticGlobe) {
+            (map as any).setSky({
+              "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 5, 1, 7, 0],
+              "sky-color": "#030409",
+              "horizon-color": "#4a6c9e",
+              "atmosphere-color": "#ffffff",
+              "atmosphere-halo-color": "#ffffff"
+            });
+          } else {
+            (map as any).setSky({});
+          }
+        }
+      } else {
+        if (typeof (map as any).setProjection === "function") {
+          (map as any).setProjection({ type: "mercator" });
+        }
+      }
+    } catch {
+      // Projection switch can throw on older builds; safe to ignore.
     }
-    if (viewMode === "map" && supportsGlobe) {
-      (map as any).setProjection({ type: "mercator" });
-    }
-  }, [mapReady, viewMode]);
+  }, [mapReady, viewMode, photorealisticGlobe]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    syncWmsLayers({
-      map,
-      layers,
-      runtimeState: layerState,
-      globalTimeMs,
-    });
+    const next = getBasemapStyle(basemap);
+    map.setStyle(next as any);
+    const onStyle = () => {
+      syncWmsLayers({ map, layers, runtimeState: layerState, globalTimeMs });
+    };
+    map.once("styledata", onStyle);
+  }, [basemap]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    syncWmsLayers({ map, layers, runtimeState: layerState, globalTimeMs });
   }, [layers, layerState, mapReady, globalTimeMs]);
 
   useEffect(() => {
@@ -484,19 +609,9 @@ export function MapView({
     <div className="map-shell">
       <div ref={containerRef} className="map-container" />
       <div className="map-badge">
-        <span>Map mode</span>
-        <strong>{viewMode}</strong>
+        <span>{viewMode}</span>
         <span>{activeLayers.length} active</span>
       </div>
-      {import.meta.env.VITE_MAP_STYLE_URL ? (
-        <div className="map-style-warning">
-          Map style: {String(import.meta.env.VITE_MAP_STYLE_URL).slice(0, 80)}
-        </div>
-      ) : (
-        <div className="map-style-warning" data-fallback="true" style={{ background: "#542a06", color: "#ffd29c" }}>
-          LOW-RES FALLBACK BASEMAP — set VITE_MAP_STYLE_URL for production
-        </div>
-      )}
     </div>
   );
 }

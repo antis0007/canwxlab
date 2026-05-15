@@ -16,9 +16,11 @@ const sourceReportEnabled: SourceStatusResponse = {
 };
 
 describe("app status messaging", () => {
-  it("shows Live ECCC disabled notice when live data is off", () => {
+  it("does not surface a disabled-live notice (handled elsewhere now)", () => {
+    // The live_eccc_enabled flag is reflected in the source badge / WMS
+    // diagnostics rather than as a banner notice.
     const notices = statusMessage(sourceReportDisabled, false, false);
-    expect(notices).toContain("Live ECCC data disabled");
+    expect(notices).not.toContain("Live ECCC data disabled");
   });
 
   it("shows fallback notice when source is unavailable", () => {

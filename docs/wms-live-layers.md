@@ -1,3 +1,18 @@
+# MSC GeoMet live data streams
+
+CanWxLab integrates with [MSC GeoMet](https://eccc-msc.github.io/open-data/msc-geomet/readme_en/)
+along two surfaces:
+
+- **WMS** (this document) for raster layers — radar, satellite imagery,
+  model surface fields, sea ice, etc. See `verified_eccc_wms_layers.toml`.
+- **OGC API — Features** for vector feature collections — alerts, surface
+  observations (SWOB), AQHI, hydrometric, lightning, hurricanes. See
+  `verified_eccc_ogc_collections.toml` and `/api/eccc/ogc/diagnostics`.
+
+Both surfaces use the same pattern: a curated TOML lists exact identifiers,
+the runtime probes the live service, and only entries that resolve are
+marked available. Adding a new stream is a TOML edit.
+
 # WMS live layers
 
 ## How curated ECCC layers work

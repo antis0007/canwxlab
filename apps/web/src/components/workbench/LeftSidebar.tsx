@@ -488,6 +488,10 @@ function PreferencesTab({ uiPreferences, onSetUiPreferences }: Pick<LeftSidebarP
           <input type="checkbox" checked={prefs.compactMode} onChange={(e) => set({ compactMode: e.target.checked })} />
           Compact mode
         </label>
+        <label className="wb-inline-toggle" style={{ marginTop: 6 }}>
+          <input type="checkbox" checked={prefs.photorealisticGlobe ?? true} onChange={(e) => set({ photorealisticGlobe: e.target.checked })} />
+          Photorealistic globe (atmosphere & stars)
+        </label>
         <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
             Theme

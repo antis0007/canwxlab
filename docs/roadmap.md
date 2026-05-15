@@ -43,6 +43,12 @@
 - [ ] Frontend: poll simulation runs and surface `queued/running/failed`.
 - [x] Confirm and flip `verified = true` on curated WMS entries against the
       production GeoMet capabilities document (2026-05-15).
+- [x] Curated MSC GeoMet **OGC API — Features** catalog (TOML-driven, exact-
+      match resolution) covering alerts, SWOB, climate stations/hourly,
+      AQHI obs+forecasts, hydrometric stations/realtime/daily, CLDN lightning,
+      and CHC hurricanes.
+- [x] Expanded curated WMS list to include HRDPA precipitation analysis,
+      GDPS u/v wind & MSLP, RDPS temperature, GIOPS SST, and RIOPS sea ice.
 - [ ] Time-dimension animation playback for WMS layers.
 - [ ] Forecast model metadata ingestion (HRDPS/RDPS/GDPS).
 

@@ -12,8 +12,8 @@ import {
   type UiPreferences,
 } from "./types";
 
-const STORAGE_KEY_LAYER_STATE = "canwxlab.layerState.v2";
-const STORAGE_KEY_LAYER_ORDER = "canwxlab.layerOrder.v2";
+const STORAGE_KEY_LAYER_STATE = "canwxlab.layerState.v3";
+const STORAGE_KEY_LAYER_ORDER = "canwxlab.layerOrder.v3";
 const STORAGE_KEY_PLUGIN_ENABLED = "canwxlab.pluginEnabled.v2";
 const STORAGE_KEY_UI_PREFS = "canwxlab.uiPrefs.v2";
 

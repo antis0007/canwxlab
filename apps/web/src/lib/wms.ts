@@ -64,7 +64,9 @@ export function buildWmsGetMapTemplate(
     query.set("TIME", options.time);
   }
 
-  return `${definition.wmsBaseUrl}?${query.toString()}`;
+  const urlString = `${definition.wmsBaseUrl}?${query.toString()}`;
+  // MapLibre requires literal curly braces for {bbox-epsg-3857} replacement
+  return urlString.replace(/%7B/g, "{").replace(/%7D/g, "}");
 }
 
 export function buildMapLibreWmsSource(

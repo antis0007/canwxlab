@@ -150,6 +150,7 @@ export interface UiPreferences {
   theme: "dark" | "light" | "system";
   accentColor: string;
   mapBackgroundStyle: "default" | "muted" | "high-contrast";
+  photorealisticGlobe: boolean;
   units: UnitPreferences;
 }
 
@@ -177,6 +178,7 @@ export const defaultUiPreferences: UiPreferences = {
   theme: "dark",
   accentColor: "#58d0bf",
   mapBackgroundStyle: "default",
+  photorealisticGlobe: true,
   units: {
     temperature: "C",
     wind: "m/s",

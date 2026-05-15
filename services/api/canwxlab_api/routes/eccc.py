@@ -4,7 +4,11 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from canwxlab_api.adapters.base import WeatherSourceAdapter
-from canwxlab_api.adapters.eccc_geomet import build_wms_curated_diagnostics
+from canwxlab_api.adapters.eccc_geomet import (
+    build_ogc_collections_diagnostics,
+    build_wms_curated_diagnostics,
+    load_verified_eccc_ogc_collections,
+)
 from canwxlab_api.dependencies import get_source_adapter
 from canwxlab_api.models import WmsCapabilitiesSummaryResponse, WmsCapabilityLayerSummary
 
@@ -16,6 +20,41 @@ async def list_eccc_collections(
     adapter: WeatherSourceAdapter = Depends(get_source_adapter),
 ) -> dict[str, Any]:
     return await adapter.list_collections()
+
+
+@router.get("/ogc/curated")
+async def list_curated_ogc_collections() -> dict[str, Any]:
+    """Return the curated MSC GeoMet OGC API collection catalog (config only).
+
+    For runtime availability vs live /collections, see /ogc/diagnostics.
+    """
+    return {"collections": load_verified_eccc_ogc_collections()}
+
+
+@router.get("/ogc/diagnostics")
+async def get_ogc_diagnostics(
+    adapter: WeatherSourceAdapter = Depends(get_source_adapter),
+) -> dict[str, Any]:
+    """Curated OGC collection diagnostics vs live MSC GeoMet /collections."""
+    try:
+        payload = await adapter.list_collections()
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "available_collection_count": 0,
+            "probe_error": str(exc),
+            "curated": build_ogc_collections_diagnostics(set()),
+        }
+    raw = payload.get("collections") or []
+    ids: set[str] = set()
+    for c in raw:
+        cid = c.get("id") if isinstance(c, dict) else None
+        if isinstance(cid, str):
+            ids.add(cid.lower())
+    return {
+        "available_collection_count": len(ids),
+        "probe_status": payload.get("status"),
+        "curated": build_ogc_collections_diagnostics(ids),
+    }
 
 
 @router.get("/collections/{collection_id}")

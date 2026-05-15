@@ -1,0 +1,143 @@
+# Curated MSC GeoMet OGC API Features collections.
+#
+# Reference: https://eccc-msc.github.io/open-data/msc-geomet/readme_en/
+#
+# Each entry names a `collection_id` exactly as published by GeoMet. At
+# runtime the adapter probes /collections and only treats an entry as
+# available when its `collection_id` is present. Missing collections are
+# reported as `unavailable` with a clear diagnostic. No keyword fallback.
+#
+# Adding a new GeoMet data stream is a TOML edit, not a code change.
+
+# ── Public alerts and warnings ────────────────────────────────────────────
+
+[[collection]]
+id = "eccc_weather_alerts"
+collection_id = "weather-alerts-realtime"
+title = "ECCC Weather Alerts (realtime)"
+kind = "polygon"
+variable = "alerts"
+category = "alert"
+unit = "category"
+description = "Active ECCC weather alert polygons."
+verified = true
+
+# ── Surface observations ──────────────────────────────────────────────────
+
+[[collection]]
+id = "eccc_swob_realtime"
+collection_id = "swob-realtime"
+title = "ECCC SWOB-ML — Real-time Surface Observations"
+kind = "point"
+variable = "surface_observations"
+category = "observation"
+unit = "mixed"
+description = "Surface Weather Observations in ML form across many networks (METAR, MSC, partners)."
+verified = false
+
+[[collection]]
+id = "eccc_climate_stations"
+collection_id = "climate-stations"
+title = "ECCC Climate Stations (catalogue)"
+kind = "point"
+variable = "stations"
+category = "observation"
+unit = "metadata"
+description = "Climate station catalogue (locations, ids, periods of record)."
+verified = true
+
+[[collection]]
+id = "eccc_climate_hourly"
+collection_id = "climate-hourly"
+title = "ECCC Climate Hourly Observations"
+kind = "point"
+variable = "hourly_observations"
+category = "observation"
+unit = "mixed"
+description = "Hourly observations from ECCC climate stations."
+verified = true
+
+# ── Air quality ───────────────────────────────────────────────────────────
+
+[[collection]]
+id = "eccc_aqhi_realtime"
+collection_id = "aqhi-observations-realtime"
+title = "ECCC AQHI — Real-time Observations"
+kind = "point"
+variable = "air_quality_index"
+category = "observation"
+unit = "index"
+description = "Air Quality Health Index observations at AQHI reporting stations."
+verified = false
+
+[[collection]]
+id = "eccc_aqhi_forecasts"
+collection_id = "aqhi-forecasts-realtime"
+title = "ECCC AQHI — Forecasts"
+kind = "point"
+variable = "air_quality_forecast"
+category = "forecast"
+unit = "index"
+description = "AQHI hourly/daily forecasts."
+verified = false
+
+# ── Hydrometric (water level / discharge) ─────────────────────────────────
+
+[[collection]]
+id = "eccc_hydrometric_stations"
+collection_id = "hydrometric-stations"
+title = "ECCC Hydrometric Stations"
+kind = "point"
+variable = "stations"
+category = "observation"
+unit = "metadata"
+description = "WSC hydrometric monitoring station catalogue."
+verified = false
+
+[[collection]]
+id = "eccc_hydrometric_realtime"
+collection_id = "hydrometric-realtime"
+title = "ECCC Hydrometric — Real-time"
+kind = "point"
+variable = "water_level_and_discharge"
+category = "observation"
+unit = "mixed"
+description = "Real-time water level and discharge at WSC stations."
+verified = false
+
+[[collection]]
+id = "eccc_hydrometric_daily"
+collection_id = "hydrometric-daily-mean"
+title = "ECCC Hydrometric — Daily Mean"
+kind = "point"
+variable = "water_level_and_discharge"
+category = "observation"
+unit = "mixed"
+description = "Daily-mean water level and discharge."
+verified = false
+
+# ── Lightning ─────────────────────────────────────────────────────────────
+
+[[collection]]
+id = "eccc_lightning_strikes"
+collection_id = "lightning-realtime"
+title = "ECCC CLDN — Lightning Strikes (realtime)"
+kind = "point"
+variable = "lightning"
+category = "observation"
+unit = "event"
+description = "Canadian Lightning Detection Network strike points."
+verified = false
+
+# ── Hurricane / tropical ──────────────────────────────────────────────────
+
+[[collection]]
+id = "eccc_hurricane_realtime"
+collection_id = "hurricanes-realtime"
+title = "ECCC CHC — Hurricanes (realtime)"
+kind = "polygon"
+variable = "hurricane"
+category = "alert"
+unit = "category"
+description = "Canadian Hurricane Centre tropical-system features."
+verified = false

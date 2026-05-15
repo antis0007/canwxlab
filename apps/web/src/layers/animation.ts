@@ -2,23 +2,26 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { AnimationPlaybackState } from "./types";
 
-const FRAME_COUNT = 240;
+// Timeline window: last 3 hours of radar/satellite, stepping every 5 minutes.
+const FRAME_COUNT = 36;
+const FRAME_INTERVAL_MS = 5 * 60 * 1000;
+const WINDOW_SPAN_MS = (FRAME_COUNT - 1) * FRAME_INTERVAL_MS;
 
 export function useAnimationTimeline() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [speedMultiplier, setSpeedMultiplier] = useState(1);
-  const [frame, setFrame] = useState(0);
+  const [frame, setFrame] = useState(FRAME_COUNT - 1);
   const [loopStart, setLoopStart] = useState(0);
   const [loopEnd, setLoopEnd] = useState(FRAME_COUNT - 1);
+  // Window anchor: refreshed on mount so playback covers the last WINDOW_SPAN_MS.
+  const [windowStartMs] = useState(() => Date.now() - WINDOW_SPAN_MS);
   const rafRef = useRef<number | null>(null);
   const lastFrameAtRef = useRef<number>(performance.now());
 
   const advanceFrame = useCallback(() => {
     setFrame((current) => {
       const next = current + 1;
-      if (next > loopEnd) {
-        return loopStart;
-      }
+      if (next > loopEnd) return loopStart;
       return next;
     });
   }, [loopEnd, loopStart]);
@@ -51,10 +54,8 @@ export function useAnimationTimeline() {
   }, [advanceFrame, isPlaying, speedMultiplier]);
 
   const selectedValidTime = useMemo(() => {
-    const start = new Date();
-    start.setUTCMinutes(start.getUTCMinutes() + frame * 5);
-    return start.toISOString();
-  }, [frame]);
+    return new Date(windowStartMs + frame * FRAME_INTERVAL_MS).toISOString();
+  }, [frame, windowStartMs]);
 
   const playbackState: AnimationPlaybackState = {
     isPlaying,
@@ -74,16 +75,21 @@ export function useAnimationTimeline() {
     setFrame((current) => Math.max(safeStart, Math.min(safeEnd, current)));
   }, []);
 
+  const stepFrame = useCallback((delta: number) => {
+    setFrame((current) => Math.max(0, Math.min(FRAME_COUNT - 1, current + delta)));
+  }, []);
+
   return {
     playbackState,
     setFrame,
     setSpeedMultiplier,
     setLoopWindow,
+    stepFrame,
     play: () => setIsPlaying(true),
     pause: () => setIsPlaying(false),
     toggle: () => setIsPlaying((current) => !current),
     reset: () => {
-      setFrame(0);
+      setFrame(FRAME_COUNT - 1);
       setIsPlaying(false);
     },
   };

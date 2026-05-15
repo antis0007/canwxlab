@@ -179,6 +179,7 @@ describe("workbench components", () => {
           theme: "dark",
           accentColor: "#58d0bf",
           mapBackgroundStyle: "default",
+          photorealisticGlobe: false,
           units: {
             temperature: "C",
             wind: "m/s",
@@ -221,6 +222,7 @@ describe("workbench components", () => {
           theme: "dark",
           accentColor: "#58d0bf",
           mapBackgroundStyle: "default",
+          photorealisticGlobe: false,
           units: {
             temperature: "C",
             wind: "m/s",

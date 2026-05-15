@@ -13,6 +13,7 @@ from canwxlab_api.http_cache import FetchResult, JsonFileCacheClient
 from canwxlab_api.models import (
     AlertFeature,
     DataSource,
+    LayerKind,
     LayerServiceType,
     Observation,
     SourceStatus,
@@ -340,9 +341,89 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
 
         return weather_layers
 
+    async def _available_ogc_collection_ids(self) -> set[str]:
+        """Return the set of collection ids reported by GeoMet /collections.
+
+        Best-effort: returns the empty set on any error so that callers fall
+        through to the `unavailable` path without raising.
+        """
+        try:
+            payload = await self.list_collections()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("OGC /collections probe failed: %s", exc)
+            return set()
+        collections = payload.get("collections") or []
+        ids: set[str] = set()
+        for c in collections:
+            cid = c.get("id") if isinstance(c, dict) else None
+            if isinstance(cid, str):
+                ids.add(cid.lower())
+        return ids
+
+    async def get_curated_ogc_layer_catalog(self) -> list[WeatherLayer]:
+        """Build WeatherLayer entries for the curated OGC API collections.
+
+        Each curated entry resolves against live /collections (exact match,
+        case-insensitive). Missing entries are surfaced as `unavailable`.
+        """
+        source = await self._ogc_source_status()
+        available = await self._available_ogc_collection_ids()
+        curated = load_verified_eccc_ogc_collections()
+
+        kind_map = {
+            "polygon": LayerKind.polygon,
+            "point": LayerKind.point,
+            "vector": LayerKind.vector,
+            "raster": LayerKind.raster,
+        }
+
+        layers: list[WeatherLayer] = []
+        for entry in curated:
+            cid = entry.get("collection_id") or ""
+            present = bool(cid) and cid.lower() in available
+            layer_status = source.status if present else SourceStatus.unavailable
+            kind = kind_map.get(entry.get("kind") or "point", LayerKind.point)
+            layer = WeatherLayer(
+                layer_id=entry.get("id") or f"eccc_ogc_{cid}",
+                name=entry.get("title") or cid,
+                title=entry.get("title") or cid,
+                kind=kind,
+                variable=entry.get("variable") or "unknown",
+                unit=entry.get("unit") or "",
+                source_id="eccc_geomet_ogc_api",
+                status=layer_status,
+                adapter="eccc_geomet",
+                service_type=LayerServiceType.ogc_api,
+                last_updated=source.last_updated,
+                last_successful_fetch=source.last_successful_fetch,
+                last_attempted_fetch=source.last_attempted_fetch,
+                retrieved_at=source.retrieved_at,
+                expires_at=source.expires_at,
+                attribution=ECCC_ATTRIBUTION,
+                license_url=ECCC_LICENSE_URL,
+                default_opacity=0.85,
+                color_ramps=[],
+                description=entry.get("description") or "MSC GeoMet OGC API collection.",
+                message=(
+                    f"Resolved against live /collections as {cid}."
+                    if present
+                    else f"Curated collection_id '{cid}' not present in live /collections."
+                ),
+                is_live=present and layer_status == SourceStatus.live,
+                metadata={
+                    "curated": True,
+                    "ogc_collection_id": cid,
+                    "verified_runtime": present,
+                    "category_hint": entry.get("category"),
+                },
+            )
+            layers.append(layer)
+        return layers
+
     async def list_layers(self) -> list[WeatherLayer]:
         source = await self._ogc_source_status()
         wms_layers = await self.get_wms_layer_catalog()
+        curated_ogc = await self.get_curated_ogc_layer_catalog()
 
         ogc_layers = [
             WeatherLayer(
@@ -422,7 +503,13 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
             ),
         ]
 
-        return [*ogc_layers, *wms_layers]
+        # Append curated OGC collection entries that aren't already represented
+        # by the hardcoded `ogc_layers` block. Hardcoded entries win on
+        # layer_id collision because they preserve existing test contracts.
+        existing_ids = {layer.layer_id for layer in ogc_layers}
+        extra_curated = [layer for layer in curated_ogc if layer.layer_id not in existing_ids]
+
+        return [*ogc_layers, *extra_curated, *wms_layers]
 
     async def get_layer_metadata(self, layer_id: str) -> WeatherLayer | None:
         for layer in await self.list_layers():
@@ -924,6 +1011,61 @@ def _resolve_curated_layer(
 _VERIFIED_WMS_CONFIG_PATH = (
     Path(__file__).resolve().parent.parent / "data" / "verified_eccc_wms_layers.toml"
 )
+
+_VERIFIED_OGC_CONFIG_PATH = (
+    Path(__file__).resolve().parent.parent / "data" / "verified_eccc_ogc_collections.toml"
+)
+
+
+@lru_cache(maxsize=1)
+def load_verified_eccc_ogc_collections() -> list[dict[str, Any]]:
+    """Load curated MSC GeoMet OGC API collection definitions from TOML config."""
+    path = _VERIFIED_OGC_CONFIG_PATH
+    if not path.exists():
+        logger.warning("Verified ECCC OGC config missing at %s", path)
+        return []
+    try:
+        with path.open("rb") as fp:
+            data = tomllib.load(fp)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to parse %s: %s", path, exc)
+        return []
+    entries = data.get("collection") or []
+    if not isinstance(entries, list):
+        return []
+    return entries
+
+
+def build_ogc_collections_diagnostics(
+    available_collection_ids: set[str],
+) -> dict[str, Any]:
+    """Diagnostics: which curated OGC collections are present in /collections."""
+    curated = load_verified_eccc_ogc_collections()
+    matched: list[dict[str, Any]] = []
+    unmatched: list[dict[str, Any]] = []
+    for entry in curated:
+        cid = entry.get("collection_id")
+        record = {
+            "id": entry.get("id"),
+            "title": entry.get("title"),
+            "collection_id": cid,
+            "category": entry.get("category"),
+            "kind": entry.get("kind"),
+        }
+        if cid and cid.lower() in available_collection_ids:
+            matched.append(record)
+        else:
+            unmatched.append(
+                {**record, "reason": "collection_id not present in live /collections"}
+            )
+    return {
+        "configured_count": len(curated),
+        "matched_count": len(matched),
+        "unmatched_count": len(unmatched),
+        "matched": matched,
+        "unmatched": unmatched,
+        "parsed_collection_count": len(available_collection_ids),
+    }
 
 
 @lru_cache(maxsize=1)

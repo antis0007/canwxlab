@@ -8,6 +8,10 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $logsDir = Join-Path $repoRoot ".canwxlab/dev-logs"
 New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
 
+# Default to live ECCC unless explicitly overridden (e.g. by dev-mock.ps1).
+if (-not $env:CANWXLAB_DATA_MODE)        { $env:CANWXLAB_DATA_MODE = "hybrid" }
+if (-not $env:CANWXLAB_ENABLE_LIVE_ECCC) { $env:CANWXLAB_ENABLE_LIVE_ECCC = "true" }
+
 function Get-ListenerProcess {
   param([int]$Port)
   try {

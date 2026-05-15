@@ -81,3 +81,95 @@ source = "eccc_geomet_wms"
 attribution = "Environment and Climate Change Canada / NOAA."
 notes = "GOES-East infrared imagery; 2 km Night IR preferred, 1 km DayVis/NightIR as fallback."
 verified = true
+
+# ── Additional candidates pending live verification ──────────────────────
+# Names below come from the documented MSC GeoMet catalogue. They are
+# resolved exact-match against GetCapabilities at runtime; flip
+# `verified = true` after confirming against the live endpoint.
+
+[[layer]]
+id = "eccc_hrdpa_pr_006"
+title = "ECCC HRDPA — 6 h Precipitation Accumulation"
+category = "forecast"
+intended_product_type = "precipitation"
+candidate_layer_names = ["HRDPA.6P_PR", "HRDPA.6F_PR"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
+notes = "High Resolution Deterministic Precipitation Analysis, 6 h accumulation."
+verified = false
+
+[[layer]]
+id = "eccc_hrdpa_pr_024"
+title = "ECCC HRDPA — 24 h Precipitation Accumulation"
+category = "forecast"
+intended_product_type = "precipitation"
+candidate_layer_names = ["HRDPA.24P_PR", "HRDPA.24F_PR"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
+notes = "High Resolution Deterministic Precipitation Analysis, 24 h accumulation."
+verified = false
+
+[[layer]]
+id = "eccc_gdps_uu_10m"
+title = "ECCC GDPS — 10 m U-component Wind"
+category = "forecast"
+intended_product_type = "wind"
+candidate_layer_names = ["GDPS.DIAG_UU_10M"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
+notes = "GDPS surface u-wind. Pair with the v-component for vector overlays."
+verified = false
+
+[[layer]]
+id = "eccc_gdps_vv_10m"
+title = "ECCC GDPS — 10 m V-component Wind"
+category = "forecast"
+intended_product_type = "wind"
+candidate_layer_names = ["GDPS.DIAG_VV_10M"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
+verified = false
+
+[[layer]]
+id = "eccc_gdps_p_msl"
+title = "ECCC GDPS — Mean Sea Level Pressure"
+category = "forecast"
+intended_product_type = "model"
+candidate_layer_names = ["GDPS.DIAG_PN"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
+notes = "Pressure reduced to mean sea level."
+verified = false
+
+[[layer]]
+id = "eccc_rdps_tt_sfc"
+title = "ECCC RDPS — Surface Air Temperature"
+category = "forecast"
+intended_product_type = "temperature"
+candidate_layer_names = ["RDPS.DIAG_TT", "RDPS.ETA_TT"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
+notes = "Regional Deterministic Prediction System surface air temperature."
+verified = false
+
+[[layer]]
+id = "eccc_giops_sst"
+title = "ECCC GIOPS — Sea Surface Temperature"
+category = "forecast"
+intended_product_type = "temperature"
+candidate_layer_names = ["GIOPS.2DLL_SST"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
+notes = "Global Ice-Ocean Prediction System SST analysis."
+verified = false
+
+[[layer]]
+id = "eccc_riops_sea_ice_conc"
+title = "ECCC RIOPS — Sea-Ice Concentration"
+category = "forecast"
+intended_product_type = "model"
+candidate_layer_names = ["RIOPS.2DLL_IICECONC"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
+notes = "Regional Ice-Ocean Prediction System ice concentration field."
+verified = false

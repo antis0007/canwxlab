@@ -4,6 +4,7 @@ import "./workbench.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { MapView } from "./components/MapView";
+import { LayersPicker, type BasemapId, BASEMAP_OPTIONS } from "./components/LayersPicker";
 import { BottomTimeline } from "./components/workbench/BottomTimeline";
 import { LeftSidebar } from "./components/workbench/LeftSidebar";
 import { RightInspector } from "./components/workbench/RightInspector";
@@ -44,6 +45,15 @@ function writeViewMode(mode: ViewMode) {
   window.localStorage.setItem("canwxlab.viewMode.v2", mode);
 }
 
+const BASEMAP_STORAGE_KEY = "canwxlab.basemap.v1";
+
+function readBasemap(): BasemapId {
+  if (typeof window === "undefined") return "dark";
+  const raw = window.localStorage.getItem(BASEMAP_STORAGE_KEY);
+  if (raw && BASEMAP_OPTIONS.some((o) => o.id === raw)) return raw as BasemapId;
+  return "dark";
+}
+
 function sourceStatusSummary(sources: DataSource[]): SourceStatus {
   if (sources.some((source) => source.status === "live")) return "live";
   if (sources.some((source) => source.status === "stale")) return "stale";
@@ -61,9 +71,7 @@ export function statusMessage(
   if (!sourceReport) return notices;
 
   const ogcSource = sourceReport.sources.find((source) => source.source_id === "eccc_geomet_ogc_api");
-  if (!sourceReport.live_eccc_enabled) {
-    notices.push("Live ECCC data disabled");
-  } else if (ogcSource?.status === "fallback" || ogcSource?.status === "unavailable") {
+  if (ogcSource?.status === "fallback" || ogcSource?.status === "unavailable") {
     notices.push("Live source unavailable — showing mock data");
   }
 
@@ -95,6 +103,7 @@ export default function App() {
   const [dynamicLayers, setDynamicLayers] = useState<WeatherLayer[]>([]);
   const [timelineMode, setTimelineMode] = useState("live");
   const [viewMode, setViewMode] = useState<ViewMode>(readViewMode);
+  const [basemap, setBasemap] = useState<BasemapId>(readBasemap);
   const [globeSupported, setGlobeSupported] = useState(false);
   const [globeCapabilityChecked, setGlobeCapabilityChecked] = useState(false);
   const [inspectorState, setInspectorState] = useState<{
@@ -126,12 +135,14 @@ export default function App() {
     setFrame,
     setSpeedMultiplier,
     setLoopWindow,
+    stepFrame,
     toggle,
     reset,
   } = useAnimationTimeline();
 
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [layersOpen, setLayersOpen] = useState(false);
 
   const layerEngine = useLayerEngine({
     backendLayers: [...backendLayers, ...dynamicLayers],
@@ -142,6 +153,72 @@ export default function App() {
   useEffect(() => {
     writeViewMode(viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(BASEMAP_STORAGE_KEY, basemap); } catch {/* ignore */}
+  }, [basemap]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      switch (event.key) {
+        case " ":
+          event.preventDefault();
+          toggle();
+          break;
+        case "ArrowLeft":
+          event.preventDefault();
+          stepFrame(event.shiftKey ? -10 : -1);
+          break;
+        case "ArrowRight":
+          event.preventDefault();
+          stepFrame(event.shiftKey ? 10 : 1);
+          break;
+        case "Home":
+          event.preventDefault();
+          setFrame(playbackState.loopStart);
+          break;
+        case "End":
+          event.preventDefault();
+          setFrame(playbackState.loopEnd);
+          break;
+        case "r":
+        case "R":
+          if (!event.ctrlKey && !event.metaKey) {
+            event.preventDefault();
+            reset();
+          }
+          break;
+        case "g":
+        case "G":
+          if (!event.ctrlKey && !event.metaKey && globeSupported) {
+            event.preventDefault();
+            setViewMode((v) => (v === "globe" ? "map" : "globe"));
+          }
+          break;
+        case "[":
+          event.preventDefault();
+          setSpeedMultiplier(Math.max(0.25, playbackState.speedMultiplier / 2));
+          break;
+        case "]":
+          event.preventDefault();
+          setSpeedMultiplier(Math.min(8, playbackState.speedMultiplier * 2));
+          break;
+        case "l":
+        case "L":
+          if (!event.ctrlKey && !event.metaKey) {
+            event.preventDefault();
+            setLayersOpen((v) => !v);
+          }
+          break;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [globeSupported, playbackState.loopEnd, playbackState.loopStart, playbackState.speedMultiplier, reset, setFrame, setSpeedMultiplier, stepFrame, toggle]);
 
   useEffect(() => {
     document.documentElement.style.setProperty("--wb-accent", layerEngine.uiPreferences.accentColor);
@@ -320,6 +397,29 @@ export default function App() {
             onGlobeSupportDetected={handleGlobeSupport}
             cameraTarget={cameraTarget}
             onCameraChange={setCameraState}
+            basemap={basemap}
+            photorealisticGlobe={layerEngine.uiPreferences.photorealisticGlobe ?? true}
+          />
+
+          <LayersPicker
+            basemap={basemap}
+            onSetBasemap={setBasemap}
+            layers={layerEngine.orderedLayers}
+            runtimeState={layerEngine.runtimeState}
+            onToggleLayer={layerEngine.toggleLayer}
+            onSetLayerOpacity={layerEngine.setLayerOpacity}
+            customStyleConfigured={Boolean(import.meta.env.VITE_MAP_STYLE_URL)}
+            open={layersOpen}
+            onSetOpen={setLayersOpen}
+          />
+
+          <BottomTimeline
+            playback={playbackState}
+            onSetFrame={setFrame}
+            onSetLoopWindow={setLoopWindow}
+            onTogglePlay={toggle}
+            onStepFrame={stepFrame}
+            onSetSpeed={setSpeedMultiplier}
           />
         </section>
 
@@ -337,12 +437,6 @@ export default function App() {
           runtimeState={layerEngine.runtimeState}
         />
       </section>
-
-      <BottomTimeline
-        playback={playbackState}
-        onSetFrame={setFrame}
-        onSetLoopWindow={setLoopWindow}
-      />
     </main>
   );
 }

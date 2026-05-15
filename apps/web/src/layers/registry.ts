@@ -11,6 +11,12 @@ import {
 } from "./types";
 
 function categoryFromLayer(layer: WeatherLayer): LayerCategory {
+  const product = layer.metadata?.intended_product_type;
+  if (product === "radar") return "radar";
+  if (product === "satellite") return "satellite";
+  if (product === "alert") return "alert";
+  if (product === "observation") return "observation";
+
   if (layer.variable.includes("alert")) return "alert";
   if (layer.variable.includes("station") || layer.variable.includes("observation")) return "observation";
   if (layer.variable.includes("radar") || layer.layer_id.includes("radar")) return "radar";
@@ -24,7 +30,7 @@ function capabilitiesForRenderer(rendererType: LayerRendererType): LayerRenderer
   if (rendererType === "wms-raster") {
     return {
       supportsMap: true,
-      supportsGlobe: false,
+      supportsGlobe: true,
       supportsAnimation: true,
       supportsPicking: false,
       supportsShader: false,
@@ -36,7 +42,7 @@ function capabilitiesForRenderer(rendererType: LayerRendererType): LayerRenderer
   if (rendererType === "deck-particles") {
     return {
       supportsMap: true,
-      supportsGlobe: false,
+      supportsGlobe: true,
       supportsAnimation: true,
       supportsPicking: true,
       supportsShader: true,
@@ -73,13 +79,20 @@ function rampForLayer(category: LayerCategory, layer: WeatherLayer): string {
 }
 
 function categoryDefaultVisibility(layer: WeatherLayer, dataMode: DataMode): boolean {
-  if (dataMode !== "mock") return false;
+  if (dataMode === "mock") {
+    return [
+      "mock_temperature",
+      "mock_alerts",
+      "mock_stations",
+      "demo_radar_animation",
+      "demo_wind_particles",
+    ].includes(layer.layer_id);
+  }
+  // Live / hybrid: turn on a useful default stack so the map is not blank.
   return [
-    "mock_temperature",
-    "mock_alerts",
-    "mock_stations",
-    "demo_radar_animation",
-    "demo_wind_particles",
+    "eccc_radar_1km_rrai",
+    "eccc_weather_alerts",
+    "eccc_climate_stations",
   ].includes(layer.layer_id);
 }
 
