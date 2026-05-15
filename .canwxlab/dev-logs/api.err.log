@@ -52,3 +52,4 @@ INFO:     Finished server process [34540]
 INFO:     Started server process [34652]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services\api\tests\test_wms_curated.py'. Reloading...

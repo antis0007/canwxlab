@@ -488,9 +488,13 @@ export function MapView({
         <strong>{viewMode}</strong>
         <span>{activeLayers.length} active</span>
       </div>
-      {import.meta.env.VITE_MAP_STYLE_URL && (
+      {import.meta.env.VITE_MAP_STYLE_URL ? (
         <div className="map-style-warning">
-          Custom map style loaded from environment.
+          Map style: {String(import.meta.env.VITE_MAP_STYLE_URL).slice(0, 80)}
+        </div>
+      ) : (
+        <div className="map-style-warning" data-fallback="true" style={{ background: "#542a06", color: "#ffd29c" }}>
+          LOW-RES FALLBACK BASEMAP — set VITE_MAP_STYLE_URL for production
         </div>
       )}
     </div>

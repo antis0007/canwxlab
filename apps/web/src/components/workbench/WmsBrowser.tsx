@@ -12,7 +12,8 @@ export function WmsBrowser({ onAddLayer }: WmsBrowserProps) {
   const [layers, setLayers] = useState<WmsCapabilityLayerSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+  const [wmsBaseUrl, setWmsBaseUrl] = useState<string | null>(null);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [category, setCategory] = useState("");
   const [hasTime, setHasTime] = useState(false);
@@ -23,8 +24,12 @@ export function WmsBrowser({ onAddLayer }: WmsBrowserProps) {
     async function fetchLayers() {
       setLoading(true);
       try {
-        const result = await api.wmsLayers();
+        const [result, diag] = await Promise.all([api.wmsLayers(), api.wmsDiagnostics()]);
         setLayers(result);
+        const base = (diag as { wms_base_url?: unknown }).wms_base_url;
+        if (typeof base === "string" && base.length > 0) {
+          setWmsBaseUrl(base);
+        }
       } catch (err) {
         setError(String(err));
       } finally {
@@ -51,7 +56,7 @@ export function WmsBrowser({ onAddLayer }: WmsBrowserProps) {
       default_opacity: 0.8,
       color_ramps: [],
       styles: layerInfo.styles || [],
-      wms_base_url: "https://geo.weather.gc.ca/geomet",
+      wms_base_url: wmsBaseUrl ?? "",
       wms_layer_name: layerInfo.layer_name,
       time_dimension_supported: layerInfo.has_time_dimension,
       legend_url: layerInfo.legend_url,
@@ -72,7 +77,7 @@ export function WmsBrowser({ onAddLayer }: WmsBrowserProps) {
       message: ""
     };
     onAddLayer(newLayer);
-  }, [onAddLayer]);
+  }, [onAddLayer, wmsBaseUrl]);
 
   const filteredLayers = useMemo(() => {
     return layers.filter((l) => {
@@ -87,13 +92,21 @@ export function WmsBrowser({ onAddLayer }: WmsBrowserProps) {
   }, [layers, searchTerm, category, hasTime, hasLegend, isQueryable]);
 
   const copyUrl = (layerName: string) => {
-    const url = `https://geo.weather.gc.ca/geomet?service=WMS&version=1.3.0&request=GetMap&layers=${layerName}&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true`;
+    const base = wmsBaseUrl ?? "";
+    if (!base) {
+      window.alert("WMS base URL not yet resolved from backend diagnostics; please retry once capabilities load.");
+      return;
+    }
+    const url = `${base}?service=WMS&version=1.3.0&request=GetMap&layers=${layerName}&crs=EPSG:3857&bbox={bbox-epsg-3857}&width=256&height=256&format=image/png&transparent=true`;
     navigator.clipboard.writeText(url);
   };
 
   return (
     <div className="wb-scroll-panel">
       <h3>WMS Browser</h3>
+      <div className="wb-muted" style={{ fontSize: 10, marginBottom: 6, wordBreak: "break-all" }}>
+        Endpoint: {wmsBaseUrl ?? "(resolving from backend…)"}
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
         <input
           type="text"
