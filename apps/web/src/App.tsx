@@ -136,6 +136,7 @@ export default function App() {
   const layerEngine = useLayerEngine({
     backendLayers: [...backendLayers, ...dynamicLayers],
     plugins,
+    dataMode: sourceReport?.data_mode ?? "mock",
   });
 
   useEffect(() => {

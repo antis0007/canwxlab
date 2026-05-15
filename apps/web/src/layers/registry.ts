@@ -72,7 +72,8 @@ function rampForLayer(category: LayerCategory, layer: WeatherLayer): string {
   return defaultRampByCategory[category] ?? "viridis-like";
 }
 
-function categoryDefaultVisibility(layer: WeatherLayer): boolean {
+function categoryDefaultVisibility(layer: WeatherLayer, dataMode: DataMode): boolean {
+  if (dataMode !== "mock") return false;
   return [
     "mock_temperature",
     "mock_alerts",
@@ -82,17 +83,22 @@ function categoryDefaultVisibility(layer: WeatherLayer): boolean {
   ].includes(layer.layer_id);
 }
 
-function backendLayerToDefinition(layer: WeatherLayer, zIndex: number): LayerDefinition {
+export type DataMode = "mock" | "live" | "hybrid";
+
+function backendLayerToDefinition(layer: WeatherLayer, zIndex: number, dataMode: DataMode): LayerDefinition {
   const category = categoryFromLayer(layer);
   const rendererType = rendererFromLayer(layer);
   const colourRamp = rampForLayer(category, layer);
+  const isMockStatus = layer.status === "mock" || layer.status === "fallback";
+  const titleBase = layer.title ?? layer.name;
+  const displayTitle = isMockStatus && !/^\[MOCK\]|^\[DEMO\]/i.test(titleBase) ? `[MOCK] ${titleBase}` : titleBase;
   const legend = layer.variable.includes("alert")
     ? alertLegend()
-    : legendFromRamp(layer.title ?? layer.name, layer.unit, colourRamp);
+    : legendFromRamp(displayTitle, layer.unit, colourRamp);
 
   return {
     id: layer.layer_id,
-    title: layer.title ?? layer.name,
+    title: displayTitle,
     description: layer.description,
     category,
     sourceId: layer.source_id,
@@ -100,7 +106,7 @@ function backendLayerToDefinition(layer: WeatherLayer, zIndex: number): LayerDef
     isBuiltIn: true,
     isPlugin: false,
     isExperimental: layer.is_experimental,
-    defaultVisible: categoryDefaultVisibility(layer),
+    defaultVisible: categoryDefaultVisibility(layer, dataMode),
     defaultOpacity: layer.default_opacity,
     zIndex,
     colourRamp,
@@ -174,11 +180,12 @@ function pluginToLayer(plugin: PluginCatalogItem, zIndex: number): LayerDefiniti
   };
 }
 
-function demoLayers(baseIndex: number): LayerDefinition[] {
+function demoLayers(baseIndex: number, dataMode: DataMode): LayerDefinition[] {
+  const visibleByDefault = dataMode === "mock";
   const layers: LayerDefinition[] = [
     {
       id: "demo_temperature_field",
-      title: "Demo Temperature Field",
+      title: "[MOCK] Demo Temperature Field",
       description: "Animated mock temperature field for local visual iteration.",
       category: "forecast",
       sourceId: "mock_canwxlab",
@@ -186,7 +193,7 @@ function demoLayers(baseIndex: number): LayerDefinition[] {
       isBuiltIn: true,
       isPlugin: false,
       isExperimental: false,
-      defaultVisible: true,
+      defaultVisible: visibleByDefault,
       defaultOpacity: 0.66,
       zIndex: baseIndex,
       colourRamp: "temperature-blue-red",
@@ -202,7 +209,7 @@ function demoLayers(baseIndex: number): LayerDefinition[] {
     },
     {
       id: "demo_radar_animation",
-      title: "Demo Radar Precipitation",
+      title: "[MOCK] Demo Radar Precipitation",
       description: "Animated mock precipitation blobs resembling radar echoes.",
       category: "radar",
       sourceId: "mock_canwxlab",
@@ -210,7 +217,7 @@ function demoLayers(baseIndex: number): LayerDefinition[] {
       isBuiltIn: true,
       isPlugin: false,
       isExperimental: false,
-      defaultVisible: true,
+      defaultVisible: visibleByDefault,
       defaultOpacity: 0.62,
       zIndex: baseIndex + 1,
       colourRamp: "radar",
@@ -231,7 +238,7 @@ function demoLayers(baseIndex: number): LayerDefinition[] {
     },
     {
       id: "demo_wind_particles",
-      title: "Demo Wind Particles",
+      title: "[MOCK] Demo Wind Particles",
       description: "Animated wind particle paths from deterministic mock vector field.",
       category: "forecast",
       sourceId: "mock_canwxlab",
@@ -239,7 +246,7 @@ function demoLayers(baseIndex: number): LayerDefinition[] {
       isBuiltIn: true,
       isPlugin: false,
       isExperimental: false,
-      defaultVisible: true,
+      defaultVisible: visibleByDefault,
       defaultOpacity: 0.84,
       zIndex: baseIndex + 2,
       colourRamp: "wind",
@@ -255,7 +262,7 @@ function demoLayers(baseIndex: number): LayerDefinition[] {
     },
     {
       id: "demo_clouds",
-      title: "Demo Cloud Overlay",
+      title: "[MOCK] Demo Cloud Overlay",
       description: "Animated semi-transparent cloud texture using deterministic noise.",
       category: "satellite",
       sourceId: "mock_canwxlab",
@@ -263,7 +270,7 @@ function demoLayers(baseIndex: number): LayerDefinition[] {
       isBuiltIn: true,
       isPlugin: false,
       isExperimental: false,
-      defaultVisible: true,
+      defaultVisible: visibleByDefault,
       defaultOpacity: 0.46,
       zIndex: baseIndex + 3,
       colourRamp: "cloud-gray",
@@ -285,9 +292,11 @@ export function buildLayerDefinitions(input: {
   backendLayers: WeatherLayer[];
   plugins: PluginCatalogItem[];
   pluginEnabled: Record<string, boolean>;
+  dataMode?: DataMode;
 }): LayerDefinition[] {
-  const backend = input.backendLayers.map((layer, index) => backendLayerToDefinition(layer, index + 100));
-  const demos = demoLayers(10);
+  const dataMode: DataMode = input.dataMode ?? "mock";
+  const backend = input.backendLayers.map((layer, index) => backendLayerToDefinition(layer, index + 100, dataMode));
+  const demos = demoLayers(10, dataMode);
 
   const pluginLayers = input.plugins
     .filter((plugin) => input.pluginEnabled[plugin.id] ?? plugin.enabled_default)

@@ -5,3 +5,18 @@ INFO:     Started server process [38868]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 WARNING:  WatchFiles detected changes in 'services\api\canwxlab_api\routes\eccc.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38868]
+WARNING:  WatchFiles detected changes in 'services\api\canwxlab_api\routes\eccc.py'. Reloading...
+INFO:     Started server process [36468]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [36468]
+INFO:     Started server process [40944]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

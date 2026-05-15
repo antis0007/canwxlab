@@ -3,8 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PluginCatalogItem, WeatherLayer } from "../types/weather";
 
 import { colorRamps } from "./colorRamps";
-import { builtInPresets } from "./presets";
-import { buildLayerDefinitions } from "./registry";
+import { buildLayerDefinitions, type DataMode } from "./registry";
 import {
   defaultLayerControls,
   defaultUiPreferences,
@@ -63,6 +62,7 @@ function fallbackRuntimeState(): LayerRuntimeState {
 export function useLayerEngine(input: {
   backendLayers: WeatherLayer[];
   plugins: PluginCatalogItem[];
+  dataMode?: DataMode;
 }) {
   const [pluginEnabled, setPluginEnabled] = useState<Record<string, boolean>>(() =>
     readJson<Record<string, boolean>>(STORAGE_KEY_PLUGIN_ENABLED, {})
@@ -77,8 +77,9 @@ export function useLayerEngine(input: {
         backendLayers: input.backendLayers,
         plugins: input.plugins,
         pluginEnabled,
+        dataMode: input.dataMode,
       }),
-    [input.backendLayers, input.plugins, pluginEnabled]
+    [input.backendLayers, input.plugins, pluginEnabled, input.dataMode]
   );
 
   const [runtimeState, setRuntimeState] = useState<Record<string, LayerRuntimeState>>(() =>
@@ -248,24 +249,6 @@ export function useLayerEngine(input: {
     setLayerOrder(definitions.map((definition) => definition.id));
   }, [definitions]);
 
-  const applyPreset = useCallback((presetId: string) => {
-    const preset = builtInPresets.find(p => p.id === presetId);
-    if (!preset) return;
-    
-    setRuntimeState(current => {
-      const next = { ...current };
-      definitions.forEach(def => {
-        const isPresetLayer = preset.layers.includes(def.id) || 
-                              preset.layers.some(p => def.id.includes(p)); // rough matching for dynamic layers
-        if (!next[def.id]) {
-          next[def.id] = { ...fallbackRuntimeState() };
-        }
-        next[def.id] = { ...next[def.id], enabled: isPresetLayer };
-      });
-      return next;
-    });
-  }, [definitions]);
-
   return {
     definitions,
     orderedLayers,
@@ -280,7 +263,6 @@ export function useLayerEngine(input: {
     moveLayer,
     resetLayer,
     resetAllLayers,
-    applyPreset,
     pluginEnabled,
     setPluginEnabledState,
     uiPreferences,
