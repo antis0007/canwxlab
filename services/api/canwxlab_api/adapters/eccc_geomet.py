@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import tomllib
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree
@@ -270,67 +272,38 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
 
     async def get_wms_layer_catalog(self) -> list[WeatherLayer]:
         capabilities = await self.get_wms_capabilities_summary()
-        by_id = {layer.layer_name.lower(): layer for layer in capabilities.layers}
+        by_name = {layer.layer_name.lower(): layer for layer in capabilities.layers}
 
-        definitions = [
-            # TODO: Promote these placeholders to verified production layer IDs once
-            #       capabilities mapping is validated across environments.
-            {
-                "layer_id": "eccc_radar_precipitation",
-                "title": "ECCC Radar Precipitation (placeholder)",
-                "variable": "radar_precipitation",
-                "unit": "mm/h",
-                "keywords": ["radar", "precip"],
-                "description": (
-                    "GeoMet radar precipitation WMS layer placeholder "
-                    "pending verification."
-                ),
-            },
-            {
-                "layer_id": "eccc_radar_precipitation_type",
-                "title": "ECCC Radar Precipitation Type (placeholder)",
-                "variable": "radar_precipitation_type",
-                "unit": "category",
-                "keywords": ["radar", "precip", "type"],
-                "description": (
-                    "GeoMet precipitation-type radar WMS layer placeholder "
-                    "pending verification."
-                ),
-            },
-            {
-                "layer_id": "eccc_goes_visible_natural",
-                "title": "ECCC GOES Visible/Natural (placeholder)",
-                "variable": "goes_visible_natural",
-                "unit": "reflectance",
-                "keywords": ["goes", "visible"],
-                "description": (
-                    "GeoMet GOES visible/natural colour WMS layer placeholder "
-                    "pending verification."
-                ),
-            },
-            {
-                "layer_id": "eccc_goes_infrared",
-                "title": "ECCC GOES Infrared (placeholder)",
-                "variable": "goes_infrared",
-                "unit": "kelvin",
-                "keywords": ["goes", "infrared"],
-                "description": "GeoMet GOES infrared WMS layer placeholder pending verification.",
-            },
-        ]
+        curated = load_verified_eccc_wms_layers()
 
         weather_layers: list[WeatherLayer] = []
-        for definition in definitions:
-            matched = _find_wms_candidate(by_id, definition["keywords"])
+        for definition in curated:
+            matched = _resolve_curated_layer(by_name, definition.get("candidate_layer_names", []))
             verified = matched is not None
             layer_status = capabilities.source.status if verified else SourceStatus.unavailable
+            unit_by_product = {
+                "radar": "mm/h",
+                "satellite": "reflectance",
+                "temperature": "degC",
+                "wind": "m/s",
+                "precipitation": "mm",
+                "cloud": "ratio",
+            }
+            product = definition.get("intended_product_type", "")
+            unit = unit_by_product.get(product, "")
+            description = definition.get(
+                "notes",
+                f"Curated ECCC WMS layer ({product or 'unknown product type'}).",
+            )
+            keywords_legacy = [product] if product else []
             weather_layers.append(
                 WeatherLayer(
-                    layer_id=definition["layer_id"],
+                    layer_id=definition["id"],
                     name=definition["title"],
                     title=definition["title"],
                     kind="raster",
-                    variable=definition["variable"],
-                    unit=definition["unit"],
+                    variable=product or "unknown",
+                    unit=unit,
                     source_id="eccc_geomet_wms",
                     status=layer_status,
                     adapter="eccc_geomet",
@@ -340,7 +313,7 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
                     last_attempted_fetch=capabilities.source.last_attempted_fetch,
                     retrieved_at=capabilities.source.retrieved_at,
                     expires_at=capabilities.source.expires_at,
-                    attribution=ECCC_ATTRIBUTION,
+                    attribution=definition.get("attribution") or ECCC_ATTRIBUTION,
                     license_url=ECCC_LICENSE_URL,
                     default_opacity=0.65,
                     color_ramps=[],
@@ -348,18 +321,19 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
                     wms_base_url=self.wms_base,
                     wms_layer_name=matched.layer_name if matched else None,
                     time_dimension_supported=matched.has_time_dimension if matched else False,
-                    update_frequency_hint="5-10 minutes (placeholder)",
-                    description=definition["description"],
-                    message=(
-                        f"Verified via GetCapabilities as {matched.layer_name}."
-                        if matched
-                        else "Layer name not verified from capabilities yet."
-                    ),
+                    update_frequency_hint=None,
+                    description=description,
+                    message=_curated_match_message(matched, definition),
                     is_live=layer_status == SourceStatus.live,
                     metadata={
-                        "verified": verified,
+                        "curated": True,
+                        "verified_runtime": verified,
+                        "candidate_layer_names": definition.get("candidate_layer_names", []),
+                        "intended_product_type": product,
                         "capabilities_title": matched.title if matched else None,
                         "time_extent": matched.time_extent if matched else None,
+                        # legacy field for back-compat
+                        "keywords": keywords_legacy,
                     },
                 )
             )
@@ -915,12 +889,101 @@ def _parse_wms_layers(xml_text: str) -> list[WmsCapabilityLayerSummary]:
     return summaries
 
 
-def _find_wms_candidate(
-    layers: dict[str, WmsCapabilityLayerSummary],
-    keywords: list[str],
+def _curated_match_message(
+    matched: WmsCapabilityLayerSummary | None,
+    definition: dict[str, Any],
+) -> str:
+    if matched is not None:
+        return f"Resolved against GetCapabilities as {matched.layer_name}."
+    candidates = definition.get("candidate_layer_names") or []
+    rendered = ", ".join(candidates) if candidates else "(none)"
+    return (
+        "Curated layer not present in fetched GetCapabilities; "
+        f"candidates tried: {rendered}."
+    )
+
+
+def _resolve_curated_layer(
+    by_name_lower: dict[str, WmsCapabilityLayerSummary],
+    candidate_layer_names: list[str],
 ) -> WmsCapabilityLayerSummary | None:
-    for layer in layers.values():
-        haystack = f"{layer.layer_name} {layer.title or ''}".lower()
-        if all(keyword in haystack for keyword in keywords):
-            return layer
+    """Exact-match resolver against parsed capabilities (case-insensitive).
+
+    No keyword/substring matching. Returns the first candidate present in
+    capabilities or None.
+    """
+    for candidate in candidate_layer_names:
+        if not candidate:
+            continue
+        match = by_name_lower.get(candidate.lower())
+        if match is not None:
+            return match
     return None
+
+
+_VERIFIED_WMS_CONFIG_PATH = (
+    Path(__file__).resolve().parent.parent / "data" / "verified_eccc_wms_layers.toml"
+)
+
+
+@lru_cache(maxsize=1)
+def load_verified_eccc_wms_layers() -> list[dict[str, Any]]:
+    """Load curated ECCC WMS layer definitions from TOML config.
+
+    Returns a list of dicts; missing config yields an empty list (callers
+    must handle gracefully).
+    """
+    path = _VERIFIED_WMS_CONFIG_PATH
+    if not path.exists():
+        logger.warning("Verified ECCC WMS config missing at %s", path)
+        return []
+    try:
+        with path.open("rb") as fp:
+            data = tomllib.load(fp)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to parse %s: %s", path, exc)
+        return []
+    entries = data.get("layer") or []
+    if not isinstance(entries, list):
+        return []
+    return entries
+
+
+def build_wms_curated_diagnostics(
+    parsed_layers: list[WmsCapabilityLayerSummary],
+) -> dict[str, Any]:
+    """Diagnostics: which curated layers matched/unmatched vs parsed capabilities."""
+    by_name_lower = {layer.layer_name.lower(): layer for layer in parsed_layers}
+    curated = load_verified_eccc_wms_layers()
+    matched: list[dict[str, Any]] = []
+    unmatched: list[dict[str, Any]] = []
+    for entry in curated:
+        candidates = entry.get("candidate_layer_names", [])
+        resolved = _resolve_curated_layer(by_name_lower, candidates)
+        if resolved is not None:
+            matched.append(
+                {
+                    "id": entry.get("id"),
+                    "title": entry.get("title"),
+                    "candidate_layer_names": candidates,
+                    "matched_layer_name": resolved.layer_name,
+                    "has_time_dimension": resolved.has_time_dimension,
+                }
+            )
+        else:
+            unmatched.append(
+                {
+                    "id": entry.get("id"),
+                    "title": entry.get("title"),
+                    "candidate_layer_names": candidates,
+                    "reason": "no candidate present in parsed GetCapabilities",
+                }
+            )
+    return {
+        "configured_count": len(curated),
+        "matched_count": len(matched),
+        "unmatched_count": len(unmatched),
+        "matched": matched,
+        "unmatched": unmatched,
+        "parsed_layer_count": len(parsed_layers),
+    }

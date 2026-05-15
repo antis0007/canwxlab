@@ -20,3 +20,35 @@ INFO:     Finished server process [36468]
 INFO:     Started server process [40944]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services\api\canwxlab_api\adapters\eccc_geomet.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [40944]
+INFO:     Started server process [41360]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services\api\canwxlab_api\adapters\eccc_geomet.py', 'services\api\canwxlab_api\routes\eccc.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [41360]
+INFO:     Started server process [33564]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services\api\canwxlab_api\adapters\eccc_geomet.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [33564]
+INFO:     Started server process [34540]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services\api\canwxlab_api\adapters\eccc_geomet.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [34540]
+INFO:     Started server process [34652]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

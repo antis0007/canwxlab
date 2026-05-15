@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from canwxlab_api.adapters.base import WeatherSourceAdapter
+from canwxlab_api.adapters.eccc_geomet import build_wms_curated_diagnostics
 from canwxlab_api.dependencies import get_source_adapter
 from canwxlab_api.models import WmsCapabilitiesSummaryResponse, WmsCapabilityLayerSummary
 
@@ -119,6 +120,7 @@ async def get_wms_diagnostics(
         cache_status = source.status
     n_time = sum(1 for layer in layers if layer.has_time_dimension)
     n_query = sum(1 for layer in layers if layer.queryable)
+    curated = build_wms_curated_diagnostics(layers)
     return {
         "wms_base_url": source.homepage_url,
         "last_capabilities_fetch_status": source.status,
@@ -130,4 +132,5 @@ async def get_wms_diagnostics(
         "parser_warnings": [],
         "last_error": source.message if source.error_type else None,
         "error_type": source.error_type,
+        "curated_layers": curated,
     }

@@ -1,0 +1,83 @@
+# Curated ECCC GeoMet WMS built-in layers.
+#
+# Each entry is a *candidate* until the runtime verifies an exact-match
+# against parsed GetCapabilities. No silent keyword fallback.
+#
+# `candidate_layer_names` MUST be the exact WMS Layer.Name(s) as published.
+# At runtime the adapter compares (case-insensitively) against parsed
+# capabilities. The first match wins; if none match, the layer is reported
+# as `unavailable` with a clear diagnostic.
+#
+# `verified` is a documentation hint only: it indicates whether the candidate
+# names have been confirmed against the GeoMet WMS at the time of editing.
+# Runtime status is always derived from live capabilities, not from this flag.
+
+[[layer]]
+id = "eccc_radar_1km_rrai"
+title = "ECCC Radar — Rain Rate (1 km, RRAI)"
+category = "radar"
+intended_product_type = "radar"
+candidate_layer_names = ["RADAR_1KM_RRAI"]
+required_keywords = []
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
+notes = "GeoMet national radar mosaic, 1 km, rain rate (RRAI). Confirm exact layer name against current GetCapabilities."
+verified = false
+
+[[layer]]
+id = "eccc_radar_1km_rsno"
+title = "ECCC Radar — Snow Rate (1 km, RSNO)"
+category = "radar"
+intended_product_type = "radar"
+candidate_layer_names = ["RADAR_1KM_RSNO"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
+verified = false
+
+[[layer]]
+id = "eccc_gdps_tt_sfc"
+title = "ECCC GDPS — Surface Air Temperature"
+category = "forecast"
+intended_product_type = "temperature"
+candidate_layer_names = ["GDPS.ETA_TT", "GDPS.DIAG_TT_SFC"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
+notes = "Surface temperature from GDPS. Candidate names vary by GeoMet version; both are listed for runtime resolution."
+verified = false
+
+[[layer]]
+id = "eccc_hrdps_tt_sfc"
+title = "ECCC HRDPS — Surface Air Temperature"
+category = "forecast"
+intended_product_type = "temperature"
+candidate_layer_names = ["HRDPS.CONTINENTAL_TT", "HRDPS.NATIONAL_TT"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
+verified = false
+
+[[layer]]
+id = "eccc_goes_east_natural"
+title = "ECCC GOES-East — Natural Colour"
+category = "satellite"
+intended_product_type = "satellite"
+candidate_layer_names = [
+  "GOES-East_1km_NaturalColor",
+  "GOES-East_2km_NaturalColor",
+]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / NOAA."
+notes = "GOES-East natural colour composite. Candidate names vary by spatial resolution channel."
+verified = false
+
+[[layer]]
+id = "eccc_goes_east_ir"
+title = "ECCC GOES-East — Infrared"
+category = "satellite"
+intended_product_type = "satellite"
+candidate_layer_names = [
+  "GOES-East_1km_Infrared",
+  "GOES-East_2km_Infrared",
+]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / NOAA."
+verified = false
