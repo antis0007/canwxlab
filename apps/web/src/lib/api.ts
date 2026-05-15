@@ -53,6 +53,14 @@ export const api = {
   wmsCapabilitiesSummary: () =>
     getJson<WmsCapabilitiesSummaryResponse>("/api/eccc/wms/capabilities-summary"),
   wmsLayers: () => getJson<WmsCapabilityLayerSummary[]>("/api/eccc/wms/layers"),
+  wmsLayer: (layerName: string) =>
+    getJson<WmsCapabilityLayerSummary>(`/api/eccc/wms/layers/${encodeURIComponent(layerName)}`),
+  wmsLayerTimes: (layerName: string) =>
+    getJson<{ layer_name: string; times: string[] }>(`/api/eccc/wms/layers/${encodeURIComponent(layerName)}/times`),
+  wmsBuildUrl: (query: { layer_name: string; bbox: string; width?: number; height?: number; crs?: string; time?: string; style?: string; format?: string; transparent?: boolean }) =>
+    getJson<{ url: string }>("/api/eccc/wms/build-url", query),
+  wmsDiagnostics: () =>
+    getJson<Record<string, unknown>>("/api/eccc/wms/diagnostics"),
   plugins: () => getJson<PluginCatalogResponse>("/api/plugins"),
   verification: () => getJson<VerificationMetric[]>("/api/verification/summary"),
   createSimulation: async (config: SimulationConfig): Promise<SimulationRun> => {

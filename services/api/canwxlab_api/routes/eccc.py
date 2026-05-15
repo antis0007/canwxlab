@@ -101,3 +101,33 @@ async def build_wms_url(
         params["time"] = time
         
     return {"url": f"{base_url}?{urlencode(params)}"}
+
+
+@router.get("/wms/diagnostics")
+async def get_wms_diagnostics(
+    adapter: WeatherSourceAdapter = Depends(get_source_adapter),
+) -> dict[str, Any]:
+    summary = await adapter.get_wms_capabilities_summary()
+    layers = summary.layers
+    source = summary.source
+
+    if source.status == "stale":
+        cache_status = "stale"
+    elif source.status == "live":
+        cache_status = "fresh"
+    else:
+        cache_status = source.status
+    n_time = sum(1 for layer in layers if layer.has_time_dimension)
+    n_query = sum(1 for layer in layers if layer.queryable)
+    return {
+        "wms_base_url": source.homepage_url,
+        "last_capabilities_fetch_status": source.status,
+        "last_successful_fetch_time": source.last_successful_fetch,
+        "cache_status": cache_status,
+        "number_of_parsed_layers": len(layers),
+        "number_of_layers_with_time_dimension": n_time,
+        "number_of_queryable_layers": n_query,
+        "parser_warnings": [],
+        "last_error": source.message if source.error_type else None,
+        "error_type": source.error_type,
+    }

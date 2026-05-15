@@ -1,1 +1,7 @@
-Processing -File 'C:\Users\antis0007\Documents\New' failed because the file does not have a '.ps1' extension. Specify a valid Windows PowerShell script file name, and then try again.
+INFO:     Will watch for changes in these directories: ['C:\\dev\\canwxlab']
+INFO:     Uvicorn running on http://127.0.0.1:8787 (Press CTRL+C to quit)
+INFO:     Started reloader process [43524] using WatchFiles
+INFO:     Started server process [38868]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services\api\canwxlab_api\routes\eccc.py'. Reloading...

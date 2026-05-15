@@ -1,4 +1,3 @@
-import { AnimationControls } from "./AnimationControls";
 import { StatusBadge } from "./StatusBadge";
 
 import type { AnimationPlaybackState, ViewMode } from "../../layers/types";
@@ -20,6 +19,33 @@ interface TopBarProps {
   onRefresh: () => void;
   timelineMode: string;
   onSetTimelineMode: (mode: string) => void;
+  onToggleLeftPanel: () => void;
+  onToggleRightPanel: () => void;
+  leftPanelOpen: boolean;
+  rightPanelOpen: boolean;
+}
+
+const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
+
+const TIMELINE_MODES = [
+  { value: "live",         label: "LIVE" },
+  { value: "history",      label: "HIST" },
+  { value: "forecast",     label: "FCST" },
+  { value: "simulation",   label: "SIM" },
+  { value: "verification", label: "VRFY" },
+];
+
+function fmtTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString("en-CA", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  } catch {
+    return "--:--:--";
+  }
 }
 
 export function TopBar({
@@ -27,7 +53,6 @@ export function TopBar({
   timelineTime,
   viewMode,
   globeSupported,
-  globeCapabilityChecked,
   onSetViewMode,
   playback,
   onTogglePlay,
@@ -38,63 +63,122 @@ export function TopBar({
   onRefresh,
   timelineMode,
   onSetTimelineMode,
+  onToggleLeftPanel,
+  onToggleRightPanel,
+  leftPanelOpen,
+  rightPanelOpen,
 }: TopBarProps) {
-  const now = new Date().toLocaleTimeString();
+  const nowStr = fmtTime(new Date().toISOString());
+  const validStr = fmtTime(timelineTime);
+  const dataBadgeStatus = dataMode === "live" ? "live" : dataMode === "hybrid" ? "fallback" : "mock";
+
   return (
     <header className="wb-topbar">
-      <div className="wb-topbar-block">
-        <strong className="wb-title">CanWxLab Workbench</strong>
-        <StatusBadge status={dataMode === "mock" ? "mock" : dataMode === "live" ? "live" : "fallback"} label={dataMode.toUpperCase()} />
+      {/* Identity + left panel toggle */}
+      <div className="wb-topbar-group">
+        <button
+          type="button"
+          className={`wb-panel-toggle ${leftPanelOpen ? "is-open" : ""}`}
+          onClick={onToggleLeftPanel}
+          title={leftPanelOpen ? "Hide layers panel" : "Show layers panel"}
+        >
+          ☰ LAYERS
+        </button>
+        <span className="wb-title">CanWxLab</span>
+        <StatusBadge status={dataBadgeStatus} label={dataMode.toUpperCase()} />
       </div>
 
-      <div className="wb-topbar-block">
-        <span className="wb-topbar-label">Now {now}</span>
-        <span className="wb-topbar-label">Valid {new Date(timelineTime).toLocaleTimeString()}</span>
-        <select value={timelineMode} onChange={e => onSetTimelineMode(e.target.value)} className="wb-input" style={{ marginLeft: "8px" }}>
-          <option value="live">Live</option>
-          <option value="history">History</option>
-          <option value="forecast">Forecast</option>
-          <option value="simulation">Simulation</option>
-          <option value="verification">Verification</option>
+      {/* Playback controls */}
+      <div className="wb-topbar-group">
+        <button
+          type="button"
+          className="wb-icon-btn"
+          onClick={onTogglePlay}
+          title={playback.isPlaying ? "Pause" : "Play"}
+        >
+          {playback.isPlaying ? "⏸" : "▶"}
+        </button>
+        <select
+          value={playback.speedMultiplier}
+          onChange={(e) => onSpeedChange(Number(e.target.value))}
+          title="Playback speed"
+          style={{ width: 46 }}
+        >
+          {SPEED_OPTIONS.map((v) => (
+            <option key={v} value={v}>{v}×</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="wb-icon-btn"
+          onClick={onResetAnimation}
+          title="Reset to frame 0"
+        >
+          ↺
+        </button>
+      </div>
+
+      {/* Time display + mode */}
+      <div className="wb-topbar-group">
+        <span className="wb-topbar-label">NOW</span>
+        <span className="wb-topbar-label" style={{ color: "var(--wb-text)" }}>{nowStr}</span>
+        <span className="wb-topbar-label" style={{ opacity: 0.3 }}>│</span>
+        <span className="wb-topbar-label">VALID</span>
+        <span className="wb-topbar-label" style={{ color: "var(--wb-accent)" }}>{validStr}</span>
+        <select
+          value={timelineMode}
+          onChange={(e) => onSetTimelineMode(e.target.value)}
+          style={{ marginLeft: 4 }}
+          title="Timeline mode"
+        >
+          {TIMELINE_MODES.map(({ value, label }) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
         </select>
       </div>
 
-      <div className="wb-topbar-block">
-        <div className="wb-toggle-group" role="group" aria-label="Map mode">
+      {/* Map projection */}
+      <div className="wb-topbar-group">
+        <div className="wb-toggle-group" role="group" aria-label="Map projection">
           <button
             type="button"
             className={viewMode === "map" ? "wb-toggle-active" : ""}
             onClick={() => onSetViewMode("map")}
           >
-            Map
+            MAP
           </button>
           <button
             type="button"
             className={viewMode === "globe" ? "wb-toggle-active" : ""}
             onClick={() => onSetViewMode("globe")}
             disabled={!globeSupported}
-            title={!globeSupported ? "Globe mode requires MapLibre globe projection support." : undefined}
+            title={!globeSupported ? "Globe projection not supported" : "Switch to globe view"}
           >
-            Globe
+            GLOBE
           </button>
         </div>
-        {globeCapabilityChecked && !globeSupported ? (
-          <span className="wb-topbar-label">Globe unavailable</span>
-        ) : null}
       </div>
 
-      <AnimationControls
-        playback={playback}
-        onTogglePlay={onTogglePlay}
-        onSpeedChange={onSpeedChange}
-        onReset={onResetAnimation}
-      />
-
-      <div className="wb-topbar-block">
-        <span className="wb-topbar-label">Sources</span>
+      {/* Sources + inspector */}
+      <div className="wb-topbar-group wb-topbar-group--right">
+        <span className="wb-topbar-label">SRC</span>
         <StatusBadge status={sourceHealthStatus} />
-        <button type="button" onClick={onRefresh} disabled={isRefreshing}>
-          {isRefreshing ? "Refreshing..." : "Refresh"}
+        <button
+          type="button"
+          className="wb-icon-btn"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          title={isRefreshing ? "Refreshing…" : "Refresh data sources"}
+        >
+          {isRefreshing ? "…" : "↺"}
+        </button>
+        <button
+          type="button"
+          className={`wb-panel-toggle ${rightPanelOpen ? "is-open" : ""}`}
+          onClick={onToggleRightPanel}
+          title={rightPanelOpen ? "Hide inspector" : "Show inspector"}
+        >
+          INSP ⊞
         </button>
       </div>
     </header>

@@ -2,11 +2,13 @@ import maplibregl from "maplibre-gl";
 
 import { buildMapLibreWmsSource, canRenderWmsLayer, toWmsLayerDefinition } from "../../lib/wms";
 import type { LayerDefinition, LayerRuntimeState } from "../types";
+import { parseWmsTimeDimension, resolveWmsTimeForTimeline } from "../../time/wmsTime";
 
 export function syncWmsLayers(options: {
   map: maplibregl.Map;
   layers: LayerDefinition[];
   runtimeState: Record<string, LayerRuntimeState>;
+  globalTimeMs: number;
 }) {
   const wmsLayers = options.layers.filter((layer) => layer.rendererType === "wms-raster");
   const expectedSourceIds = new Set(wmsLayers.map((layer) => `wms-source-${layer.id}`));
@@ -69,8 +71,27 @@ export function syncWmsLayers(options: {
       return;
     }
 
-    const source = buildMapLibreWmsSource(definition);
-    if (!options.map.getSource(sourceId)) {
+    let timeParam: string | undefined;
+    if (layer.metadata?.time_extent) {
+      const times = parseWmsTimeDimension(layer.metadata.time_extent as string);
+      const policy = runtime?.wmsTimePolicy ?? 'global';
+      const fixedTime = runtime?.wmsFixedTime;
+      const resolved = resolveWmsTimeForTimeline(options.globalTimeMs, times, policy, fixedTime);
+      if (resolved) timeParam = resolved;
+    }
+
+    const source = buildMapLibreWmsSource(definition, { time: timeParam });
+    const existingSource = options.map.getSource(sourceId) as any;
+    
+    if (existingSource && existingSource.tiles && existingSource.tiles[0] !== source.tiles[0]) {
+      // Update tiles directly to avoid WebGL memory leak from constant layer destruction
+      existingSource.tiles = source.tiles;
+      const sourceCache = (options.map.style as any).sourceCaches[sourceId];
+      if (sourceCache) {
+        sourceCache.clearTiles();
+        sourceCache.update(options.map.transform);
+      }
+    } else if (!existingSource) {
       options.map.addSource(sourceId, source as any);
     }
 

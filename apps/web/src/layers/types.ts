@@ -103,7 +103,10 @@ export interface LayerDefinition {
   wmsLayerName?: string | null;
   styles?: string[];
   pluginId?: string | null;
+  metadata?: Record<string, unknown>;
 }
+
+export type WmsTimePolicy = "global" | "latest" | "fixed";
 
 export interface LayerRuntimeState {
   enabled: boolean;
@@ -111,6 +114,8 @@ export interface LayerRuntimeState {
   colourRamp: string;
   zIndex: number;
   controls: LayerControlValues;
+  wmsTimePolicy?: WmsTimePolicy;
+  wmsFixedTime?: number;
 }
 
 export interface LayerDiagnostics {

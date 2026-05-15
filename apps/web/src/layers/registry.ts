@@ -126,6 +126,7 @@ function backendLayerToDefinition(layer: WeatherLayer, zIndex: number): LayerDef
     wmsBaseUrl: layer.wms_base_url,
     wmsLayerName: layer.wms_layer_name,
     styles: layer.styles,
+    metadata: layer.metadata,
   };
 }
 
@@ -169,6 +170,7 @@ function pluginToLayer(plugin: PluginCatalogItem, zIndex: number): LayerDefiniti
       plugin.status === "installed"
         ? "Plugin manifest discovered. Runtime execution is not enabled in this phase."
         : `Plugin status: ${plugin.status}`,
+    metadata: {},
   };
 }
 
@@ -196,6 +198,7 @@ function demoLayers(baseIndex: number): LayerDefinition[] {
       variable: "temperature_2m",
       unit: "degC",
       message: "MOCK/DEMO",
+      metadata: {},
     },
     {
       id: "demo_radar_animation",
@@ -224,6 +227,7 @@ function demoLayers(baseIndex: number): LayerDefinition[] {
       variable: "precipitation_rate",
       unit: "mm/h",
       message: "MOCK/DEMO",
+      metadata: {},
     },
     {
       id: "demo_wind_particles",
@@ -247,6 +251,7 @@ function demoLayers(baseIndex: number): LayerDefinition[] {
       variable: "wind_10m",
       unit: "m/s",
       message: "MOCK/DEMO",
+      metadata: {},
     },
     {
       id: "demo_clouds",
@@ -270,6 +275,7 @@ function demoLayers(baseIndex: number): LayerDefinition[] {
       variable: "cloud_opacity",
       unit: "ratio",
       message: "MOCK/DEMO",
+      metadata: {},
     },
   ];
   return layers;

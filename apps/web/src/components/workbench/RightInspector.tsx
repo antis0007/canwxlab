@@ -1,8 +1,9 @@
 import { LegendPanel } from "./LegendPanel";
 import { StatusBadge } from "./StatusBadge";
 
-import type { LayerDefinition, LayerDiagnostics, RendererFeatureValue } from "../../layers/types";
+import type { LayerDefinition, LayerDiagnostics, RendererFeatureValue, LayerRuntimeState } from "../../layers/types";
 import type { DataSource } from "../../types/weather";
+import { parseWmsTimeDimension, resolveWmsTimeForTimeline } from "../../time/wmsTime";
 
 interface RightInspectorProps {
   longitude: number | null;
@@ -15,6 +16,16 @@ interface RightInspectorProps {
   activeAlert: string | null;
   animationFrame: number;
   selectedValidTime: string;
+  runtimeState: Record<string, LayerRuntimeState>;
+}
+
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <summary className="wb-section-header" style={{ listStyle: "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      {label}
+      <span className="wb-section-chevron">▶</span>
+    </summary>
+  );
 }
 
 export function RightInspector({
@@ -28,90 +39,125 @@ export function RightInspector({
   activeAlert,
   animationFrame,
   selectedValidTime,
+  runtimeState,
 }: RightInspectorProps) {
   const activeSource = activeLayer
-    ? sources.find((source) => source.source_id === activeLayer.sourceId)
+    ? sources.find((s) => s.source_id === activeLayer.sourceId)
     : null;
+
+  const validTimeMs = new Date(selectedValidTime).getTime();
 
   return (
     <aside className="wb-right-panel">
-      <section className="wb-panel-block">
-        <h3>Inspector</h3>
-        <p className="wb-muted">Frame {animationFrame + 1} | Valid {new Date(selectedValidTime).toLocaleString()}</p>
-        {longitude !== null && latitude !== null ? (
-          <>
-            <p className="wb-muted">Lon {longitude.toFixed(4)} | Lat {latitude.toFixed(4)}</p>
-            {nearestStation && <p className="wb-muted">Nearest station: {nearestStation}</p>}
-            {activeAlert && <p className="wb-muted">Active alert: {activeAlert}</p>}
-            <div className="wb-value-grid">
-              {values.map((value) => (
-                <div key={value.label}>
-                  <span>{value.label}</span>
-                  <strong>{value.value} {value.unit}</strong>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <p className="wb-muted">Click the map to inspect layers.</p>
-        )}
-      </section>
 
-      <section className="wb-panel-block">
-        <h3>Legend</h3>
-        <LegendPanel activeLayer={activeLayer} />
-      </section>
-
-      <section className="wb-panel-block">
-        <h3>Sources</h3>
-        {activeLayer && (
-          <p className="wb-muted">
-            Active layer source: {activeSource?.name ?? activeLayer.sourceId}
-            {activeSource?.retrieved_at ? ` | Retrieved ${new Date(activeSource.retrieved_at).toLocaleTimeString()}` : ""}
+      {/* Inspector */}
+      <details className="wb-section" open>
+        <SectionHeader label="Inspector" />
+        <div className="wb-section-body">
+          <p className="wb-muted" style={{ margin: "0 0 4px" }}>
+            Frame {animationFrame + 1} · {new Date(selectedValidTime).toLocaleTimeString()}
           </p>
-        )}
-        <div className="wb-source-list">
-          {sources.map((source) => (
-            <div key={source.source_id} className="wb-source-row">
-              <span>{source.name}</span>
-              <StatusBadge status={source.status} />
-            </div>
-          ))}
+          {longitude !== null && latitude !== null ? (
+            <>
+              <p className="wb-muted" style={{ margin: "0 0 4px", fontFamily: "monospace" }}>
+                {longitude.toFixed(4)}, {latitude.toFixed(4)}
+              </p>
+              {nearestStation && (
+                <p className="wb-muted" style={{ margin: "0 0 2px" }}>⊙ {nearestStation}</p>
+              )}
+              {activeAlert && (
+                <p style={{ margin: "0 0 2px", fontSize: 10, color: "var(--wb-warn)" }}>⚠ {activeAlert}</p>
+              )}
+              {values.length > 0 && (
+                <div className="wb-value-grid" style={{ marginTop: 4 }}>
+                  {values.map((v) => (
+                    <div key={v.label}>
+                      <span>{v.label}</span>
+                      <strong>{v.value} <span style={{ color: "var(--wb-muted)" }}>{v.unit}</span></strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="wb-muted" style={{ margin: 0 }}>Click map to inspect.</p>
+          )}
         </div>
-        {activeLayer?.wmsLayerName && (
-          <div style={{ marginTop: "8px" }}>
-            <p className="wb-muted">WMS Info:</p>
-            <p className="wb-muted" style={{ fontSize: "0.75rem" }}>URL: {activeLayer.wmsBaseUrl}</p>
-            <p className="wb-muted" style={{ fontSize: "0.75rem" }}>Layer: {activeLayer.wmsLayerName}</p>
+      </details>
+
+      {/* Legend */}
+      <details className="wb-section" open>
+        <SectionHeader label="Legend" />
+        <div className="wb-section-body">
+          {activeLayer ? (
+            <LegendPanel activeLayer={activeLayer} />
+          ) : (
+            <p className="wb-muted" style={{ margin: 0 }}>No active layer selected.</p>
+          )}
+        </div>
+      </details>
+
+      {/* Sources */}
+      <details className="wb-section" open>
+        <SectionHeader label="Sources" />
+        <div className="wb-section-body">
+          {activeLayer && (
+            <p className="wb-muted" style={{ margin: "0 0 6px" }}>
+              Active: {activeSource?.name ?? activeLayer.sourceId}
+              {activeSource?.retrieved_at
+                ? ` · ${new Date(activeSource.retrieved_at).toLocaleTimeString()}`
+                : ""}
+            </p>
+          )}
+          <div className="wb-source-list">
+            {sources.map((source) => (
+              <div key={source.source_id} className="wb-source-row">
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{source.name}</span>
+                <StatusBadge status={source.status} />
+              </div>
+            ))}
           </div>
-        )}
-      </section>
-
-      <section className="wb-panel-block">
-        <h3>Rendering Diagnostics</h3>
-        <div className="wb-value-grid">
-          <div><span>FPS</span><strong>{diagnostics.fps.toFixed(1)}</strong></div>
-          <div><span>Active layers</span><strong>{diagnostics.activeLayerCount}</strong></div>
-          <div><span>Animated layers</span><strong>{diagnostics.animatedLayerCount}</strong></div>
-          <div><span>Deck layers</span><strong>{diagnostics.deckLayerCount}</strong></div>
-          <div><span>Mode</span><strong>{diagnostics.mapMode}</strong></div>
-          <div><span>Refresh</span><strong>{diagnostics.lastDataRefreshAt ? new Date(diagnostics.lastDataRefreshAt).toLocaleTimeString() : "n/a"}</strong></div>
+          {activeLayer?.wmsLayerName && (
+            <div style={{ marginTop: 6, fontSize: 10 }}>
+              <p className="wb-muted" style={{ margin: "2px 0", wordBreak: "break-all" }}>Layer: {activeLayer.wmsLayerName}</p>
+              {!!activeLayer.metadata?.time_extent && (
+                <p className="wb-muted" style={{ margin: "2px 0" }}>
+                  Time: {resolveWmsTimeForTimeline(
+                    validTimeMs,
+                    parseWmsTimeDimension(activeLayer.metadata.time_extent as string),
+                    runtimeState[activeLayer.id]?.wmsTimePolicy ?? "global",
+                    runtimeState[activeLayer.id]?.wmsFixedTime,
+                  ) || "—"}
+                </p>
+              )}
+            </div>
+          )}
         </div>
-        {diagnostics.warnings.length > 0 && (
-          <ul className="wb-warnings">
-            {diagnostics.warnings.map((warning) => <li key={warning}>{warning}</li>)}
-          </ul>
-        )}
-      </section>
+      </details>
 
-      <section className="wb-panel-block">
-        <h3>Console</h3>
-        <div style={{ maxHeight: "150px", overflowY: "auto", background: "rgba(0,0,0,0.3)", padding: "4px", borderRadius: "4px", fontSize: "0.75rem", fontFamily: "monospace" }}>
-          <div className="wb-muted">[system] Workbench initialized</div>
-          <div className="wb-muted">[wms] Discovered layers</div>
-          {activeLayer && <div className="wb-muted">[layer] Inspector active: {activeLayer.title}</div>}
+      {/* Diagnostics */}
+      <details className="wb-section">
+        <SectionHeader label="Diagnostics" />
+        <div className="wb-section-body">
+          <div className="wb-value-grid">
+            <div><span>FPS</span><strong>{diagnostics.fps.toFixed(1)}</strong></div>
+            <div><span>Layers</span><strong>{diagnostics.activeLayerCount}</strong></div>
+            <div><span>Animated</span><strong>{diagnostics.animatedLayerCount}</strong></div>
+            <div><span>Deck</span><strong>{diagnostics.deckLayerCount}</strong></div>
+            <div><span>Mode</span><strong>{diagnostics.mapMode}</strong></div>
+            <div>
+              <span>Refresh</span>
+              <strong>{diagnostics.lastDataRefreshAt ? new Date(diagnostics.lastDataRefreshAt).toLocaleTimeString() : "—"}</strong>
+            </div>
+          </div>
+          {diagnostics.warnings.length > 0 && (
+            <ul className="wb-warnings">
+              {diagnostics.warnings.map((w) => <li key={w}>{w}</li>)}
+            </ul>
+          )}
         </div>
-      </section>
+      </details>
+
     </aside>
   );
 }

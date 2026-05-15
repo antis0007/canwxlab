@@ -1,5 +1,36 @@
-Windows PowerShell
-Copyright (C) Microsoft Corporation. All rights reserved.
+Starting web UI on http://127.0.0.1:5173
 
-Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+> @canwxlab/web@0.1.0 dev C:\dev\canwxlab\apps\web
+> vite "--host" "127.0.0.1" "--port" "5173"
 
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m1160[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[2m2:34:55 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m2:34:55 a.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("statusMessage" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m2:34:55 a.m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m2:35:01 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m2:35:01 a.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("statusMessage" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m2:35:01 a.m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m2:35:09 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m2:35:09 a.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("statusMessage" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m2:35:09 a.m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m2:35:15 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m2:35:15 a.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("statusMessage" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m2:35:15 a.m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m2:35:22 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m2:35:22 a.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("statusMessage" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m2:35:22 a.m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m2:37:06 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/workbench.css[22m
+[2m2:37:38 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/workbench/TopBar.tsx[22m
+[2m2:39:15 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/workbench/LeftSidebar.tsx[22m
+[2m2:39:33 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/workbench/AnimationControls.tsx[22m
+[2m2:39:58 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/workbench/RightInspector.tsx[22m
+[2m10:38:13 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/workbench/LeftSidebar.tsx[22m
+[2m10:39:23 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/MapView.tsx[22m
+[2m10:39:35 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/MapView.tsx[22m
+[2m10:39:48 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/MapView.tsx[22m
+[2m10:39:55 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/workbench/LeftSidebar.tsx[22m
+[2m10:40:03 a.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/workbench.css[22m

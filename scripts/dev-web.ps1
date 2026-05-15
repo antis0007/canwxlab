@@ -6,8 +6,14 @@ $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $nodeModules = Join-Path $repoRoot "node_modules"
 
+if (-not (Get-Command corepack -ErrorAction SilentlyContinue)) {
+  Write-Error "corepack is unavailable. Please install Node.js and enable corepack."
+  exit 1
+}
+
 if (-not (Test-Path $nodeModules)) {
   Write-Error "Missing node_modules at repo root. Run 'corepack pnpm install' first."
+  exit 1
 }
 
 try {

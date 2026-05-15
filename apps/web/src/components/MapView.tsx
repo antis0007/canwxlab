@@ -44,19 +44,37 @@ interface MapViewProps {
   onGlobeSupportDetected: (supported: boolean) => void;
   cameraTarget: CameraState | null;
   onCameraChange: (state: CameraState) => void;
+  globalTimeMs: number;
 }
 
-const fallbackStyle: StyleSpecification = {
+const defaultBaseStyle: StyleSpecification = {
   version: 8,
-  sources: {},
+  sources: {
+    "carto-dark": {
+      type: "raster",
+      tiles: [
+        "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+      ],
+      tileSize: 256,
+      attribution: "© OpenStreetMap contributors © CARTO",
+    },
+  },
   layers: [
-    { id: "background", type: "background", paint: { "background-color": "#060f1a" } },
+    { id: "background", type: "background", paint: { "background-color": "#090d14" } },
+    {
+      id: "base-tiles",
+      type: "raster",
+      source: "carto-dark",
+      paint: { "raster-opacity": 0.72, "raster-saturation": -0.3 },
+    },
   ],
 };
 
 function styleFromEnvironment(): string | StyleSpecification {
   const configured = import.meta.env.VITE_MAP_STYLE_URL;
-  return configured && configured.trim().length > 0 ? configured : fallbackStyle;
+  return configured && configured.trim().length > 0 ? configured : defaultBaseStyle;
 }
 
 function activeAlertAtPoint(alerts: AlertFeature[], longitude: number, latitude: number): string | null {
@@ -173,6 +191,7 @@ export function MapView({
   onGlobeSupportDetected,
   cameraTarget,
   onCameraChange,
+  globalTimeMs,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -183,6 +202,15 @@ export function MapView({
   const animationFrameRef = useRef<number>(animationFrame);
   const observationsRef = useRef<Observation[]>(observations);
   const alertsRef = useRef<AlertFeature[]>(alerts);
+
+  // Stable callback refs — updated every render so handlers always see latest values
+  // but never trigger map re-creation.
+  const onInspectRef = useRef(onInspect);
+  const onGlobeSupportDetectedRef = useRef(onGlobeSupportDetected);
+  const onCameraChangeRef = useRef(onCameraChange);
+  useEffect(() => { onInspectRef.current = onInspect; });
+  useEffect(() => { onGlobeSupportDetectedRef.current = onGlobeSupportDetected; });
+  useEffect(() => { onCameraChangeRef.current = onCameraChange; });
 
   const activeLayers = useMemo(
     () => layers.filter((layer) => layerState[layer.id]?.enabled),
@@ -344,13 +372,13 @@ export function MapView({
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
-    const overlay = new MapboxOverlay({ layers: deckLayers, interleaved: false });
+    const overlay = new MapboxOverlay({ layers: [], interleaved: false });
     map.addControl(overlay as unknown as maplibregl.IControl);
 
     map.on("click", (event) => {
       const longitude = event.lngLat.lng;
       const latitude = event.lngLat.lat;
-      onInspect({
+      onInspectRef.current({
         longitude,
         latitude,
         values: sampleValues(
@@ -367,11 +395,11 @@ export function MapView({
     map.on("load", () => {
       setMapReady(true);
       const supportsGlobe = typeof (map as any).setProjection === "function";
-      onGlobeSupportDetected(supportsGlobe);
+      onGlobeSupportDetectedRef.current(supportsGlobe);
     });
 
     map.on("moveend", () => {
-      onCameraChange({
+      onCameraChangeRef.current({
         longitude: map.getCenter().lng,
         latitude: map.getCenter().lat,
         zoom: map.getZoom(),
@@ -390,7 +418,8 @@ export function MapView({
       overlayRef.current = null;
       setMapReady(false);
     };
-  }, [deckLayers, onGlobeSupportDetected, onInspect, onCameraChange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (mapRef.current && cameraTarget) {
@@ -414,7 +443,7 @@ export function MapView({
     if (!map || !mapReady) return;
 
     const supportsGlobe = typeof (map as any).setProjection === "function";
-    onGlobeSupportDetected(supportsGlobe);
+    onGlobeSupportDetectedRef.current(supportsGlobe);
 
     if (viewMode === "globe" && supportsGlobe) {
       (map as any).setProjection({ type: "globe" });
@@ -422,7 +451,7 @@ export function MapView({
     if (viewMode === "map" && supportsGlobe) {
       (map as any).setProjection({ type: "mercator" });
     }
-  }, [mapReady, onGlobeSupportDetected, viewMode]);
+  }, [mapReady, viewMode]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -431,8 +460,9 @@ export function MapView({
       map,
       layers,
       runtimeState: layerState,
+      globalTimeMs,
     });
-  }, [layers, layerState, mapReady]);
+  }, [layers, layerState, mapReady, globalTimeMs]);
 
   useEffect(() => {
     const now = performance.now();
@@ -459,9 +489,9 @@ export function MapView({
         <strong>{viewMode}</strong>
         <span>{activeLayers.length} active</span>
       </div>
-      {!import.meta.env.VITE_MAP_STYLE_URL && (
+      {import.meta.env.VITE_MAP_STYLE_URL && (
         <div className="map-style-warning">
-          No `VITE_MAP_STYLE_URL` configured. Rendering weather overlays on neutral background.
+          Custom map style loaded from environment.
         </div>
       )}
     </div>

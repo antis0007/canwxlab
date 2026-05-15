@@ -7,31 +7,27 @@ interface AnimationControlsProps {
   onReset: () => void;
 }
 
-export function AnimationControls({
-  playback,
-  onTogglePlay,
-  onSpeedChange,
-  onReset,
-}: AnimationControlsProps) {
+const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
+
+export function AnimationControls({ playback, onTogglePlay, onSpeedChange, onReset }: AnimationControlsProps) {
   return (
     <div className="wb-animation-controls">
-      <button type="button" onClick={onTogglePlay}>
-        {playback.isPlaying ? "Pause" : "Play"}
+      <button type="button" className="wb-icon-btn" onClick={onTogglePlay} title={playback.isPlaying ? "Pause" : "Play"}>
+        {playback.isPlaying ? "⏸" : "▶"}
       </button>
-      <label>
-        Speed
-        <select
-          value={playback.speedMultiplier}
-          onChange={(event) => onSpeedChange(Number(event.target.value))}
-        >
-          {[0.5, 1, 1.5, 2, 3].map((value) => (
-            <option key={value} value={value}>
-              {value}x
-            </option>
-          ))}
-        </select>
-      </label>
-      <button type="button" onClick={onReset}>Reset</button>
+      <select
+        value={playback.speedMultiplier}
+        onChange={(e) => onSpeedChange(Number(e.target.value))}
+        title="Playback speed"
+        style={{ width: 44 }}
+      >
+        {SPEED_OPTIONS.map((v) => (
+          <option key={v} value={v}>{v}×</option>
+        ))}
+      </select>
+      <button type="button" className="wb-icon-btn" onClick={onReset} title="Reset animation">
+        ↺
+      </button>
     </div>
   );
 }

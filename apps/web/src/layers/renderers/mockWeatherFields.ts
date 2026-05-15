@@ -34,12 +34,12 @@ export function sampleMockWeatherPoint(longitude: number, latitude: number, fram
 export function createTemperatureGrid(frame: number): GeoJSON.FeatureCollection {
   const cells: GeoJSON.Feature[] = [];
   const lonStart = -141;
-  const lonStep = 5.6;
+  const lonStep = 2.5;
   const latStart = 40;
-  const latStep = 3.8;
+  const latStep = 1.8;
 
-  for (let y = 0; y < 11; y += 1) {
-    for (let x = 0; x < 18; x += 1) {
+  for (let y = 0; y < 24; y += 1) {
+    for (let x = 0; x < 40; x += 1) {
       const west = lonStart + x * lonStep;
       const south = latStart + y * latStep;
       const centerLon = west + lonStep * 0.5;
@@ -140,12 +140,12 @@ export function createWindParticles(frame: number, density: number, windScale: n
 export function createCloudOverlay(frame: number): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = [];
   const lonStart = -140;
-  const lonStep = 6.2;
+  const lonStep = 2.8;
   const latStart = 40;
-  const latStep = 4.4;
+  const latStep = 2.0;
 
-  for (let y = 0; y < 9; y += 1) {
-    for (let x = 0; x < 15; x += 1) {
+  for (let y = 0; y < 20; y += 1) {
+    for (let x = 0; x < 30; x += 1) {
       const west = lonStart + x * lonStep;
       const south = latStart + y * latStep;
       const centerLon = west + lonStep * 0.5;

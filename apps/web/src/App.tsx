@@ -12,6 +12,9 @@ import { useAnimationTimeline } from "./layers/animation";
 import { useLayerEngine } from "./layers/layerEngine";
 import type { LayerDiagnostics, RendererFeatureValue, ViewMode, CameraState } from "./layers/types";
 import { api } from "./lib/api";
+import { logManager } from "./lib/logging";
+import { useAppLogging } from "./hooks/useAppLogging";
+import { builtInPresets } from "./layers/presets";
 import {
   fallbackAlerts,
   fallbackLayers,
@@ -51,8 +54,6 @@ function sourceStatusSummary(sources: DataSource[]): SourceStatus {
 
 export function statusMessage(
   sourceReport: SourceStatusResponse | null,
-  alerts: AlertFeature[],
-  observations: Observation[],
   globeCapabilityChecked: boolean,
   globeSupported: boolean,
 ): string[] {
@@ -63,25 +64,19 @@ export function statusMessage(
   if (!sourceReport.live_eccc_enabled) {
     notices.push("Live ECCC data disabled");
   } else if (ogcSource?.status === "fallback" || ogcSource?.status === "unavailable") {
-    notices.push("Live source unavailable; showing mock data");
+    notices.push("Live source unavailable — showing mock data");
   }
 
   if (globeCapabilityChecked && !globeSupported) {
-    notices.push("Globe mode requires a MapLibre version with globe projection support.");
-  }
-
-  if (alerts.length === 0) {
-    notices.push("No alerts returned for this view");
-  }
-
-  if (observations.length === 0) {
-    notices.push("No station observations returned for this view");
+    notices.push("Globe projection not supported by this MapLibre build");
   }
 
   return notices;
 }
 
 export default function App() {
+  useAppLogging();
+
   const [sourceReport, setSourceReport] = useState<SourceStatusResponse | null>(null);
   const [sources, setSources] = useState<DataSource[]>(fallbackSources);
   const [backendLayers, setBackendLayers] = useState<WeatherLayer[]>(fallbackLayers);
@@ -135,6 +130,9 @@ export default function App() {
     reset,
   } = useAnimationTimeline();
 
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
+
   const layerEngine = useLayerEngine({
     backendLayers: [...backendLayers, ...dynamicLayers],
     plugins,
@@ -165,6 +163,21 @@ export default function App() {
     }
   }, [viewMode]);
 
+  const applyPreset = useCallback((presetId: string) => {
+    const preset = builtInPresets.find((p) => p.id === presetId);
+    if (!preset) return;
+
+    logManager.info("app", "Applying layer preset", { preset: presetId });
+
+    layerEngine.orderedLayers.forEach((layer) => {
+      const shouldEnable = preset.layers.includes(layer.id);
+      const isEnabled = layerEngine.runtimeState[layer.id]?.enabled;
+      if (shouldEnable !== isEnabled) {
+        layerEngine.toggleLayer(layer.id);
+      }
+    });
+  }, [layerEngine.orderedLayers, layerEngine.runtimeState, layerEngine.toggleLayer]);
+
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);
     try {
@@ -190,8 +203,11 @@ export default function App() {
         lastDataRefreshAt: new Date().toISOString(),
       }));
       setApiError(null);
+      logManager.info("api", "Data refreshed successfully");
     } catch (error: unknown) {
-      setApiError(error instanceof Error ? error.message : "Failed to fetch API data");
+      const errorMsg = error instanceof Error ? error.message : "Failed to fetch API data";
+      setApiError(errorMsg);
+      logManager.error("api", "Data refresh failed", { error: errorMsg });
     } finally {
       setIsRefreshing(false);
     }
@@ -214,11 +230,11 @@ export default function App() {
   }, []);
 
   const notices = useMemo(() => {
-    const base = statusMessage(sourceReport, alerts, observations, globeCapabilityChecked, globeSupported);
+    const base = statusMessage(sourceReport, globeCapabilityChecked, globeSupported);
     if (apiError) base.push(`API error: ${apiError}`);
-    if (pluginErrors.length > 0) base.push(`Plugin manifest issues: ${pluginErrors.length}`);
+    if (pluginErrors.length > 0) base.push(`Plugin issues: ${pluginErrors.length}`);
     return base;
-  }, [alerts, apiError, globeCapabilityChecked, globeSupported, observations, pluginErrors.length, sourceReport]);
+  }, [apiError, globeCapabilityChecked, globeSupported, pluginErrors.length, sourceReport]);
 
   const sourceHealth = useMemo(() => sourceStatusSummary(sources), [sources]);
   const activeLayerForLegend = layerEngine.activeLayers[0] ?? null;
@@ -241,9 +257,13 @@ export default function App() {
         onRefresh={refreshData}
         timelineMode={timelineMode}
         onSetTimelineMode={setTimelineMode}
+        onToggleLeftPanel={() => setLeftCollapsed(cur => !cur)}
+        onToggleRightPanel={() => setRightCollapsed(cur => !cur)}
+        leftPanelOpen={!leftCollapsed}
+        rightPanelOpen={!rightCollapsed}
       />
 
-      <section className="wb-main">
+      <section className={`wb-main ${leftCollapsed ? 'left-collapsed' : ''} ${rightCollapsed ? 'right-collapsed' : ''}`}>
         <LeftSidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -268,15 +288,19 @@ export default function App() {
           onAddDynamicLayer={(layer) => setDynamicLayers(cur => [...cur.filter(l => l.layer_id !== layer.layer_id), layer])}
           cameraState={cameraState}
           onCameraTarget={setCameraTarget}
+          onApplyPreset={applyPreset}
+          onSetWmsTimePolicy={layerEngine.setWmsTimePolicy}
         />
 
         <section className="wb-map-area">
-          <div className="wb-notice-row">
-            {notices.map((notice) => (
-              <p key={notice} className="wb-notice">{notice}</p>
-            ))}
-            <p className="wb-notice">Refresh: {isRefreshing ? "running" : "idle"}</p>
-          </div>
+          {(notices.length > 0 || isRefreshing) && (
+            <div className="wb-notice-row">
+              {isRefreshing && <p className="wb-notice">Refreshing data…</p>}
+              {notices.map((notice) => (
+                <p key={notice} className="wb-notice">{notice}</p>
+              ))}
+            </div>
+          )}
 
           <MapView
             layers={layerEngine.activeLayers}
@@ -285,6 +309,7 @@ export default function App() {
             alerts={alerts}
             viewMode={viewMode}
             animationFrame={playbackState.frame}
+            globalTimeMs={new Date(playbackState.selectedValidTime).getTime()}
             onInspect={setInspectorState}
             onDiagnostics={(partial) => setDiagnostics((current) => ({
               ...current,
@@ -308,6 +333,7 @@ export default function App() {
           activeAlert={inspectorState.activeAlert}
           animationFrame={playbackState.frame}
           selectedValidTime={playbackState.selectedValidTime}
+          runtimeState={layerEngine.runtimeState}
         />
       </section>
 

@@ -106,8 +106,12 @@ export interface AlertFeature {
 export interface WmsCapabilityLayerSummary {
   layer_name: string;
   title?: string | null;
+  abstract?: string | null;
   has_time_dimension: boolean;
   time_extent?: string | null;
+  styles?: string[];
+  legend_url?: string | null;
+  queryable?: boolean;
 }
 
 export interface WmsCapabilitiesSummaryResponse {

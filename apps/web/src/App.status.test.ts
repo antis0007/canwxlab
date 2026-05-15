@@ -3,18 +3,41 @@ import { describe, expect, it } from "vitest";
 import { statusMessage } from "./App";
 import type { SourceStatusResponse } from "./types/weather";
 
-const sourceReport: SourceStatusResponse = {
+const sourceReportDisabled: SourceStatusResponse = {
   data_mode: "hybrid",
   live_eccc_enabled: false,
-  sources: []
+  sources: [],
+};
+
+const sourceReportEnabled: SourceStatusResponse = {
+  data_mode: "live",
+  live_eccc_enabled: true,
+  sources: [{ source_id: "eccc_geomet_ogc_api", status: "fallback" } as any],
 };
 
 describe("app status messaging", () => {
-  it("renders empty-state notices for disabled live data and empty map results", () => {
-    const notices = statusMessage(sourceReport, [], [], true, false);
+  it("shows Live ECCC disabled notice when live data is off", () => {
+    const notices = statusMessage(sourceReportDisabled, false, false);
     expect(notices).toContain("Live ECCC data disabled");
-    expect(notices).toContain("No alerts returned for this view");
-    expect(notices).toContain("No station observations returned for this view");
-    expect(notices).toContain("Globe mode requires a MapLibre version with globe projection support.");
+  });
+
+  it("shows fallback notice when source is unavailable", () => {
+    const notices = statusMessage(sourceReportEnabled, false, true);
+    expect(notices).toContain("Live source unavailable — showing mock data");
+  });
+
+  it("shows globe notice when globe is checked but not supported", () => {
+    const notices = statusMessage(sourceReportDisabled, true, false);
+    expect(notices).toContain("Globe projection not supported by this MapLibre build");
+  });
+
+  it("returns empty when all systems nominal", () => {
+    const nominalReport: SourceStatusResponse = {
+      data_mode: "live",
+      live_eccc_enabled: true,
+      sources: [{ source_id: "eccc_geomet_ogc_api", status: "live" } as any],
+    };
+    const notices = statusMessage(nominalReport, true, true);
+    expect(notices).toHaveLength(0);
   });
 });

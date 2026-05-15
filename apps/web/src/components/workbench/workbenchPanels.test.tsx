@@ -141,12 +141,16 @@ describe("workbench components", () => {
         onRefresh={() => undefined}
         timelineMode="live"
         onSetTimelineMode={() => undefined}
+        onToggleLeftPanel={() => undefined}
+        onToggleRightPanel={() => undefined}
+        leftPanelOpen
+        rightPanelOpen
       />
     );
 
-    expect(html).toContain("Map");
-    expect(html).toContain("Globe");
-    expect(html).toContain("Speed");
+    expect(html).toContain("MAP");
+    expect(html).toContain("GLOBE");
+    expect(html).toContain("CanWxLab");
   });
 
   it("renders layers and plugin manager badges", () => {
@@ -190,7 +194,6 @@ describe("workbench components", () => {
 
     expect(html).toContain("Demo Temperature Field");
     expect(html).toContain("MOCK");
-    expect(html).toContain("map-only");
     expect(html).toContain("checked");
 
     const pluginHtml = renderToStaticMarkup(

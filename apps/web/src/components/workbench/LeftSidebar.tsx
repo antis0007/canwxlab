@@ -1,14 +1,16 @@
-import { PanelTabs, type PanelTab } from "./PanelTabs";
+import { useState, useMemo } from "react";
 import { StatusBadge } from "./StatusBadge";
 
 import { colorRamps } from "../../layers/colorRamps";
-import type { LayerDefinition, LayerRuntimeState, UiPreferences } from "../../layers/types";
+import { builtInPresets } from "../../layers/presets";
+import type { LayerCategory, LayerDefinition, LayerRuntimeState, UiPreferences } from "../../layers/types";
 import type { DataSource, PluginCatalogItem, VerificationMetric, SimulationRun, WeatherLayer } from "../../types/weather";
 import type { CameraState } from "../../layers/types";
 import { MapControlsPanel } from "./MapControlsPanel";
 import { WmsBrowser } from "./WmsBrowser";
 import { SimulationControlPanel } from "./SimulationControlPanel";
 import { DiffPanel } from "./DiffPanel";
+import { ConsolePanel } from "./ConsolePanel";
 
 interface LeftSidebarProps {
   activeTab: string;
@@ -38,395 +40,608 @@ interface LeftSidebarProps {
   onAddDynamicLayer?: (layer: WeatherLayer) => void;
   cameraState: CameraState;
   onCameraTarget: (state: CameraState) => void;
+  onSetWmsTimePolicy?: (layerId: string, policy: "global" | "latest" | "fixed", fixedTime?: number) => void;
+  onApplyPreset?: (presetId: string) => void;
 }
 
-const tabs: PanelTab[] = [
-  { id: "layers", label: "Layers" },
-  { id: "plugins", label: "Plugin Manager" },
-  { id: "sources", label: "Sources" },
-  { id: "wms", label: "WMS Browser" },
-  { id: "camera", label: "Camera" },
-  { id: "simulation", label: "Simulation" },
-  { id: "verification", label: "Verification" },
-  { id: "customize", label: "Preferences" },
+// ── Nav rail tab definitions ──────────────────────────────────────────────────
+
+interface NavTab {
+  id: string;
+  icon: string;
+  label: string;
+}
+
+const NAV_TABS: NavTab[] = [
+  { id: "layers",       icon: "☰",  label: "Layers" },
+  { id: "plugins",      icon: "⊞",  label: "Plugins" },
+  { id: "sources",      icon: "◎",  label: "Sources" },
+  { id: "wms",          icon: "⊕",  label: "WMS Browser" },
+  { id: "camera",       icon: "⊙",  label: "Camera" },
+  { id: "simulation",   icon: "▷",  label: "Simulation" },
+  { id: "verification", icon: "≈",  label: "Verification" },
+  { id: "console",      icon: "»",  label: "Console" },
+  { id: "customize",    icon: "⚙",  label: "Preferences" },
 ];
 
-function renderLayerTab(props: LeftSidebarProps) {
+// ── Layer category metadata ───────────────────────────────────────────────────
+
+const CATEGORY_META: Record<LayerCategory, { label: string; order: number }> = {
+  base:         { label: "Base",         order: 0 },
+  forecast:     { label: "Forecast",     order: 1 },
+  radar:        { label: "Radar",        order: 2 },
+  satellite:    { label: "Satellite",    order: 3 },
+  observation:  { label: "Observations", order: 4 },
+  alert:        { label: "Alerts",       order: 5 },
+  simulation:   { label: "Simulation",   order: 6 },
+  diagnostic:   { label: "Diagnostics",  order: 7 },
+  plugin:       { label: "Plugins",      order: 8 },
+  experimental: { label: "Experimental", order: 9 },
+};
+
+// ── Layer row component (compact) ─────────────────────────────────────────────
+
+interface LayerRowProps {
+  layer: LayerDefinition;
+  state: LayerRuntimeState;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onExpand: () => void;
+  onSetOpacity: (v: number) => void;
+  onSetRamp: (r: string) => void;
+  onSetControl: (control: keyof LayerRuntimeState["controls"], value: number | string) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onReset: () => void;
+  onSetWmsTimePolicy?: (policy: "global" | "latest" | "fixed", fixedTime?: number) => void;
+}
+
+function LayerRow({
+  layer,
+  state,
+  isExpanded,
+  onToggle,
+  onExpand,
+  onSetOpacity,
+  onSetRamp,
+  onSetControl,
+  onMoveUp,
+  onMoveDown,
+  onReset,
+  onSetWmsTimePolicy,
+}: LayerRowProps) {
+  const rampDef = colorRamps.find((r) => r.id === state.colourRamp);
+
   return (
-    <div className="wb-scroll-panel">
-      {props.layers.map((layer) => {
-        const state = props.runtimeState[layer.id];
-        if (!state) return null;
-        return (
-          <article key={layer.id} className="wb-layer-card">
-            <div className="wb-row-between">
-              <label className="wb-layer-toggle">
-                <input
-                  type="checkbox"
-                  checked={state.enabled}
-                  onChange={() => props.onToggleLayer(layer.id)}
-                  disabled={layer.status === "unavailable"}
-                />
-                <span>{layer.title}</span>
+    <>
+      <div className={`wb-layer-row${isExpanded ? " is-expanded" : ""}`}>
+        <input
+          type="checkbox"
+          checked={state.enabled}
+          onChange={onToggle}
+          disabled={layer.status === "unavailable"}
+          title={layer.title}
+        />
+        <span className={`wb-layer-name ${state.enabled ? "is-enabled" : "is-disabled"}`} title={layer.title}>
+          {layer.title}
+        </span>
+        {layer.status !== "live" && (
+          <StatusBadge status={layer.status} />
+        )}
+        <input
+          type="range"
+          className="wb-layer-opacity-mini"
+          min={0}
+          max={1}
+          step={0.05}
+          value={state.opacity}
+          onChange={(e) => onSetOpacity(Number(e.target.value))}
+          title={`Opacity: ${Math.round(state.opacity * 100)}%`}
+        />
+        <button
+          type="button"
+          className={`wb-layer-expand-btn${isExpanded ? " open" : ""}`}
+          onClick={onExpand}
+          title={isExpanded ? "Collapse" : "Expand controls"}
+        >
+          {isExpanded ? "▲" : "▼"}
+        </button>
+      </div>
+
+      {isExpanded && (
+        <div className="wb-layer-details">
+          {/* Description */}
+          {layer.description && (
+            <p className="wb-muted" style={{ margin: "0 0 3px" }}>{layer.description}</p>
+          )}
+
+          {/* Opacity */}
+          <div className="wb-detail-row">
+            <span className="wb-detail-label">Opacity</span>
+            <input
+              type="range"
+              min={0} max={1} step={0.05}
+              value={state.opacity}
+              onChange={(e) => onSetOpacity(Number(e.target.value))}
+            />
+            <span style={{ fontSize: 10, color: "var(--wb-muted)", width: 28, textAlign: "right", flexShrink: 0 }}>
+              {Math.round(state.opacity * 100)}%
+            </span>
+          </div>
+
+          {/* Colour ramp */}
+          {layer.capabilities.supportsCustomColorRamp && (
+            <div className="wb-detail-row">
+              <span className="wb-detail-label">Ramp</span>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+                <select
+                  value={state.colourRamp}
+                  onChange={(e) => onSetRamp(e.target.value)}
+                  style={{ width: "100%" }}
+                >
+                  {colorRamps.map((r) => (
+                    <option key={r.id} value={r.id}>{r.label}</option>
+                  ))}
+                </select>
+                {rampDef?.cssGradient && (
+                  <span className="wb-ramp-preview" style={{ background: rampDef.cssGradient }} />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Advanced controls */}
+          <details className="wb-advanced-details">
+            <summary className="wb-advanced-summary">Advanced Controls</summary>
+            <div className="wb-advanced-grid">
+              <label>Min<input type="number" value={state.controls.min} onChange={(e) => onSetControl("min", Number(e.target.value))} /></label>
+              <label>Max<input type="number" value={state.controls.max} onChange={(e) => onSetControl("max", Number(e.target.value))} /></label>
+              <label>Smooth<input type="range" min={0} max={1} step={0.05} value={state.controls.smoothing} onChange={(e) => onSetControl("smoothing", Number(e.target.value))} /></label>
+              <label>Particles<input type="number" min={100} max={8000} step={100} value={state.controls.particleCount} onChange={(e) => onSetControl("particleCount", Number(e.target.value))} /></label>
+              <label>Wind ×<input type="number" min={0.1} max={4} step={0.1} value={state.controls.windScale} onChange={(e) => onSetControl("windScale", Number(e.target.value))} /></label>
+              <label>Precip ×<input type="number" min={0.1} max={4} step={0.1} value={state.controls.precipitationIntensity} onChange={(e) => onSetControl("precipitationIntensity", Number(e.target.value))} /></label>
+              <label>Cloud α<input type="range" min={0} max={1} step={0.05} value={state.controls.cloudOpacity} onChange={(e) => onSetControl("cloudOpacity", Number(e.target.value))} /></label>
+              <label>Contour<input type="number" min={1} max={20} step={1} value={state.controls.contourInterval} onChange={(e) => onSetControl("contourInterval", Number(e.target.value))} /></label>
+              <label style={{ gridColumn: "1 / -1" }}>
+                Blend
+                <select value={state.controls.blendMode} onChange={(e) => onSetControl("blendMode", e.target.value)}>
+                  <option value="normal">normal</option>
+                  <option value="additive">additive</option>
+                  <option value="multiply">multiply</option>
+                  <option value="screen">screen</option>
+                </select>
               </label>
-              <StatusBadge status={layer.status} />
             </div>
-            <p className="wb-muted">{layer.description}</p>
-            <div className="wb-chip-row">
-              <span className="wb-chip">{layer.category}</span>
-              <span className="wb-chip">{layer.rendererType}</span>
-              <span className="wb-chip">{layer.capabilities.supportsGlobe ? "globe" : "map-only"}</span>
-              {layer.isExperimental && <StatusBadge status="experimental" label="EXPERIMENTAL" />}
-            </div>
-            <label>
-              Opacity {Math.round(state.opacity * 100)}%
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={state.opacity}
-                onChange={(event) => props.onSetLayerOpacity(layer.id, Number(event.target.value))}
-              />
-            </label>
-            <label>
-              Colour Ramp
-              <select
-                value={state.colourRamp}
-                onChange={(event) => props.onSetLayerRamp(layer.id, event.target.value)}
-              >
-                {colorRamps.map((ramp) => (
-                  <option key={ramp.id} value={ramp.id}>{ramp.label}</option>
-                ))}
-              </select>
-              <span className="wb-ramp-preview" style={{ background: colorRamps.find((r) => r.id === state.colourRamp)?.cssGradient }} />
-            </label>
-            <details className="wb-layer-controls">
-              <summary>Advanced Controls</summary>
-              <div className="wb-layer-controls-grid">
-                <label>
-                  Min
-                  <input
-                    type="number"
-                    value={state.controls.min}
-                    onChange={(event) => props.onSetLayerControl(layer.id, "min", Number(event.target.value))}
-                  />
-                </label>
-                <label>
-                  Max
-                  <input
-                    type="number"
-                    value={state.controls.max}
-                    onChange={(event) => props.onSetLayerControl(layer.id, "max", Number(event.target.value))}
-                  />
-                </label>
-                <label>
-                  Smoothing
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={state.controls.smoothing}
-                    onChange={(event) => props.onSetLayerControl(layer.id, "smoothing", Number(event.target.value))}
-                  />
-                </label>
-                <label>
-                  Particle Count
-                  <input
-                    type="number"
-                    min={100}
-                    max={8000}
-                    step={100}
-                    value={state.controls.particleCount}
-                    onChange={(event) => props.onSetLayerControl(layer.id, "particleCount", Number(event.target.value))}
-                  />
-                </label>
-                <label>
-                  Wind Scale
-                  <input
-                    type="number"
-                    min={0.1}
-                    max={4}
-                    step={0.1}
-                    value={state.controls.windScale}
-                    onChange={(event) => props.onSetLayerControl(layer.id, "windScale", Number(event.target.value))}
-                  />
-                </label>
-                <label>
-                  Precip Intensity
-                  <input
-                    type="number"
-                    min={0.1}
-                    max={4}
-                    step={0.1}
-                    value={state.controls.precipitationIntensity}
-                    onChange={(event) => props.onSetLayerControl(layer.id, "precipitationIntensity", Number(event.target.value))}
-                  />
-                </label>
-                <label>
-                  Cloud Opacity
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={state.controls.cloudOpacity}
-                    onChange={(event) => props.onSetLayerControl(layer.id, "cloudOpacity", Number(event.target.value))}
-                  />
-                </label>
-                <label>
-                  Contour Interval
-                  <input
-                    type="number"
-                    min={1}
-                    max={20}
-                    step={1}
-                    value={state.controls.contourInterval}
-                    onChange={(event) => props.onSetLayerControl(layer.id, "contourInterval", Number(event.target.value))}
-                  />
-                </label>
-                <label>
-                  Blend Mode
+          </details>
+
+          {/* WMS time policy */}
+          {layer.serviceType === "wms" && !!layer.metadata?.time_extent && onSetWmsTimePolicy && (
+            <details className="wb-advanced-details">
+              <summary className="wb-advanced-summary">WMS Time Policy</summary>
+              <div className="wb-advanced-grid">
+                <label style={{ gridColumn: "1 / -1" }}>
+                  Policy
                   <select
-                    value={state.controls.blendMode}
-                    onChange={(event) => props.onSetLayerControl(layer.id, "blendMode", event.target.value)}
+                    value={state.wmsTimePolicy ?? "global"}
+                    onChange={(e) => onSetWmsTimePolicy(e.target.value as any, state.wmsFixedTime)}
                   >
-                    <option value="normal">normal</option>
-                    <option value="additive">additive</option>
-                    <option value="multiply">multiply</option>
-                    <option value="screen">screen</option>
+                    <option value="global">Global Timeline</option>
+                    <option value="latest">Latest Available</option>
+                    <option value="fixed">Fixed Time</option>
                   </select>
                 </label>
+                {state.wmsTimePolicy === "fixed" && (
+                  <label style={{ gridColumn: "1 / -1" }}>
+                    Fixed (ms)
+                    <input
+                      type="number"
+                      value={state.wmsFixedTime ?? Date.now()}
+                      onChange={(e) => onSetWmsTimePolicy("fixed", Number(e.target.value))}
+                    />
+                  </label>
+                )}
               </div>
             </details>
-            <div className="wb-row-between">
-              <button type="button" onClick={() => props.onMoveLayer(layer.id, "up")}>Up</button>
-              <button type="button" onClick={() => props.onMoveLayer(layer.id, "down")}>Down</button>
-              <button type="button" onClick={() => props.onResetLayer(layer.id)}>Reset</button>
-            </div>
-          </article>
-        );
-      })}
+          )}
+
+          {/* Actions */}
+          <div className="wb-detail-actions">
+            <button type="button" onClick={onMoveUp} title="Move layer up">↑</button>
+            <button type="button" onClick={onMoveDown} title="Move layer down">↓</button>
+            <button type="button" onClick={onReset} title="Reset to defaults">Reset</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Layer tab ─────────────────────────────────────────────────────────────────
+
+interface LayerTabProps {
+  layers: LayerDefinition[];
+  runtimeState: Record<string, LayerRuntimeState>;
+  onToggleLayer: (id: string) => void;
+  onSetLayerOpacity: (id: string, v: number) => void;
+  onSetLayerRamp: (id: string, r: string) => void;
+  onSetLayerControl: (id: string, c: keyof LayerRuntimeState["controls"], v: number | string) => void;
+  onMoveLayer: (id: string, d: "up" | "down") => void;
+  onResetLayer: (id: string) => void;
+  onApplyPreset?: (id: string) => void;
+  onSetWmsTimePolicy?: (layerId: string, policy: "global" | "latest" | "fixed", fixedTime?: number) => void;
+}
+
+function LayerTab({
+  layers,
+  runtimeState,
+  onToggleLayer,
+  onSetLayerOpacity,
+  onSetLayerRamp,
+  onSetLayerControl,
+  onMoveLayer,
+  onResetLayer,
+  onApplyPreset,
+  onSetWmsTimePolicy,
+}: LayerTabProps) {
+  const [search, setSearch] = useState("");
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (cat: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
+
+  const toggleLayerExpand = (id: string) => {
+    setExpandedLayers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const filteredLayers = useMemo(() => {
+    const q = search.toLowerCase();
+    return q
+      ? layers.filter((l) => l.title.toLowerCase().includes(q) || l.category.includes(q))
+      : layers;
+  }, [layers, search]);
+
+  // Group by category, sorted by category order then zIndex
+  const groups = useMemo(() => {
+    const map = new Map<LayerCategory, LayerDefinition[]>();
+    for (const layer of filteredLayers) {
+      const cat = layer.category;
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(layer);
+    }
+    return [...map.entries()].sort(
+      ([a], [b]) => (CATEGORY_META[a]?.order ?? 99) - (CATEGORY_META[b]?.order ?? 99),
+    );
+  }, [filteredLayers]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+      {/* Search */}
+      <div className="wb-layer-search">
+        <input
+          type="search"
+          placeholder="Filter layers…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          spellCheck={false}
+        />
+      </div>
+
+      {/* Presets */}
+      {builtInPresets.length > 0 && (
+        <div className="wb-presets-bar">
+          <span style={{ fontSize: 9, color: "var(--wb-muted)", alignSelf: "center", marginRight: 2, letterSpacing: "0.06em", textTransform: "uppercase" }}>Preset</span>
+          {builtInPresets.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onApplyPreset?.(p.id)}
+              title={p.description}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Layer groups */}
+      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+        <div style={{ flex: 1 }}>
+          {groups.map(([cat, catLayers]) => {
+            const meta = CATEGORY_META[cat] ?? { label: cat, order: 99 };
+            const isCollapsed = collapsedGroups.has(cat);
+            return (
+              <div key={cat} className="wb-layer-group">
+                <div
+                  className="wb-layer-group-header"
+                  onClick={() => toggleGroup(cat)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === "Enter" && toggleGroup(cat)}
+                >
+                  <span className={`wb-group-chevron${isCollapsed ? "" : " open"}`}>▶</span>
+                  <span className="wb-group-label">{meta.label}</span>
+                  <span className="wb-group-count">{catLayers.length}</span>
+                </div>
+                {!isCollapsed && catLayers.map((layer) => {
+                  const state = runtimeState[layer.id];
+                  if (!state) return null;
+                  return (
+                    <LayerRow
+                      key={layer.id}
+                      layer={layer}
+                      state={state}
+                      isExpanded={expandedLayers.has(layer.id)}
+                      onToggle={() => onToggleLayer(layer.id)}
+                      onExpand={() => toggleLayerExpand(layer.id)}
+                      onSetOpacity={(v) => onSetLayerOpacity(layer.id, v)}
+                      onSetRamp={(r) => onSetLayerRamp(layer.id, r)}
+                      onSetControl={(c, v) => onSetLayerControl(layer.id, c, v)}
+                      onMoveUp={() => onMoveLayer(layer.id, "up")}
+                      onMoveDown={() => onMoveLayer(layer.id, "down")}
+                      onReset={() => onResetLayer(layer.id)}
+                      onSetWmsTimePolicy={
+                        onSetWmsTimePolicy
+                          ? (policy, fixedTime) => onSetWmsTimePolicy(layer.id, policy, fixedTime)
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+          {groups.length === 0 && (
+            <p className="wb-muted" style={{ padding: "12px 8px" }}>No layers match "{search}"</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-function safetyBadgeLabel(level: PluginCatalogItem["safety_level"]): string {
-  if (level === "core") return "CORE";
-  if (level === "safe_wasm") return "SAFE";
-  if (level === "research_native") return "RESEARCH";
-  return "UNSAFE";
-}
+// ── Plugin tab ────────────────────────────────────────────────────────────────
 
-function renderPluginTab(props: LeftSidebarProps) {
+function PluginTab({ plugins, pluginEnabled, onSetPluginEnabled }: Pick<LeftSidebarProps, "plugins" | "pluginEnabled" | "onSetPluginEnabled">) {
   return (
     <div className="wb-scroll-panel">
-      {props.plugins.map((plugin) => {
-        const enabled = props.pluginEnabled[plugin.id] ?? plugin.enabled_default;
+      {plugins.length === 0 && (
+        <p className="wb-muted">No plugins discovered.</p>
+      )}
+      {plugins.map((plugin) => {
+        const enabled = pluginEnabled[plugin.id] ?? plugin.enabled_default;
         return (
-          <article key={plugin.id} className="wb-layer-card">
+          <div key={plugin.id} className="wb-panel-block">
             <div className="wb-row-between">
-              <strong>{plugin.name}</strong>
+              <strong style={{ fontSize: 11 }}>{plugin.name}</strong>
               <StatusBadge status={plugin.status === "installed" ? "live" : "unavailable"} label={plugin.status.toUpperCase()} />
             </div>
-            <p className="wb-muted">{plugin.description}</p>
+            <p className="wb-muted" style={{ margin: "3px 0" }}>{plugin.description}</p>
             <div className="wb-chip-row">
               {plugin.is_builtin && <span className="wb-chip">BUILT-IN</span>}
-              <span className="wb-chip">{plugin.plugin_type.toUpperCase()}</span>
-              <span className="wb-chip">{safetyBadgeLabel(plugin.safety_level)}</span>
-              {(!enabled) && <span className="wb-chip">DISABLED</span>}
+              <span className="wb-chip">{plugin.plugin_type}</span>
+              <span className="wb-chip">{plugin.safety_level}</span>
             </div>
-            <label className="wb-inline-toggle">
+            <label className="wb-inline-toggle" style={{ marginTop: 4 }}>
               <input
                 type="checkbox"
                 checked={enabled}
-                onChange={(event) => props.onSetPluginEnabled(plugin.id, event.target.checked)}
+                onChange={(e) => onSetPluginEnabled(plugin.id, e.target.checked)}
               />
-              Enable plugin manifest
+              Enable
             </label>
-            {plugin.safety_level === "unsafe" || plugin.safety_level === "research_native" ? (
-              <p className="wb-warning">Research/unsafe plugin: execution runtime is disabled in this phase.</p>
-            ) : null}
-          </article>
+            {(plugin.safety_level === "unsafe" || plugin.safety_level === "research_native") && (
+              <p className="wb-warning" style={{ marginTop: 3 }}>Runtime execution disabled in this build.</p>
+            )}
+          </div>
         );
       })}
-      <button type="button" disabled title="Plugin installation from remote sources is planned but not enabled yet.">
-        Install Plugin (Planned)
-      </button>
-      <p className="wb-muted">Plugin installation from remote sources is planned but not enabled yet.</p>
+      <div style={{ padding: "6px 0" }}>
+        <button type="button" disabled title="Plugin installation planned">Install Plugin (Planned)</button>
+      </div>
     </div>
   );
 }
 
-function renderSourceTab(props: LeftSidebarProps) {
+// ── Sources tab ───────────────────────────────────────────────────────────────
+
+function SourceTab({ sources }: Pick<LeftSidebarProps, "sources">) {
   return (
     <div className="wb-scroll-panel">
-      {props.sources.map((source) => (
-        <article key={source.source_id} className="wb-layer-card">
+      {sources.map((source) => (
+        <div key={source.source_id} className="wb-panel-block">
           <div className="wb-row-between">
-            <strong>{source.name}</strong>
+            <strong style={{ fontSize: 11 }}>{source.name}</strong>
             <StatusBadge status={source.status} />
           </div>
-          <p className="wb-muted">{source.message || source.description}</p>
-          <p className="wb-muted">Last success: {source.last_successful_fetch ? new Date(source.last_successful_fetch).toLocaleString() : "n/a"}</p>
-          <p className="wb-muted">Last attempt: {source.last_attempted_fetch ? new Date(source.last_attempted_fetch).toLocaleString() : "n/a"}</p>
-          <small>{source.attribution}</small>
-        </article>
+          <p className="wb-muted" style={{ margin: "3px 0" }}>{source.message || source.description}</p>
+          <p className="wb-muted">Last OK: {source.last_successful_fetch ? new Date(source.last_successful_fetch).toLocaleTimeString() : "—"}</p>
+          {source.attribution && <p className="wb-muted" style={{ marginTop: 2 }}>{source.attribution}</p>}
+        </div>
       ))}
     </div>
   );
 }
 
-function renderSimulationTab(props: LeftSidebarProps) {
-  return (
-    <SimulationControlPanel
-      simulationRun={props.simulationRun}
-      isRunning={props.isRunningSimulation}
-      onRun={props.onRunSimulation}
-    />
-  );
-}
+// ── Preferences tab ───────────────────────────────────────────────────────────
 
-function renderVerificationTab(props: LeftSidebarProps) {
-  return <DiffPanel metrics={props.metrics} />;
-}
+function PreferencesTab({ uiPreferences, onSetUiPreferences }: Pick<LeftSidebarProps, "uiPreferences" | "onSetUiPreferences">) {
+  const prefs = uiPreferences;
+  const set = (patch: Partial<typeof prefs>) => onSetUiPreferences({ ...prefs, ...patch });
 
-function renderCustomizationTab(props: LeftSidebarProps) {
-  const preferences = props.uiPreferences;
   return (
     <div className="wb-scroll-panel">
-      <label className="wb-inline-toggle">
-        <input
-          type="checkbox"
-          checked={preferences.compactMode}
-          onChange={(event) => props.onSetUiPreferences({ ...preferences, compactMode: event.target.checked })}
-        />
-        Compact mode
-      </label>
+      <div className="wb-panel-block">
+        <strong style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--wb-muted)" }}>Display</strong>
+        <label className="wb-inline-toggle" style={{ marginTop: 6 }}>
+          <input type="checkbox" checked={prefs.compactMode} onChange={(e) => set({ compactMode: e.target.checked })} />
+          Compact mode
+        </label>
+        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+            Theme
+            <select value={prefs.theme} onChange={(e) => set({ theme: e.target.value as typeof prefs.theme })} style={{ flex: 1 }}>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+              <option value="system">System</option>
+            </select>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+            Accent
+            <input type="color" value={prefs.accentColor} onChange={(e) => set({ accentColor: e.target.value })} style={{ width: 36, padding: "1px 2px" }} />
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+            Map style
+            <select value={prefs.mapBackgroundStyle} onChange={(e) => set({ mapBackgroundStyle: e.target.value as typeof prefs.mapBackgroundStyle })} style={{ flex: 1 }}>
+              <option value="default">Default</option>
+              <option value="muted">Muted</option>
+              <option value="high-contrast">High Contrast</option>
+            </select>
+          </label>
+        </div>
+      </div>
 
-      <label>
-        Theme
-        <select
-          value={preferences.theme}
-          onChange={(event) => props.onSetUiPreferences({ ...preferences, theme: event.target.value as UiPreferences["theme"] })}
-        >
-          <option value="dark">Dark</option>
-          <option value="light">Light</option>
-          <option value="system">System</option>
-        </select>
-      </label>
-
-      <label>
-        Accent
-        <input
-          type="color"
-          value={preferences.accentColor}
-          onChange={(event) => props.onSetUiPreferences({ ...preferences, accentColor: event.target.value })}
-        />
-      </label>
-
-      <label>
-        Map background
-        <select
-          value={preferences.mapBackgroundStyle}
-          onChange={(event) =>
-            props.onSetUiPreferences({
-              ...preferences,
-              mapBackgroundStyle: event.target.value as UiPreferences["mapBackgroundStyle"],
-            })
-          }
-        >
-          <option value="default">Default</option>
-          <option value="muted">Muted</option>
-          <option value="high-contrast">High Contrast</option>
-        </select>
-      </label>
-
-      <label>
-        Temperature Unit
-        <select
-          value={preferences.units.temperature}
-          onChange={(event) =>
-            props.onSetUiPreferences({
-              ...preferences,
-              units: { ...preferences.units, temperature: event.target.value as UiPreferences["units"]["temperature"] },
-            })
-          }
-        >
-          <option value="C">C</option>
-          <option value="F">F</option>
-          <option value="K">K</option>
-        </select>
-      </label>
-
-      <label>
-        Wind Unit
-        <select
-          value={preferences.units.wind}
-          onChange={(event) =>
-            props.onSetUiPreferences({
-              ...preferences,
-              units: { ...preferences.units, wind: event.target.value as UiPreferences["units"]["wind"] },
-            })
-          }
-        >
-          <option value="m/s">m/s</option>
-          <option value="km/h">km/h</option>
-          <option value="knots">knots</option>
-        </select>
-      </label>
-
-      <label>
-        Pressure Unit
-        <select
-          value={preferences.units.pressure}
-          onChange={(event) =>
-            props.onSetUiPreferences({
-              ...preferences,
-              units: { ...preferences.units, pressure: event.target.value as UiPreferences["units"]["pressure"] },
-            })
-          }
-        >
-          <option value="hPa">hPa</option>
-          <option value="Pa">Pa</option>
-        </select>
-      </label>
-
-      <label>
-        Precipitation Unit
-        <select
-          value={preferences.units.precipitation}
-          onChange={(event) =>
-            props.onSetUiPreferences({
-              ...preferences,
-              units: {
-                ...preferences.units,
-                precipitation: event.target.value as UiPreferences["units"]["precipitation"],
-              },
-            })
-          }
-        >
-          <option value="mm">mm</option>
-          <option value="in">in</option>
-        </select>
-      </label>
+      <div className="wb-panel-block">
+        <strong style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--wb-muted)" }}>Units</strong>
+        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }}>
+          {(
+            [
+              { key: "temperature" as const, label: "Temperature", opts: ["C", "F", "K"] },
+              { key: "wind" as const,        label: "Wind",        opts: ["m/s", "km/h", "knots"] },
+              { key: "pressure" as const,    label: "Pressure",    opts: ["hPa", "Pa"] },
+              { key: "precipitation" as const, label: "Precip",    opts: ["mm", "in"] },
+            ] as const
+          ).map(({ key, label, opts }) => (
+            <label key={key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+              {label}
+              <select
+                value={prefs.units[key]}
+                onChange={(e) => set({ units: { ...prefs.units, [key]: e.target.value } })}
+                style={{ flex: 1 }}
+              >
+                {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </label>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
 
+// ── Main sidebar ──────────────────────────────────────────────────────────────
+
+const TAB_TITLES: Record<string, string> = {
+  layers:       "Layers",
+  plugins:      "Plugin Manager",
+  sources:      "Data Sources",
+  wms:          "WMS Browser",
+  camera:       "Camera & Navigation",
+  simulation:   "Simulation",
+  verification: "Verification",
+  console:      "Console",
+  customize:    "Preferences",
+};
+
 export function LeftSidebar(props: LeftSidebarProps) {
   return (
     <aside className="wb-left-panel">
-      <PanelTabs tabs={tabs} activeTab={props.activeTab} onChange={props.onTabChange} />
-      {props.activeTab === "layers" && renderLayerTab(props)}
-      {props.activeTab === "plugins" && renderPluginTab(props)}
-      {props.activeTab === "sources" && renderSourceTab(props)}
-      {props.activeTab === "wms" && props.onAddDynamicLayer && <WmsBrowser onAddLayer={props.onAddDynamicLayer} />}
-      {props.activeTab === "camera" && <MapControlsPanel cameraState={props.cameraState} onCameraTarget={props.onCameraTarget} />}
-      {props.activeTab === "simulation" && renderSimulationTab(props)}
-      {props.activeTab === "verification" && renderVerificationTab(props)}
-      {props.activeTab === "customize" && renderCustomizationTab(props)}
+      {/* Vertical nav rail */}
+      <nav className="wb-nav-rail" aria-label="Panel navigation">
+        {NAV_TABS.map((tab, idx) => {
+          const isActive = props.activeTab === tab.id;
+          // Small divider before the last group
+          const addDivider = idx === NAV_TABS.length - 2;
+          return (
+            <>
+              {addDivider && <div key={`div-${tab.id}`} className="wb-nav-divider" />}
+              <button
+                key={tab.id}
+                type="button"
+                className={`wb-nav-btn${isActive ? " active" : ""}`}
+                onClick={() => props.onTabChange(tab.id)}
+                data-label={tab.label}
+                title={tab.label}
+                aria-pressed={isActive}
+              >
+                {tab.icon}
+              </button>
+            </>
+          );
+        })}
+      </nav>
+
+      {/* Panel content */}
+      <div className="wb-panel-content">
+        <div className="wb-panel-title">{TAB_TITLES[props.activeTab] ?? props.activeTab}</div>
+
+        {props.activeTab === "layers" && (
+          <LayerTab
+            layers={props.layers}
+            runtimeState={props.runtimeState}
+            onToggleLayer={props.onToggleLayer}
+            onSetLayerOpacity={props.onSetLayerOpacity}
+            onSetLayerRamp={props.onSetLayerRamp}
+            onSetLayerControl={props.onSetLayerControl}
+            onMoveLayer={props.onMoveLayer}
+            onResetLayer={props.onResetLayer}
+            onApplyPreset={props.onApplyPreset}
+            onSetWmsTimePolicy={props.onSetWmsTimePolicy}
+          />
+        )}
+
+        {props.activeTab === "plugins" && (
+          <PluginTab
+            plugins={props.plugins}
+            pluginEnabled={props.pluginEnabled}
+            onSetPluginEnabled={props.onSetPluginEnabled}
+          />
+        )}
+
+        {props.activeTab === "sources" && (
+          <SourceTab sources={props.sources} />
+        )}
+
+        {props.activeTab === "wms" && props.onAddDynamicLayer && (
+          <WmsBrowser onAddLayer={props.onAddDynamicLayer} />
+        )}
+
+        {props.activeTab === "camera" && (
+          <MapControlsPanel cameraState={props.cameraState} onCameraTarget={props.onCameraTarget} />
+        )}
+
+        {props.activeTab === "simulation" && (
+          <SimulationControlPanel
+            simulationRun={props.simulationRun}
+            isRunning={props.isRunningSimulation}
+            onRun={props.onRunSimulation}
+          />
+        )}
+
+        {props.activeTab === "verification" && (
+          <DiffPanel metrics={props.metrics} />
+        )}
+
+        {props.activeTab === "console" && <ConsolePanel />}
+
+        {props.activeTab === "customize" && (
+          <PreferencesTab
+            uiPreferences={props.uiPreferences}
+            onSetUiPreferences={props.onSetUiPreferences}
+          />
+        )}
+      </div>
     </aside>
   );
 }

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PluginCatalogItem, WeatherLayer } from "../types/weather";
 
 import { colorRamps } from "./colorRamps";
+import { builtInPresets } from "./presets";
 import { buildLayerDefinitions } from "./registry";
 import {
   defaultLayerControls,
@@ -40,6 +41,7 @@ function defaultRuntimeState(layer: LayerDefinition): LayerRuntimeState {
     colourRamp: layer.colourRamp,
     zIndex: layer.zIndex,
     controls: { ...defaultLayerControls, ...layer.controls },
+    wmsTimePolicy: "global",
   };
 }
 
@@ -54,6 +56,7 @@ function fallbackRuntimeState(): LayerRuntimeState {
     colourRamp: "viridis-like",
     zIndex: 0,
     controls: { ...defaultLayerControls },
+    wmsTimePolicy: "global",
   };
 }
 
@@ -199,6 +202,17 @@ export function useLayerEngine(input: {
     []
   );
 
+  const setWmsTimePolicy = useCallback((layerId: string, policy: "global" | "latest" | "fixed", fixedTime?: number) => {
+    setRuntimeState((current) => ({
+      ...current,
+      [layerId]: {
+        ...(current[layerId] ?? fallbackRuntimeState()),
+        wmsTimePolicy: policy,
+        wmsFixedTime: fixedTime,
+      },
+    }));
+  }, []);
+
   const resetLayer = useCallback(
     (layerId: string) => {
       const definition = definitions.find((item) => item.id === layerId);
@@ -234,6 +248,24 @@ export function useLayerEngine(input: {
     setLayerOrder(definitions.map((definition) => definition.id));
   }, [definitions]);
 
+  const applyPreset = useCallback((presetId: string) => {
+    const preset = builtInPresets.find(p => p.id === presetId);
+    if (!preset) return;
+    
+    setRuntimeState(current => {
+      const next = { ...current };
+      definitions.forEach(def => {
+        const isPresetLayer = preset.layers.includes(def.id) || 
+                              preset.layers.some(p => def.id.includes(p)); // rough matching for dynamic layers
+        if (!next[def.id]) {
+          next[def.id] = { ...fallbackRuntimeState() };
+        }
+        next[def.id] = { ...next[def.id], enabled: isPresetLayer };
+      });
+      return next;
+    });
+  }, [definitions]);
+
   return {
     definitions,
     orderedLayers,
@@ -244,9 +276,11 @@ export function useLayerEngine(input: {
     setLayerOpacity,
     setLayerRamp,
     setLayerControl,
+    setWmsTimePolicy,
     moveLayer,
     resetLayer,
     resetAllLayers,
+    applyPreset,
     pluginEnabled,
     setPluginEnabledState,
     uiPreferences,

@@ -2,9 +2,9 @@
 
 CanWxLab is a local-first Canadian weather and geospatial workbench for visualization, simulation, and verification experiments.
 
-Current status: **Phase 2 - Interactive Weather Workbench UI, Realtime Dev Loop, Layer Engine, and Globe Preview**.
+Current status: **Phase 4 - Launch Hardening, Live WMS Rendering QA, Timeline Binding, and Workstation Iteration Loop**.
 
-CanWxLab is still not an operational forecast system and does not issue official weather alerts.
+⚠️ **CanWxLab is not an operational forecast system and does not issue official weather alerts.**
 
 ## What Is Implemented
 
@@ -61,25 +61,46 @@ python -m venv services/api/.venv
 services/api/.venv/Scripts/python.exe -m pip install -e services/api[dev]
 ```
 
-2. Start full local dev loop:
+2. Start development servers:
 
+**Mock mode (recommended for initial testing, no internet required):**
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1
+scripts/dev-mock.ps1
 ```
 
-3. Open:
+**Live/hybrid mode (requires internet):**
+```powershell
+scripts/dev-live.ps1
+```
 
-- Web: [http://127.0.0.1:5173](http://127.0.0.1:5173)
+**Full control (both servers):**
+```powershell
+scripts/dev.ps1
+```
+
+3. Open in browser:
+
+- Web UI: [http://127.0.0.1:5173](http://127.0.0.1:5173)
 - API: [http://127.0.0.1:8787](http://127.0.0.1:8787)
 - API Docs: [http://127.0.0.1:8787/docs](http://127.0.0.1:8787/docs)
 
-4. Stop local servers:
+4. Stop servers:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-dev.ps1
+scripts/stop-dev.ps1
 ```
 
-Detailed dev workflow: [docs/development.md](/C:/Users/antis0007/Documents/New%20project/docs/development.md).
+5. Check endpoint health:
+
+```powershell
+scripts/check-endpoints.ps1
+```
+
+**Documentation:**
+- [Manual QA Guide](docs/manual-qa.md) — step-by-step testing instructions
+- [Development Guide](docs/development.md) — dev workflow, architecture
+- [Layer Engine](docs/layer-engine.md) — layer rendering and state management
+- [WMS Live Layers](docs/wms-live-layers.md) — WMS discovery and rendering
 
 ## API Endpoints
 
