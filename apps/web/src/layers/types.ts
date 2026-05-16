@@ -145,12 +145,18 @@ export interface UnitPreferences {
   precipitation: "mm" | "in";
 }
 
+export type StarExposure = "dim" | "realistic" | "bright" | "extreme";
+
 export interface UiPreferences {
   compactMode: boolean;
   theme: "dark" | "light" | "system";
   accentColor: string;
   mapBackgroundStyle: "default" | "muted" | "high-contrast";
   photorealisticGlobe: boolean;
+  /** Visibility floor for the celestial-sphere starfield. */
+  starExposure?: StarExposure;
+  /** Light-years; stars beyond this distance are not drawn. Catalogue caps practical density. */
+  starMaxDistanceLy?: number;
   units: UnitPreferences;
 }
 
@@ -179,6 +185,8 @@ export const defaultUiPreferences: UiPreferences = {
   accentColor: "#58d0bf",
   mapBackgroundStyle: "default",
   photorealisticGlobe: true,
+  starExposure: "realistic",
+  starMaxDistanceLy: 500,
   units: {
     temperature: "C",
     wind: "m/s",

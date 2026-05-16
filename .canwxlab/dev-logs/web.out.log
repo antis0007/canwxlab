@@ -37,3 +37,24 @@ Re-optimizing dependencies because lockfile has changed
 [2m5:31:55 p.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
 [2m5:31:55 p.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("statusMessage" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
 [2m5:31:55 p.m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m5:43:44 p.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/MapView.tsx[22m
+[2m5:43:44 p.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/MapView.tsx[22m Could not Fast Refresh ("getBasemapStyle" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m5:43:44 p.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m5:43:44 p.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("statusMessage" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m5:43:44 p.m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m5:43:51 p.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/LayersPicker.tsx[22m
+[2m5:43:51 p.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/LayersPicker.tsx[22m Could not Fast Refresh ("BASEMAP_OPTIONS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m5:43:51 p.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m5:43:52 p.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("statusMessage" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m5:43:52 p.m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m5:43:59 p.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/workbench/BottomTimeline.tsx[22m
+[2m5:44:11 p.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/workbench.css[22m
+[2m5:44:28 p.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/workbench/BottomTimeline.tsx[22m
+[2m5:47:35 p.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/MapView.tsx[22m
+[2m5:47:35 p.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/components/MapView.tsx[22m Could not Fast Refresh ("getBasemapStyle" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m5:47:35 p.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m5:47:35 p.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("statusMessage" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m5:47:35 p.m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m5:48:13 p.m.[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.tsx[22m
+[2m5:48:13 p.m.[22m [36m[1m[vite][22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("statusMessage" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m5:48:13 p.m.[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2msrc/App.tsx[22m

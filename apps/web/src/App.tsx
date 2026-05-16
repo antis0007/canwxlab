@@ -16,6 +16,7 @@ import { api } from "./lib/api";
 import { logManager } from "./lib/logging";
 import { useAppLogging } from "./hooks/useAppLogging";
 import { builtInPresets } from "./layers/presets";
+import type { DiffOverlayPayload } from "./layers/renderers/diffBitmap";
 import {
   fallbackAlerts,
   fallbackLayers,
@@ -95,6 +96,7 @@ export default function App() {
   const [pluginErrors, setPluginErrors] = useState<string[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [simulationRun, setSimulationRun] = useState<SimulationRun | null>(null);
+  const [diffOverlay, setDiffOverlay] = useState<DiffOverlayPayload | null>(null);
   const [isRunningSimulation, setIsRunningSimulation] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("layers");
@@ -307,6 +309,29 @@ export default function App() {
     }
   }, []);
 
+  // Poll the simulation run while it is queued/running. Stops as soon as the
+  // backend reports a terminal state (completed / failed).
+  useEffect(() => {
+    if (!simulationRun) return;
+    if (simulationRun.status !== "queued" && simulationRun.status !== "running") return;
+    let cancelled = false;
+    const runId = simulationRun.run_id;
+    const interval = window.setInterval(async () => {
+      try {
+        const next = await api.getSimulationRun(runId);
+        if (cancelled) return;
+        setSimulationRun(next);
+      } catch (error) {
+        if (cancelled) return;
+        setApiError(error instanceof Error ? error.message : "simulation poll failed");
+      }
+    }, 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [simulationRun]);
+
   const notices = useMemo(() => {
     const base = statusMessage(sourceReport, globeCapabilityChecked, globeSupported);
     if (apiError) base.push(`API error: ${apiError}`);
@@ -368,6 +393,7 @@ export default function App() {
           onCameraTarget={setCameraTarget}
           onApplyPreset={applyPreset}
           onSetWmsTimePolicy={layerEngine.setWmsTimePolicy}
+          onDiffOverlay={setDiffOverlay}
         />
 
         <section className="wb-map-area">
@@ -399,6 +425,9 @@ export default function App() {
             onCameraChange={setCameraState}
             basemap={basemap}
             photorealisticGlobe={layerEngine.uiPreferences.photorealisticGlobe ?? true}
+            diffOverlay={diffOverlay}
+            starExposure={layerEngine.uiPreferences.starExposure}
+            starMaxDistanceLy={layerEngine.uiPreferences.starMaxDistanceLy}
           />
 
           <LayersPicker

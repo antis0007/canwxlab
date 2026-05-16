@@ -2705,3 +2705,196 @@ INFO:     127.0.0.1:53903 - "GET /api/sources/status HTTP/1.1" 200 OK
 {"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:52:57,287", "level": "INFO"}
 {"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:52:57,704", "level": "INFO"}
 {"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:52:58,112", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:52:58,524", "level": "INFO"}
+{"name": "watchfiles.main", "message": "130 changes detected", "taskName": null, "timestamp": "2026-05-15 17:52:58,881", "level": "INFO"}
+{"name": "watchfiles.main", "message": "152 changes detected", "taskName": null, "timestamp": "2026-05-15 17:52:59,235", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:52:59,594", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:00,003", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:00,407", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:00,773", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:01,184", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:01,600", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:02,003", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:02,407", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:02,811", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:03,215", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:03,625", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:04,031", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:04,396", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:04,801", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:05,221", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:05,635", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:06,040", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:06,395", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:06,799", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:07,201", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:07,604", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:08,021", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:08,430", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:08,845", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:09,247", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:09,655", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:10,022", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:10,430", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:10,833", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:11,237", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:11,654", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:12,070", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:12,472", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:12,877", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:13,279", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:13,680", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:14,061", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:14,470", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:14,872", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:15,232", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:15,633", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:16,049", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:16,455", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:16,859", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:17,261", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:17,664", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:18,079", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:18,436", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:18,843", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:19,250", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:19,653", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:20,069", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:20,434", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:20,838", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:21,243", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:21,647", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:22,052", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:22,454", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:22,872", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:23,239", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:23,648", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:24,070", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:24,487", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:24,889", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:25,293", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:25,697", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:26,101", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:26,460", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:26,876", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:27,281", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:27,648", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:28,066", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:28,481", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:28,885", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:29,290", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:29,693", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:30,099", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:30,503", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:30,918", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:31,273", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:31,680", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:32,087", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:32,492", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:32,858", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:33,266", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:33,683", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:34,087", "level": "INFO"}
+{"name": "watchfiles.main", "message": "5 changes detected", "taskName": null, "timestamp": "2026-05-15 17:53:34,453", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:34,812", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_miss", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_miss", "source_url": "https://api.weather.gc.ca/collections", "cache_key": "c6351249fd5a13cf48289a8ebad5f71975ed82a80a21da515404261d747164de", "timestamp": "2026-05-15 17:53:35,130", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:35,165", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_miss", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_miss", "source_url": "https://api.weather.gc.ca/collections", "cache_key": "c6351249fd5a13cf48289a8ebad5f71975ed82a80a21da515404261d747164de", "timestamp": "2026-05-15 17:53:35,173", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_miss", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_miss", "source_url": "https://api.weather.gc.ca/collections/climate-stations/items", "cache_key": "221ab32ff379f327ad510604f8ac1a1320bd1c512ed8eec99c42448a27cd1193", "timestamp": "2026-05-15 17:53:35,192", "level": "INFO"}
+INFO:     127.0.0.1:56125 - "GET /api/verification/summary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56126 - "GET /api/plugins HTTP/1.1" 200 OK
+{"name": "canwxlab_api.http_cache", "message": "cache_miss", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_miss", "source_url": "https://api.weather.gc.ca/collections/weather-alerts/items", "cache_key": "cf3f22db2a7ec4a27a6d11e417da4ad13f1d1f07d7f1eed7aafab448f62e6a50", "timestamp": "2026-05-15 17:53:35,232", "level": "INFO"}
+INFO:     127.0.0.1:56125 - "GET /api/plugins HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56126 - "GET /api/verification/summary HTTP/1.1" 200 OK
+{"name": "httpx", "message": "HTTP Request: GET https://api.weather.gc.ca/collections/climate-stations/items?f=json&lang=en&limit=100 \"HTTP/1.1 200 OK\"", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "timestamp": "2026-05-15 17:53:35,419", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "live_fetch_success", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "live_fetch_success", "source_url": "https://api.weather.gc.ca/collections/climate-stations/items", "cache_key": "221ab32ff379f327ad510604f8ac1a1320bd1c512ed8eec99c42448a27cd1193", "timestamp": "2026-05-15 17:53:35,423", "level": "INFO"}
+INFO:     127.0.0.1:56123 - "GET /api/observations/stations HTTP/1.1" 200 OK
+{"name": "httpx", "message": "HTTP Request: GET https://api.weather.gc.ca/collections?f=json&lang=en \"HTTP/1.1 200 OK\"", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "timestamp": "2026-05-15 17:53:35,429", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://api.weather.gc.ca/collections/climate-stations/items", "cache_key": "221ab32ff379f327ad510604f8ac1a1320bd1c512ed8eec99c42448a27cd1193", "timestamp": "2026-05-15 17:53:35,441", "level": "INFO"}
+INFO:     127.0.0.1:56123 - "GET /api/observations/stations HTTP/1.1" 200 OK
+{"name": "httpx", "message": "HTTP Request: GET https://api.weather.gc.ca/collections?f=json&lang=en \"HTTP/1.1 200 OK\"", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "timestamp": "2026-05-15 17:53:35,446", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "live_fetch_success", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "live_fetch_success", "source_url": "https://api.weather.gc.ca/collections", "cache_key": "c6351249fd5a13cf48289a8ebad5f71975ed82a80a21da515404261d747164de", "timestamp": "2026-05-15 17:53:35,487", "level": "INFO"}
+{"name": "watchfiles.main", "message": "3 changes detected", "taskName": null, "timestamp": "2026-05-15 17:53:35,573", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_miss", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_miss", "source_url": "https://geo.weather.gc.ca/geomet", "cache_key": "f611d811aedafaf8cc24054441b2e8a0b84b8683940a5d8e7b560b6925ea2be1", "timestamp": "2026-05-15 17:53:35,666", "level": "INFO"}
+{"name": "httpx", "message": "HTTP Request: GET https://api.weather.gc.ca/collections/weather-alerts/items?f=json&lang=en&limit=100 \"HTTP/1.1 200 OK\"", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "timestamp": "2026-05-15 17:53:35,684", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "live_fetch_success", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "live_fetch_success", "source_url": "https://api.weather.gc.ca/collections", "cache_key": "c6351249fd5a13cf48289a8ebad5f71975ed82a80a21da515404261d747164de", "timestamp": "2026-05-15 17:53:35,693", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_miss", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_miss", "source_url": "https://geo.weather.gc.ca/geomet", "cache_key": "f611d811aedafaf8cc24054441b2e8a0b84b8683940a5d8e7b560b6925ea2be1", "timestamp": "2026-05-15 17:53:35,879", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:35,926", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "live_fetch_success", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "live_fetch_success", "source_url": "https://api.weather.gc.ca/collections/weather-alerts/items", "cache_key": "cf3f22db2a7ec4a27a6d11e417da4ad13f1d1f07d7f1eed7aafab448f62e6a50", "timestamp": "2026-05-15 17:53:35,947", "level": "INFO"}
+INFO:     127.0.0.1:56124 - "GET /api/alerts HTTP/1.1" 200 OK
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://api.weather.gc.ca/collections/weather-alerts/items", "cache_key": "cf3f22db2a7ec4a27a6d11e417da4ad13f1d1f07d7f1eed7aafab448f62e6a50", "timestamp": "2026-05-15 17:53:36,017", "level": "INFO"}
+INFO:     127.0.0.1:56124 - "GET /api/alerts HTTP/1.1" 200 OK
+{"name": "httpx", "message": "HTTP Request: GET https://geo.weather.gc.ca/geomet?REQUEST=GetCapabilities&SERVICE=WMS&VERSION=1.3.0 \"HTTP/1.1 200 OK\"", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "timestamp": "2026-05-15 17:53:36,118", "level": "INFO"}
+{"name": "httpx", "message": "HTTP Request: GET https://geo.weather.gc.ca/geomet?REQUEST=GetCapabilities&SERVICE=WMS&VERSION=1.3.0 \"HTTP/1.1 200 OK\"", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "timestamp": "2026-05-15 17:53:36,119", "level": "INFO"}
+{"name": "watchfiles.main", "message": "2 changes detected", "taskName": null, "timestamp": "2026-05-15 17:53:36,279", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:36,634", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "live_fetch_success", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "live_fetch_success", "source_url": "https://geo.weather.gc.ca/geomet", "cache_key": "f611d811aedafaf8cc24054441b2e8a0b84b8683940a5d8e7b560b6925ea2be1", "timestamp": "2026-05-15 17:53:36,903", "level": "INFO"}
+{"name": "watchfiles.main", "message": "2 changes detected", "taskName": null, "timestamp": "2026-05-15 17:53:36,988", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:37,392", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:37,804", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:38,166", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://api.weather.gc.ca/collections", "cache_key": "c6351249fd5a13cf48289a8ebad5f71975ed82a80a21da515404261d747164de", "timestamp": "2026-05-15 17:53:38,325", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://api.weather.gc.ca/collections", "cache_key": "c6351249fd5a13cf48289a8ebad5f71975ed82a80a21da515404261d747164de", "timestamp": "2026-05-15 17:53:38,328", "level": "INFO"}
+INFO:     127.0.0.1:56122 - "GET /api/layers HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:38,570", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "live_fetch_success", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "live_fetch_success", "source_url": "https://geo.weather.gc.ca/geomet", "cache_key": "f611d811aedafaf8cc24054441b2e8a0b84b8683940a5d8e7b560b6925ea2be1", "timestamp": "2026-05-15 17:53:38,694", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:38,926", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:39,279", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:39,638", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:39,994", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:40,349", "level": "INFO"}
+INFO:     127.0.0.1:56121 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://api.weather.gc.ca/collections", "cache_key": "c6351249fd5a13cf48289a8ebad5f71975ed82a80a21da515404261d747164de", "timestamp": "2026-05-15 17:53:40,603", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:40,773", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:41,179", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://geo.weather.gc.ca/geomet", "cache_key": "f611d811aedafaf8cc24054441b2e8a0b84b8683940a5d8e7b560b6925ea2be1", "timestamp": "2026-05-15 17:53:41,308", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:41,597", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:41,964", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:42,371", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://api.weather.gc.ca/collections", "cache_key": "c6351249fd5a13cf48289a8ebad5f71975ed82a80a21da515404261d747164de", "timestamp": "2026-05-15 17:53:42,701", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://api.weather.gc.ca/collections", "cache_key": "c6351249fd5a13cf48289a8ebad5f71975ed82a80a21da515404261d747164de", "timestamp": "2026-05-15 17:53:42,702", "level": "INFO"}
+INFO:     127.0.0.1:56124 - "GET /api/layers HTTP/1.1" 200 OK
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://api.weather.gc.ca/collections", "cache_key": "c6351249fd5a13cf48289a8ebad5f71975ed82a80a21da515404261d747164de", "timestamp": "2026-05-15 17:53:42,709", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:42,777", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://geo.weather.gc.ca/geomet", "cache_key": "f611d811aedafaf8cc24054441b2e8a0b84b8683940a5d8e7b560b6925ea2be1", "timestamp": "2026-05-15 17:53:42,882", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:43,195", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:43,608", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:43,975", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:44,384", "level": "INFO"}
+INFO:     127.0.0.1:56122 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://api.weather.gc.ca/collections", "cache_key": "c6351249fd5a13cf48289a8ebad5f71975ed82a80a21da515404261d747164de", "timestamp": "2026-05-15 17:53:44,719", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:44,798", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://geo.weather.gc.ca/geomet", "cache_key": "f611d811aedafaf8cc24054441b2e8a0b84b8683940a5d8e7b560b6925ea2be1", "timestamp": "2026-05-15 17:53:44,902", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:45,215", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:45,569", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:45,976", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:46,382", "level": "INFO"}
+INFO:     127.0.0.1:56124 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://api.weather.gc.ca/collections", "cache_key": "c6351249fd5a13cf48289a8ebad5f71975ed82a80a21da515404261d747164de", "timestamp": "2026-05-15 17:53:46,691", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:46,786", "level": "INFO"}
+{"name": "canwxlab_api.http_cache", "message": "cache_hit", "taskName": "starlette.middleware.base.BaseHTTPMiddleware.__call__.<locals>.call_next.<locals>.coro", "event": "cache_hit", "source_url": "https://geo.weather.gc.ca/geomet", "cache_key": "f611d811aedafaf8cc24054441b2e8a0b84b8683940a5d8e7b560b6925ea2be1", "timestamp": "2026-05-15 17:53:46,867", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:47,208", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:47,621", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:47,989", "level": "INFO"}
+INFO:     127.0.0.1:56124 - "GET /api/sources/status HTTP/1.1" 200 OK
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:48,397", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:48,810", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:49,177", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:49,584", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:50,000", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:50,406", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:50,810", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:51,213", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:51,615", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:52,032", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:52,402", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:52,809", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:53,226", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:53,643", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:54,010", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:54,414", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:54,832", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:55,253", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:55,657", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:56,022", "level": "INFO"}
+{"name": "watchfiles.main", "message": "1 change detected", "taskName": null, "timestamp": "2026-05-15 17:53:56,426", "level": "INFO"}

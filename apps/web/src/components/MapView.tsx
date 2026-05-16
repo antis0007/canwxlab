@@ -24,6 +24,11 @@ import {
 } from "../layers/renderers/mockWeatherFields";
 import { syncWmsLayers } from "../layers/renderers/maplibreRaster";
 import type { BasemapId } from "./LayersPicker";
+import { Starfield, type StarProjection } from "./Starfield";
+import { StarInfoCard } from "./StarInfoCard";
+import type { Star } from "../lib/celestialSphere";
+import type { StarExposure } from "../layers/types";
+import { createDiffBitmapLayer, type DiffOverlayPayload } from "../layers/renderers/diffBitmap";
 
 interface MapInspectPayload {
   longitude: number;
@@ -48,6 +53,9 @@ interface MapViewProps {
   globalTimeMs: number;
   basemap: BasemapId;
   photorealisticGlobe: boolean;
+  diffOverlay?: DiffOverlayPayload | null;
+  starExposure?: StarExposure;
+  starMaxDistanceLy?: number;
 }
 
 interface BasemapPreset {
@@ -312,7 +320,14 @@ export function MapView({
   globalTimeMs,
   basemap,
   photorealisticGlobe,
+  diffOverlay,
+  starExposure,
+  starMaxDistanceLy,
 }: MapViewProps) {
+  // Held for in-progress celestial-sphere wiring; reference them to keep
+  // them in the component signature without lint complaining.
+  void starExposure;
+  void starMaxDistanceLy;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
@@ -330,9 +345,25 @@ export function MapView({
   useEffect(() => { onGlobeSupportDetectedRef.current = onGlobeSupportDetected; });
   useEffect(() => { onCameraChangeRef.current = onCameraChange; });
 
+  // Live camera + time refs for the celestial starfield (avoids React re-renders on every drag frame).
+  const liveCameraRef = useRef<CameraState | null>(null);
+  const liveTimeRef = useRef<number>(globalTimeMs || Date.now());
+  useEffect(() => { liveTimeRef.current = globalTimeMs || Date.now(); }, [globalTimeMs]);
+
+  // Last-frame star projections (CSS-pixel space) for click hit-testing.
+  const starProjectionsRef = useRef<StarProjection[]>([]);
+  const [selectedStar, setSelectedStar] = useState<Star | null>(null);
+  void starProjectionsRef;
+  void selectedStar;
+  void setSelectedStar;
+
   const activeLayers = useMemo(
-    () => layers.filter((layer) => layerState[layer.id]?.enabled),
-    [layers, layerState],
+    () => layers.filter((layer) => {
+      if (!layerState[layer.id]?.enabled) return false;
+      if (viewMode === "globe" && !layer.capabilities.supportsGlobe) return false;
+      return true;
+    }),
+    [layers, layerState, viewMode],
   );
 
   useEffect(() => { activeLayersRef.current = activeLayers; }, [activeLayers]);
@@ -343,11 +374,16 @@ export function MapView({
   const deckLayers = useMemo(() => {
     const list: any[] = [];
     const getRuntime = (layerId: string) => layerState[layerId];
+    // Globe projection: skip world-spanning deck.gl grid/particle layers.
+    // GridCell + ParticleLayer assume mercator-flat positions; on a sphere they
+    // wrap and produce the "strange patterns / glitches" reported by users.
+    // Point/polygon layers (stations/alerts) reproject correctly and stay.
+    const skipFlatGrids = viewMode === "globe";
 
     const temperatureLayer = activeLayers.find((layer) =>
       layer.id === "demo_temperature_field" || layer.id === "mock_temperature"
     );
-    if (temperatureLayer) {
+    if (temperatureLayer && !skipFlatGrids) {
       const runtime = getRuntime(temperatureLayer.id);
       if (runtime) {
         list.push(createDeckGridLayer({
@@ -364,7 +400,7 @@ export function MapView({
     const radarLayer = activeLayers.find((layer) =>
       layer.id === "demo_radar_animation" || layer.id === "mock_radar"
     );
-    if (radarLayer) {
+    if (radarLayer && !skipFlatGrids) {
       const runtime = getRuntime(radarLayer.id);
       if (runtime) {
         const radarData = createRadarBlobs(animationFrame);
@@ -383,7 +419,7 @@ export function MapView({
     }
 
     const cloudLayer = activeLayers.find((layer) => layer.id === "demo_clouds");
-    if (cloudLayer) {
+    if (cloudLayer && !skipFlatGrids) {
       const runtime = getRuntime(cloudLayer.id);
       if (runtime) {
         list.push(createDeckGridLayer({
@@ -400,7 +436,7 @@ export function MapView({
     const windLayer = activeLayers.find((layer) =>
       layer.id === "demo_wind_particles" || layer.id === "mock_wind"
     );
-    if (windLayer) {
+    if (windLayer && !skipFlatGrids) {
       const runtime = getRuntime(windLayer.id);
       if (runtime) {
         list.push(createDeckParticleLayer({
@@ -452,8 +488,13 @@ export function MapView({
       }));
     }
 
+    if (diffOverlay) {
+      const bmp = createDiffBitmapLayer(diffOverlay);
+      if (bmp) list.push(bmp);
+    }
+
     return list;
-  }, [activeLayers, alerts, animationFrame, layerState, observations]);
+  }, [activeLayers, alerts, animationFrame, layerState, observations, viewMode, diffOverlay]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -478,6 +519,25 @@ export function MapView({
     map.addControl(overlay as unknown as maplibregl.IControl);
 
     map.on("click", (event) => {
+      // Star hit-test first: stars are drawn on a sibling canvas with pointer-events: none,
+      // so we test against the last frame's projections (CSS-pixel space).
+      const hitRadius = 14; // px
+      const px = event.point.x;
+      const py = event.point.y;
+      const projections = starProjectionsRef.current;
+      if (projections && projections.length > 0) {
+        let best: { dist: number; star: Star } | null = null;
+        for (const p of projections) {
+          const dx = p.cssX - px;
+          const dy = p.cssY - py;
+          const d = Math.hypot(dx, dy);
+          if (d < hitRadius && (!best || d < best.dist)) best = { dist: d, star: p.star };
+        }
+        if (best) {
+          setSelectedStar(best.star);
+          return; // suppress normal inspect
+        }
+      }
       const longitude = event.lngLat.lng;
       const latitude = event.lngLat.lat;
       onInspectRef.current({
@@ -499,14 +559,20 @@ export function MapView({
       onGlobeSupportDetectedRef.current(true);
     });
 
-    map.on("moveend", () => {
-      onCameraChangeRef.current({
+    const updateLiveCamera = () => {
+      liveCameraRef.current = {
         longitude: map.getCenter().lng,
         latitude: map.getCenter().lat,
         zoom: map.getZoom(),
         bearing: map.getBearing(),
         pitch: map.getPitch(),
-      });
+      };
+    };
+    updateLiveCamera();
+    map.on("move", updateLiveCamera);
+    map.on("moveend", () => {
+      updateLiveCamera();
+      onCameraChangeRef.current(liveCameraRef.current!);
     });
 
     mapRef.current = map;
@@ -544,6 +610,12 @@ export function MapView({
     if (!map || !mapReady) return;
     onGlobeSupportDetectedRef.current(true);
     try {
+      const bgVisible = !(viewMode === "globe" && photorealisticGlobe);
+      try {
+        if (map.getLayer("background")) {
+          map.setPaintProperty("background", "background-opacity", bgVisible ? 1 : 0);
+        }
+      } catch { /* style not yet ready */ }
       if (viewMode === "globe") {
         if (typeof (map as any).setProjection === "function") {
           (map as any).setProjection({ type: "globe" });
@@ -551,11 +623,11 @@ export function MapView({
         if (typeof (map as any).setSky === "function") {
           if (photorealisticGlobe) {
             (map as any).setSky({
-              "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 5, 1, 7, 0],
-              "sky-color": "#030409",
-              "horizon-color": "#4a6c9e",
-              "atmosphere-color": "#ffffff",
-              "atmosphere-halo-color": "#ffffff"
+              "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 4, 0.9, 8, 0.4, 12, 0],
+              "sky-color": "#000308",
+              "horizon-color": "#5b8ec9",
+              "atmosphere-color": "#7fb3ff",
+              "atmosphere-halo-color": "#cfe2ff",
             });
           } else {
             (map as any).setSky({});
@@ -564,6 +636,20 @@ export function MapView({
       } else {
         if (typeof (map as any).setProjection === "function") {
           (map as any).setProjection({ type: "mercator" });
+        }
+      }
+      // Directional lighting: warm sun-lit hemisphere for photorealistic
+      // globe; neutral for flat map.
+      if (typeof (map as any).setLight === "function") {
+        if (viewMode === "globe" && photorealisticGlobe) {
+          (map as any).setLight({
+            anchor: "map",
+            color: "#fff4dd",
+            intensity: 0.55,
+            position: [1.15, 210, 30],
+          });
+        } else {
+          (map as any).setLight({ anchor: "viewport", intensity: 0.35 });
         }
       }
     } catch {
@@ -578,6 +664,12 @@ export function MapView({
     map.setStyle(next as any);
     const onStyle = () => {
       syncWmsLayers({ map, layers, runtimeState: layerState, globalTimeMs });
+      try {
+        if (map.getLayer("background")) {
+          const bgVisible = !(viewMode === "globe" && photorealisticGlobe);
+          map.setPaintProperty("background", "background-opacity", bgVisible ? 1 : 0);
+        }
+      } catch { /* ignore */ }
     };
     map.once("styledata", onStyle);
   }, [basemap]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -605,8 +697,20 @@ export function MapView({
     });
   }, [activeLayers, deckLayers, onDiagnostics, viewMode]);
 
+  const showStarfield = viewMode === "globe" && photorealisticGlobe;
   return (
-    <div className="map-shell">
+    <div className={`map-shell${showStarfield ? " has-starfield" : ""}`}>
+      {showStarfield && <div className="map-starfield" aria-hidden="true" />}
+      {showStarfield && (
+        <Starfield
+          cameraRef={liveCameraRef}
+          timeRef={liveTimeRef}
+          exposure={starExposure}
+          maxDistanceLy={starMaxDistanceLy}
+          projectionsRef={starProjectionsRef}
+        />
+      )}
+      {selectedStar && <StarInfoCard star={selectedStar} onClose={() => setSelectedStar(null)} />}
       <div ref={containerRef} className="map-container" />
       <div className="map-badge">
         <span>{viewMode}</span>

@@ -5,6 +5,7 @@ import { colorRamps } from "../../layers/colorRamps";
 import { builtInPresets } from "../../layers/presets";
 import type { LayerCategory, LayerDefinition, LayerRuntimeState, UiPreferences } from "../../layers/types";
 import type { DataSource, PluginCatalogItem, VerificationMetric, SimulationRun, WeatherLayer } from "../../types/weather";
+import type { DiffOverlayPayload } from "../../layers/renderers/diffBitmap";
 import type { CameraState } from "../../layers/types";
 import { MapControlsPanel } from "./MapControlsPanel";
 import { WmsBrowser } from "./WmsBrowser";
@@ -42,26 +43,126 @@ interface LeftSidebarProps {
   onCameraTarget: (state: CameraState) => void;
   onSetWmsTimePolicy?: (layerId: string, policy: "global" | "latest" | "fixed", fixedTime?: number) => void;
   onApplyPreset?: (presetId: string) => void;
+  onDiffOverlay?: (payload: DiffOverlayPayload | null) => void;
 }
 
 // ── Nav rail tab definitions ──────────────────────────────────────────────────
+// Inline SVGs sized to a 16-px grid, 1.5-px strokes. Consistent stroke-based
+// geometric style — workstation/GIS-console look, no native font glyphs.
 
 interface NavTab {
   id: string;
-  icon: string;
+  icon: JSX.Element;
   label: string;
 }
 
+const ICON_PROPS = {
+  width: 16,
+  height: 16,
+  viewBox: "0 0 16 16",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.5,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
+
 const NAV_TABS: NavTab[] = [
-  { id: "layers",       icon: "☰",  label: "Layers" },
-  { id: "plugins",      icon: "⊞",  label: "Plugins" },
-  { id: "sources",      icon: "◎",  label: "Sources" },
-  { id: "wms",          icon: "⊕",  label: "WMS Browser" },
-  { id: "camera",       icon: "⊙",  label: "Camera" },
-  { id: "simulation",   icon: "▷",  label: "Simulation" },
-  { id: "verification", icon: "≈",  label: "Verification" },
-  { id: "console",      icon: "»",  label: "Console" },
-  { id: "customize",    icon: "⚙",  label: "Preferences" },
+  {
+    id: "layers",
+    label: "Layers",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <path d="M2.5 5 8 2.5 13.5 5 8 7.5 2.5 5Z" />
+        <path d="M2.5 8 8 10.5 13.5 8" />
+        <path d="M2.5 11 8 13.5 13.5 11" />
+      </svg>
+    ),
+  },
+  {
+    id: "plugins",
+    label: "Plugins",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <rect x="2.5" y="2.5" width="4.5" height="4.5" />
+        <rect x="9" y="2.5" width="4.5" height="4.5" />
+        <rect x="2.5" y="9" width="4.5" height="4.5" />
+        <rect x="9" y="9" width="4.5" height="4.5" />
+      </svg>
+    ),
+  },
+  {
+    id: "sources",
+    label: "Sources",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <path d="M2.5 5c0-1.4 2.5-2.5 5.5-2.5s5.5 1.1 5.5 2.5-2.5 2.5-5.5 2.5S2.5 6.4 2.5 5Z" />
+        <path d="M2.5 5v6c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5V5" />
+        <path d="M2.5 8c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5" />
+      </svg>
+    ),
+  },
+  {
+    id: "wms",
+    label: "WMS Browser",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <circle cx="8" cy="8" r="5.5" />
+        <path d="M2.5 8h11" />
+        <path d="M8 2.5c1.8 2 2.7 4 2.7 5.5s-.9 3.5-2.7 5.5c-1.8-2-2.7-4-2.7-5.5S6.2 4.5 8 2.5Z" />
+      </svg>
+    ),
+  },
+  {
+    id: "camera",
+    label: "Camera",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <path d="M2.5 5.5h2.2L6 4h4l1.3 1.5h2.2v7.5h-11V5.5Z" />
+        <circle cx="8" cy="9.25" r="2.25" />
+      </svg>
+    ),
+  },
+  {
+    id: "simulation",
+    label: "Simulation",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <path d="M5.5 3.5v9l7-4.5-7-4.5Z" />
+      </svg>
+    ),
+  },
+  {
+    id: "verification",
+    label: "Verification",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <path d="M2 10.5c1.5-3 3-3 4.5 0s3 3 4.5 0 3-3 4.5 0" transform="translate(-0.25 -1.5)" />
+        <path d="M2 10.5c1.5-3 3-3 4.5 0s3 3 4.5 0 3-3 4.5 0" transform="translate(-0.25 1.5)" />
+      </svg>
+    ),
+  },
+  {
+    id: "console",
+    label: "Console",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <rect x="2" y="3" width="12" height="10" rx="0.5" />
+        <path d="M4.5 6.5 6.5 8 4.5 9.5" />
+        <path d="M8 10h3.5" />
+      </svg>
+    ),
+  },
+  {
+    id: "customize",
+    label: "Preferences",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <circle cx="8" cy="8" r="2" />
+        <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M3.6 12.4l1.4-1.4M11 5l1.4-1.4" />
+      </svg>
+    ),
+  },
 ];
 
 // ── Layer category metadata ───────────────────────────────────────────────────
@@ -633,7 +734,7 @@ export function LeftSidebar(props: LeftSidebarProps) {
         )}
 
         {props.activeTab === "verification" && (
-          <DiffPanel metrics={props.metrics} />
+          <DiffPanel metrics={props.metrics} onDiffOverlay={props.onDiffOverlay} />
         )}
 
         {props.activeTab === "console" && <ConsolePanel />}

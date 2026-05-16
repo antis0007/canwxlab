@@ -3,6 +3,25 @@ import maplibregl from "maplibre-gl";
 import { buildMapLibreWmsSource, canRenderWmsLayer, toWmsLayerDefinition } from "../../lib/wms";
 import type { LayerDefinition, LayerRuntimeState } from "../types";
 import { parseWmsTimeDimension, resolveWmsTimeForTimeline } from "../../time/wmsTime";
+import { logManager } from "../../lib/logging";
+
+const WMS_ERROR_HOOK = "canwxlab.wms.errorHook";
+
+function ensureWmsErrorHook(map: maplibregl.Map) {
+  const flagged = (map as unknown as Record<string, boolean>)[WMS_ERROR_HOOK];
+  if (flagged) return;
+  (map as unknown as Record<string, boolean>)[WMS_ERROR_HOOK] = true;
+  map.on("error", (event) => {
+    const e = event as unknown as { error?: Error; sourceId?: string; source?: { id?: string } };
+    const sid = e.sourceId ?? e.source?.id ?? "";
+    if (!sid.startsWith("wms-source-")) return;
+    const layerId = sid.replace("wms-source-", "");
+    logManager.warn("wms", `WMS tile error on ${layerId}: ${e.error?.message ?? "unknown"}`, {
+      layerId,
+      sourceId: sid,
+    });
+  });
+}
 
 export function syncWmsLayers(options: {
   map: maplibregl.Map;
@@ -10,6 +29,7 @@ export function syncWmsLayers(options: {
   runtimeState: Record<string, LayerRuntimeState>;
   globalTimeMs: number;
 }) {
+  ensureWmsErrorHook(options.map);
   const wmsLayers = options.layers.filter((layer) => layer.rendererType === "wms-raster");
   const expectedSourceIds = new Set(wmsLayers.map((layer) => `wms-source-${layer.id}`));
   const expectedLayerIds = new Set(wmsLayers.map((layer) => `wms-layer-${layer.id}`));

@@ -83,11 +83,49 @@ export function SimulationControlPanel({ simulationRun, isRunning, onRun }: Simu
 
       {simulationRun && (
         <article className="wb-layer-card">
-          <strong>Run ID: {simulationRun.run_id}</strong>
-          <p className="wb-muted">Status: {simulationRun.status}</p>
+          <div className="wb-row-between">
+            <strong style={{ fontSize: 11 }}>{simulationRun.run_id}</strong>
+            <span
+              className="wb-chip"
+              data-status={simulationRun.status}
+              style={{
+                color:
+                  simulationRun.status === "completed"
+                    ? "var(--wb-live)"
+                    : simulationRun.status === "failed"
+                    ? "var(--wb-err)"
+                    : simulationRun.status === "running"
+                    ? "var(--wb-accent)"
+                    : "var(--wb-warn)",
+                letterSpacing: "0.08em",
+              }}
+            >
+              {String(simulationRun.status).toUpperCase()}
+            </span>
+          </div>
+          <p className="wb-muted" style={{ marginTop: 3 }}>
+            EXPERIMENTAL — output is not an operational forecast.
+          </p>
+          {simulationRun.status === "failed" && (
+            <p className="wb-warning" style={{ marginTop: 3 }}>
+              {String(simulationRun.provenance?.error ?? "Run failed.")}
+            </p>
+          )}
+          {simulationRun.provenance && typeof simulationRun.provenance === "object" && (
+            <p className="wb-muted" style={{ marginTop: 3 }}>
+              Mode: {String((simulationRun.provenance as Record<string, unknown>).mode ?? "—")}
+              {(simulationRun.provenance as Record<string, unknown>).cli_path
+                ? ` · ${String((simulationRun.provenance as Record<string, unknown>).cli_path)}`
+                : ""}
+            </p>
+          )}
           <div className="wb-row-between" style={{ marginTop: "8px" }}>
-            <button>Toggle Output Layer</button>
-            <button disabled title="Not implemented">Create Verification Case</button>
+            <button disabled={simulationRun.status !== "completed"}>
+              Toggle Output Layer
+            </button>
+            <button disabled title="Not implemented">
+              Create Verification Case
+            </button>
           </div>
         </article>
       )}

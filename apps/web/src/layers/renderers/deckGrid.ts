@@ -30,6 +30,10 @@ export function createDeckGridLayer(options: {
     stroked: false,
     opacity: options.runtime.opacity,
     pickable: true,
+    wrapLongitude: true,
+    _subLayerProps: {
+      "polygons-fill": { _normalize: false },
+    },
     getFillColor: (feature: any) => {
       const raw = feature?.properties?.[options.valueKey];
       const numeric = typeof raw === "number" ? raw : options.min;

@@ -73,5 +73,27 @@ export const api = {
       throw new Error(`${response.status} ${response.statusText}: create simulation`);
     }
     return response.json() as Promise<SimulationRun>;
-  }
+  },
+  getSimulationRun: (runId: string) =>
+    getJson<SimulationRun>(`/api/simulations/runs/${encodeURIComponent(runId)}`),
+  // Verification cases API
+  verificationCases: () =>
+    getJson<Array<Record<string, unknown>>>("/api/verification/cases"),
+  verificationCaseDiff: (
+    caseId: string,
+    field: string,
+    diffMode: string = "ABSOLUTE_ERROR",
+  ) =>
+    getJson<{
+      field: string;
+      diff_mode: string;
+      rows: number;
+      cols: number;
+      bbox: [number, number, number, number];
+      is_generated_mock: boolean;
+      grid: number[][];
+    }>(
+      `/api/verification/cases/${encodeURIComponent(caseId)}/diff/${encodeURIComponent(field)}`,
+      { diff_mode: diffMode },
+    ),
 };

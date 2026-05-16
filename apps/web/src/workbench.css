@@ -43,6 +43,18 @@
 /* ===== BASE ===== */
 *, *::before, *::after { box-sizing: border-box; }
 
+/* Hide native browser number-input spinners (the ugly up/down "tickers")
+   everywhere in the workbench. We use sliders and inline edits instead. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 body {
   margin: 0;
   background: var(--wb-bg);
@@ -275,6 +287,10 @@ input[type="search"]::placeholder { color: var(--wb-muted); }
   font-size: 13px;
   padding: 0;
   transition: color 0.1s, background 0.1s, border-color 0.1s;
+}
+.wb-nav-btn svg {
+  display: block;
+  shape-rendering: geometricPrecision;
 }
 .wb-nav-btn:hover {
   background: var(--wb-line);
@@ -697,8 +713,145 @@ details.wb-section[open] > summary .wb-section-chevron {
 }
 
 /* ===== MAP OVERLAY ===== */
-.map-shell { flex: 1; position: relative; min-height: 0; }
+.map-shell { flex: 1; position: relative; min-height: 0; background: #000308; }
 .map-container { position: absolute; inset: 0; }
+
+/* Photorealistic globe: starfield rendered behind the (transparent) map canvas */
+.map-shell.has-starfield { background: radial-gradient(ellipse at center, #050a16 0%, #000205 70%, #000 100%); }
+.map-starfield {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-color: transparent;
+  background-image:
+    radial-gradient(1px 1px at 23% 17%,  rgba(255, 255, 255, 0.92), transparent 60%),
+    radial-gradient(1px 1px at 71% 9%,   rgba(220, 230, 255, 0.80), transparent 60%),
+    radial-gradient(1.5px 1.5px at 88% 41%, rgba(255, 250, 230, 0.95), transparent 60%),
+    radial-gradient(1px 1px at 12% 64%,  rgba(200, 220, 255, 0.65), transparent 60%),
+    radial-gradient(1px 1px at 44% 82%,  rgba(255, 255, 255, 0.85), transparent 60%),
+    radial-gradient(2px 2px at 58% 33%,  rgba(255, 240, 210, 0.70), transparent 60%),
+    radial-gradient(1px 1px at 95% 71%,  rgba(255, 255, 255, 0.55), transparent 60%),
+    radial-gradient(1px 1px at 6% 30%,   rgba(180, 200, 255, 0.55), transparent 60%),
+    radial-gradient(1px 1px at 33% 48%,  rgba(255, 255, 255, 0.50), transparent 60%),
+    radial-gradient(1.5px 1.5px at 78% 76%, rgba(255, 245, 220, 0.75), transparent 60%),
+    radial-gradient(1px 1px at 51% 12%,  rgba(255, 255, 255, 0.45), transparent 60%),
+    radial-gradient(1px 1px at 19% 91%,  rgba(220, 230, 255, 0.40), transparent 60%),
+    radial-gradient(1px 1px at 64% 58%,  rgba(255, 255, 255, 0.55), transparent 60%),
+    /* faint nebula tint */
+    radial-gradient(ellipse 40% 25% at 30% 70%, rgba(40, 30, 80, 0.18), transparent 70%),
+    radial-gradient(ellipse 35% 20% at 80% 25%, rgba(20, 50, 90, 0.15), transparent 70%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  z-index: 0;
+}
+.map-shell.has-starfield .map-container { background: transparent; }
+.map-shell.has-starfield .map-container canvas { background: transparent !important; }
+
+/* Celestial-sphere canvas: real star positions, sits above the gradient nebula and below the map. */
+.map-starfield-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* map receives clicks; parent hit-tests stars from its click handler */
+  z-index: 1;
+}
+
+/* Star info card — anchored top-right of the map viewport. */
+.wb-star-card {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 280px;
+  max-width: 90vw;
+  z-index: 10;
+  background: rgba(9, 13, 20, 0.94);
+  border: 1px solid var(--wb-line);
+  border-radius: 3px;
+  color: var(--wb-text);
+  font-size: 11px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  font-family: "Cascadia Code", "JetBrains Mono", ui-monospace, monospace;
+}
+.wb-star-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--wb-line);
+}
+.wb-star-card-name {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--wb-accent);
+}
+.wb-star-card-bayer {
+  font-size: 10px;
+  color: var(--wb-muted);
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+.wb-star-card-close {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid var(--wb-line);
+  color: var(--wb-muted);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.wb-star-card-close:hover { color: var(--wb-text); border-color: var(--wb-accent-dim); }
+.wb-star-card-grid {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 2px 8px;
+  padding: 8px 10px;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.wb-star-card-grid dt {
+  color: var(--wb-muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.wb-star-card-grid dd {
+  margin: 0;
+  color: var(--wb-text);
+  font-size: 11px;
+}
+.wb-star-card-notes {
+  margin: 0;
+  padding: 6px 10px 8px;
+  font-size: 11px;
+  color: var(--wb-text);
+  line-height: 1.45;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  border-top: 1px solid var(--wb-line-dim);
+}
+.wb-star-card-links {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 6px 10px 8px;
+  border-top: 1px solid var(--wb-line-dim);
+}
+.wb-star-card-links a {
+  font-size: 10px;
+  color: var(--wb-accent);
+  text-decoration: none;
+  padding: 2px 6px;
+  border: 1px solid var(--wb-line);
+  border-radius: 2px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.wb-star-card-links a:hover { background: var(--wb-accent-glow); border-color: var(--wb-accent-dim); }
 
 .map-badge {
   position: absolute;
@@ -929,7 +1082,7 @@ details.wb-section[open] > summary .wb-section-chevron {
   font-size: 10px;
 }
 
-/* ===== TIMELINE (overlay, fixed height) ===== */
+/* ===== TIMELINE (workstation strip, flat utility surface) ===== */
 .wb-timeline {
   position: absolute;
   left: 0;
@@ -939,11 +1092,12 @@ details.wb-section[open] > summary .wb-section-chevron {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
-  height: 52px;
+  gap: 12px;
+  padding: 6px 12px 8px;
+  height: 56px;
   background: var(--wb-panel-hi);
   border-top: 1px solid var(--wb-line);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 
 .wb-timeline-controls {
@@ -952,116 +1106,198 @@ details.wb-section[open] > summary .wb-section-chevron {
   gap: 4px;
 }
 
-.wb-timeline-play {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  font-size: 16px;
-  border-radius: 50%;
-  background: var(--wb-accent-dim);
-  border: 1px solid var(--wb-accent);
-  color: #fff;
+.wb-tl-btn {
+  height: 22px;
+  padding: 0 10px;
+  font: 600 10px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--wb-text);
+  background: var(--wb-panel);
+  border: 1px solid var(--wb-line);
+  border-radius: 2px;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  line-height: 1;
 }
-.wb-timeline-play:hover { background: var(--wb-accent); box-shadow: 0 0 8px var(--wb-accent-glow); }
-.wb-timeline-play:active { transform: scale(0.96); }
-
-.wb-timeline-step {
-  width: 24px;
-  height: 24px;
+.wb-tl-btn:hover { border-color: var(--wb-accent-dim); color: var(--wb-accent); }
+.wb-tl-btn:active { background: var(--wb-panel-hi); }
+.wb-tl-step {
+  width: 22px;
   padding: 0;
   font-size: 12px;
-  border-radius: 50%;
-  background: transparent;
-  border: 1px solid var(--wb-line);
-  color: var(--wb-text);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
-.wb-timeline-step:hover { border-color: var(--wb-accent-dim); color: var(--wb-accent); }
-
-.wb-timeline-speed {
+.wb-tl-play {
+  min-width: 56px;
+  background: var(--wb-accent-dim);
+  border-color: var(--wb-accent-dim);
+  color: var(--wb-text);
+}
+.wb-tl-play:hover {
+  background: var(--wb-accent);
+  border-color: var(--wb-accent);
+  color: #000;
+}
+.wb-tl-play.is-playing {
+  background: var(--wb-accent);
+  border-color: var(--wb-accent);
+  color: #000;
+}
+.wb-tl-speed {
   height: 22px;
   font-size: 10px;
-  width: 52px;
+  width: 54px;
+  margin-left: 4px;
+  background: var(--wb-panel);
+  color: var(--wb-text);
+  border: 1px solid var(--wb-line);
+  border-radius: 2px;
+  font-family: inherit;
+  letter-spacing: 0.04em;
 }
 
-.wb-timeline-strip {
+.wb-tl-strip {
   position: relative;
-  height: 36px;
+  height: 38px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-end;
 }
 
-.wb-timeline-daynight {
+.wb-tl-ticks {
   position: relative;
-  height: 8px;
-  border-radius: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  margin-bottom: 2px;
+  height: 14px;
+  margin-bottom: 1px;
+}
+.wb-tl-tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  pointer-events: none;
+}
+.wb-tl-tick-fine  { height: 3px; background: rgba(255,255,255,0.10); }
+.wb-tl-tick-minor { height: 6px; background: rgba(255,255,255,0.22); }
+.wb-tl-tick-major { height: 10px; background: var(--wb-muted); }
+.wb-tl-tick-label {
+  position: absolute;
+  bottom: 10px;
+  left: 0;
+  transform: translateX(-50%);
+  font: 500 9px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+  color: var(--wb-muted);
+  white-space: nowrap;
 }
 
-.wb-timeline-daynight-marker {
+.wb-tl-track {
+  position: relative;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  background: var(--wb-bg);
+  border: 1px solid var(--wb-line);
+  border-radius: 1px;
+  cursor: pointer;
+}
+.wb-tl-strip:hover .wb-tl-track { border-color: var(--wb-line); }
+
+/* Day/night band: thin strip near the bottom of the track, smaller height than the track */
+.wb-tl-daynight {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5px;
+  pointer-events: none;
+  opacity: 0.92;
+  border-top: 1px solid rgba(0, 0, 0, 0.35);
+}
+
+.wb-tl-loop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 200, 232, 0.10);
+  border-left: 1px solid var(--wb-accent-dim);
+  border-right: 1px solid var(--wb-accent-dim);
+  pointer-events: none;
+}
+
+.wb-tl-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 5px; /* leave day/night strip visible */
+  background: rgba(0, 200, 232, 0.18);
+  pointer-events: none;
+}
+
+.wb-tl-cursor {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--wb-accent);
+  transform: translateX(-1px);
+  pointer-events: none;
+  box-shadow: 0 0 6px rgba(0, 200, 232, 0.5);
+}
+.wb-tl-cursor-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--wb-accent);
+  border: 1px solid #001016;
+  transform: translate(-50%, -50%) scale(1);
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+}
+.wb-tl-strip:hover .wb-tl-cursor-handle {
+  transform: translate(-50%, -50%) scale(1.4);
+  box-shadow: 0 0 8px rgba(0, 200, 232, 0.8);
+}
+
+/* Hover affordance: line + dot + tooltip */
+.wb-tl-hover-line {
   position: absolute;
   top: -2px;
   bottom: -2px;
-  width: 2px;
-  background: var(--wb-accent);
-  box-shadow: 0 0 6px var(--wb-accent);
-  transform: translateX(-1px);
+  width: 1px;
+  background: rgba(255, 255, 255, 0.35);
+  transform: translateX(-0.5px);
   pointer-events: none;
-  border-radius: 1px;
 }
-
-.wb-timeline-track {
-  position: relative;
-  height: 14px;
-  display: flex;
-  align-items: center;
-}
-
-.wb-timeline-track::before {
-  content: "";
+.wb-tl-hover-dot {
   position: absolute;
   top: 50%;
-  left: 0;
-  right: 0;
-  height: 4px;
-  transform: translateY(-50%);
-  background: rgba(255, 255, 255, 0.08);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #001016;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.wb-tl-hover-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 3px 6px;
+  font: 600 10px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+  color: var(--wb-text);
+  background: var(--wb-panel);
+  border: 1px solid var(--wb-line);
   border-radius: 2px;
-}
-
-.wb-timeline-loop-window {
-  position: absolute;
-  top: 50%;
-  height: 10px;
-  transform: translateY(-50%);
-  background: rgba(0, 200, 232, 0.10);
-  border-left: 1px dashed var(--wb-accent-dim);
-  border-right: 1px dashed var(--wb-accent-dim);
+  white-space: nowrap;
   pointer-events: none;
+  z-index: 2;
 }
 
-.wb-timeline-progress {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  height: 4px;
-  transform: translateY(-50%);
-  background: var(--wb-accent);
-  border-radius: 2px 0 0 2px;
-  pointer-events: none;
-}
-
-.wb-timeline-slider {
+.wb-tl-slider {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -1074,30 +1310,36 @@ details.wb-section[open] > summary .wb-section-chevron {
   padding: 0;
 }
 
-.wb-timeline-readout {
+.wb-tl-readout {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 11px;
-  font-family: monospace;
+  align-items: baseline;
+  gap: 12px;
+  font: 600 11px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   color: var(--wb-text);
 }
-.wb-timeline-time {
+.wb-tl-time {
   letter-spacing: 0.04em;
   color: var(--wb-accent);
+  font-variant-numeric: tabular-nums;
 }
-.wb-timeline-loop-input {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--wb-muted);
-}
-.wb-timeline-loop-input input[type="number"] {
-  width: 44px;
-  height: 18px;
+.wb-tl-frame {
   font-size: 10px;
-  padding: 0 3px;
-  font-family: monospace;
+  letter-spacing: 0.08em;
+  color: var(--wb-muted);
+  font-variant-numeric: tabular-nums;
+}
+.wb-tl-frame-num { color: var(--wb-text); }
+.wb-tl-frame-sep { margin: 0 2px; color: var(--wb-line); }
+
+/* ===== Number-input spinner suppression (workstation style) ===== */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 /* ===== PANEL BLOCK (legacy compat) ===== */

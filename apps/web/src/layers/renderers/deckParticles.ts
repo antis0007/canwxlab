@@ -11,6 +11,7 @@ export function createDeckParticleLayer(options: {
   return new PathLayer({
     id: options.id,
     data: options.particles,
+    wrapLongitude: true,
     getPath: (item: WindParticle) => item.path,
     getColor: (item: WindParticle) => {
       const alpha = Math.round(220 * options.runtime.opacity);
