@@ -8,6 +8,13 @@
 // Transform: ECI = Rz(GMST) · ECEF.  (Earth's rotation about its axis.)
 // We treat ECEF z-axis ≡ celestial north for visualisation. Precession/nutation/proper
 // motion are negligible at single-pixel star-symbol precision.
+//
+// COSMIC-TODO(B): Generalise to a heliocentric J2000 frame for solar-system bodies.
+//   Add: helio↔geo rotation, light-time correction, optional aberration. Keep ECEF↔ECI here;
+//   put the new transforms in `lib/ephemeris/frames.ts`. See docs/cosmic-scope-roadmap.md §2.
+// COSMIC-TODO(A): Vendor the HYG database (~120k stars) as a static asset; lazy-load when the
+//   user zooms out far enough that BRIGHT_STARS is no longer enough. Apply spectral-type → B-V
+//   colour ramp at draw time. See docs/cosmic-scope-roadmap.md §9 Phase A.
 
 export interface Star {
   name: string;

@@ -1,6 +1,15 @@
 import type { LayerDefinition, LayerRuntimeState } from "../layers/types";
 
-export type BasemapId = "dark" | "light" | "satellite" | "hybrid" | "terrain" | "blue_marble" | "topo_dark";
+export type BasemapId =
+  | "dark"
+  | "light"
+  | "satellite"
+  | "hybrid"
+  | "terrain"
+  | "blue_marble"
+  | "topo_dark"
+  | "gibs_truecolor"
+  | "gibs_viirs";
 
 export interface BasemapOption {
   id: BasemapId;
@@ -16,6 +25,8 @@ export const BASEMAP_OPTIONS: BasemapOption[] = [
   { id: "hybrid",      label: "Hybrid",      preview: "#445e3a", attribution: "Esri + Labels" },
   { id: "terrain",     label: "Terrain",     preview: "#9aa37c", attribution: "OpenTopoMap" },
   { id: "blue_marble", label: "Blue Marble", preview: "#10243a", attribution: "NASA GIBS" },
+  { id: "gibs_truecolor", label: "MODIS Today", preview: "#264a6f", attribution: "NASA GIBS — MODIS Terra true colour (T-1)" },
+  { id: "gibs_viirs",   label: "VIIRS Today",  preview: "#1f3a59", attribution: "NASA GIBS — VIIRS NOAA-20 true colour (T-1)" },
   { id: "topo_dark",   label: "Topo Dark",   preview: "#1a2230", attribution: "Carto Voyager Dark" },
 ];
 

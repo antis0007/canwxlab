@@ -1,5 +1,12 @@
 import type { Star } from "../lib/celestialSphere";
 
+// COSMIC-TODO(A): On open, fire a debounced fetch to the API:
+//   GET /api/cosmic/star/{hipId}        → richer Hipparcos/Gaia astrometry
+//   GET /api/cosmic/exoplanets/{host}   → NASA Exoplanet Archive live results
+// Show a small "loading…" spinner while in flight; cache responses per session.
+// Render extra fields when present (parallax, radial velocity, age, metallicity).
+// See docs/cosmic-scope-roadmap.md §3.2 and §9 Phase A.
+
 interface StarInfoCardProps {
   star: Star;
   onClose: () => void;

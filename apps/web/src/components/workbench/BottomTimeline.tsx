@@ -10,6 +10,32 @@ interface BottomTimelineProps {
   onSetSpeed: (value: number) => void;
 }
 
+/** Pin "A" or "B" comparison times on the timeline. Stored in localStorage so
+ *  they survive reloads; consumers can read them from the same key. */
+type AbKey = "A" | "B";
+const AB_STORAGE_KEY = "canwxlab.timelineAb.v1";
+
+function readAbState(): Record<AbKey, number | null> {
+  if (typeof window === "undefined") return { A: null, B: null };
+  try {
+    const raw = window.localStorage.getItem(AB_STORAGE_KEY);
+    if (!raw) return { A: null, B: null };
+    const parsed = JSON.parse(raw) as Record<AbKey, number | null>;
+    return { A: parsed.A ?? null, B: parsed.B ?? null };
+  } catch {
+    return { A: null, B: null };
+  }
+}
+
+function writeAbState(state: Record<AbKey, number | null>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(AB_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    /* ignore */
+  }
+}
+
 const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
 const FRAME_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -125,6 +151,26 @@ export function BottomTimeline({
 }: BottomTimelineProps) {
   const stripRef = useRef<HTMLDivElement | null>(null);
   const [hoverPct, setHoverPct] = useState<number | null>(null);
+  const [abState, setAbState] = useState<Record<AbKey, number | null>>(readAbState);
+
+  const setAbAtCurrent = (key: AbKey) => {
+    setAbState((prev) => {
+      const next = { ...prev, [key]: playback.frame };
+      writeAbState(next);
+      return next;
+    });
+  };
+  const clearAb = (key: AbKey) => {
+    setAbState((prev) => {
+      const next = { ...prev, [key]: null };
+      writeAbState(next);
+      return next;
+    });
+  };
+  const jumpAb = (key: AbKey) => {
+    const v = abState[key];
+    if (v !== null && v !== undefined) onSetFrame(v);
+  };
 
   const startMs = useMemo(() => {
     const d = new Date(playback.selectedValidTime);
@@ -241,6 +287,34 @@ export function BottomTimeline({
             <option key={s} value={s}>{s}x</option>
           ))}
         </select>
+
+        <span className="wb-tl-ab-group" role="group" aria-label="A/B comparison handles">
+          {(["A", "B"] as AbKey[]).map((k) => {
+            const v = abState[k];
+            const isSet = v !== null && v !== undefined;
+            return (
+              <span key={k} className="wb-tl-ab-cluster">
+                <button
+                  type="button"
+                  className={`wb-tl-btn wb-tl-ab${isSet ? " is-set" : ""}`}
+                  onClick={() => (isSet ? jumpAb(k) : setAbAtCurrent(k))}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    if (isSet) clearAb(k);
+                  }}
+                  title={
+                    isSet
+                      ? `Jump to ${k} (frame ${(v ?? 0) + 1}). Right-click clears.`
+                      : `Pin ${k} at current frame`
+                  }
+                >
+                  {k}
+                  {isSet ? `·${(v ?? 0) + 1}` : ""}
+                </button>
+              </span>
+            );
+          })}
+        </span>
       </div>
 
       <div
@@ -287,6 +361,24 @@ export function BottomTimeline({
               )}
             </>
           )}
+
+          {(["A", "B"] as AbKey[]).map((k) => {
+            const frame = abState[k];
+            if (frame === null || frame === undefined) return null;
+            const pct = (frame / Math.max(1, playback.frameCount - 1)) * 100;
+            return (
+              <div
+                key={k}
+                className="wb-tl-ab-marker"
+                data-handle={k}
+                style={{ left: `${pct}%` }}
+                title={`${k} pinned at frame ${frame + 1}`}
+                aria-hidden="true"
+              >
+                <span className="wb-tl-ab-marker-label">{k}</span>
+              </div>
+            );
+          })}
 
           <div className="wb-tl-cursor" style={{ left: `${progressPct}%` }} aria-hidden="true">
             <div className="wb-tl-cursor-handle" />

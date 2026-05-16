@@ -1202,6 +1202,51 @@ details.wb-section[open] > summary .wb-section-chevron {
 }
 .wb-tl-strip:hover .wb-tl-track { border-color: var(--wb-line); }
 
+/* A/B comparison handles */
+.wb-tl-ab-group {
+  display: inline-flex;
+  margin-left: 6px;
+  gap: 2px;
+}
+.wb-tl-ab-cluster { display: inline-flex; }
+.wb-tl-ab {
+  min-width: 26px;
+  padding: 0 6px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--wb-muted);
+}
+.wb-tl-ab.is-set {
+  color: var(--wb-accent);
+  border-color: var(--wb-accent-dim);
+  background: var(--wb-accent-glow);
+}
+.wb-tl-ab-marker {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--wb-warn);
+  transform: translateX(-1px);
+  pointer-events: none;
+  z-index: 4;
+}
+.wb-tl-ab-marker[data-handle="B"] { background: #b478ff; }
+.wb-tl-ab-marker-label {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: 600 8px/1 ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+  color: var(--wb-warn);
+  background: var(--wb-panel-hi);
+  padding: 1px 3px;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+}
+.wb-tl-ab-marker[data-handle="B"] .wb-tl-ab-marker-label { color: #b478ff; }
+
 /* Day/night band: thin strip near the bottom of the track, smaller height than the track */
 .wb-tl-daynight {
   position: absolute;

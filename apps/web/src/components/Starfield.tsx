@@ -2,6 +2,13 @@
 // Reads camera + time from refs (parent updates them imperatively) so React never
 // re-renders on drag. Writes the current frame's screen projections back through
 // `projectionsRef` so the parent can do star hit-tests in CSS-pixel space.
+//
+// COSMIC-TODO(A): Replace canvas-2D point-by-point loop with a regl/Three instanced renderer
+//   once the catalogue grows past ~3k stars (HYG vendoring). Apply per-star B-V → RGB tint and
+//   atmospheric extinction near the limb. See docs/cosmic-scope-roadmap.md §9 Phase A.
+// COSMIC-TODO(F): Add a `groundMode` prop that switches the projection to alt-az from a fixed
+//   observer location, drawing a horizon line and compass cardinal markers. The math is the
+//   same ECI basis with `forward = -localUp(observer)` instead of camera-to-Earth-centre.
 
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";

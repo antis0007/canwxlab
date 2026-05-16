@@ -76,3 +76,19 @@
 - Advanced dynamics/physics options
 - GPU acceleration where justified
 - Bridges to external model ecosystems where licensing permits
+
+## Phase 8: Cosmic Scope Extension (Parallel Track)
+
+CanWxLab is being re-framed as an **OSINT planetary live-view suite** in which Canadian
+weather is one of many data layers. The scope expands to include real-time celestial-sphere
+rendering, solar-system orbital visualization, asteroid/comet/satellite tracking, and a
+ground-based stellarium mode. This is a parallel track; the weather phases above continue
+shipping independently.
+
+See **[`cosmic-scope-roadmap.md`](./cosmic-scope-roadmap.md)** for the full plan, data-source
+contract, coordinate-system pipeline, renderer architecture, phased delivery (A–F), and open
+questions.
+
+Currently in-flight: **Cosmic-Phase A** — celestial sphere with real bright-star positions,
+GMST-rotated camera frame, click-for-OSINT info, exposure controls. The starfield is wired
+to the photorealistic globe and tracks the live timeline.

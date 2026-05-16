@@ -29,6 +29,7 @@ import { StarInfoCard } from "./StarInfoCard";
 import type { Star } from "../lib/celestialSphere";
 import type { StarExposure } from "../layers/types";
 import { createDiffBitmapLayer, type DiffOverlayPayload } from "../layers/renderers/diffBitmap";
+import { createTerminatorLayer } from "../layers/renderers/terminator";
 
 interface MapInspectPayload {
   longitude: number;
@@ -182,6 +183,33 @@ const BASEMAP_PRESETS: BasemapPreset[] = [
     }),
   },
   {
+    id: "gibs_truecolor",
+    style: rasterStyle({
+      background: "#02060e",
+      tiles: [
+        // {time} placeholder is rewritten to YYYY-MM-DD by getBasemapStyle().
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/{time}/250m/{z}/{y}/{x}.jpg",
+      ],
+      tileSize: 256,
+      maxzoom: 9,
+      attribution:
+        "NASA EOSDIS GIBS — MODIS Terra Corrected Reflectance (True Colour, daily, T-1)",
+    }),
+  },
+  {
+    id: "gibs_viirs",
+    style: rasterStyle({
+      background: "#02060e",
+      tiles: [
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/{time}/250m/{z}/{y}/{x}.jpg",
+      ],
+      tileSize: 256,
+      maxzoom: 9,
+      attribution:
+        "NASA EOSDIS GIBS — VIIRS NOAA-20 Corrected Reflectance (True Colour, daily, T-1)",
+    }),
+  },
+  {
     id: "topo_dark",
     style: rasterStyle({
       background: "#0a0f18",
@@ -197,10 +225,38 @@ const BASEMAP_PRESETS: BasemapPreset[] = [
   },
 ];
 
-export function getBasemapStyle(id: BasemapId): string | StyleSpecification {
+function ymdUtcMinusDays(refMs: number, daysBack: number): string {
+  const d = new Date(refMs);
+  d.setUTCDate(d.getUTCDate() - daysBack);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function rewriteTimeInStyle(style: StyleSpecification, timeStr: string): StyleSpecification {
+  // Replace {time} placeholders in raster source tiles arrays. Deep-clones the
+  // style so the shared BASEMAP_PRESETS entry isn't mutated.
+  const cloned = JSON.parse(JSON.stringify(style)) as StyleSpecification;
+  const sources = cloned.sources as Record<string, { tiles?: string[] }>;
+  for (const sourceId of Object.keys(sources)) {
+    const tiles = sources[sourceId]?.tiles;
+    if (Array.isArray(tiles)) {
+      sources[sourceId].tiles = tiles.map((url) => url.replace("{time}", timeStr));
+    }
+  }
+  return cloned;
+}
+
+export function getBasemapStyle(id: BasemapId, timeMs?: number): string | StyleSpecification {
   const configured = import.meta.env.VITE_MAP_STYLE_URL;
   if (configured && configured.trim().length > 0) return configured;
-  return BASEMAP_PRESETS.find((p) => p.id === id)?.style ?? BASEMAP_PRESETS[0].style;
+  const preset = BASEMAP_PRESETS.find((p) => p.id === id) ?? BASEMAP_PRESETS[0];
+  // GIBS daily imagery: pick T-1 in UTC to maximise availability. For
+  // time-aware imagery the caller can supply timeMs; otherwise we use "now".
+  const ref = typeof timeMs === "number" && Number.isFinite(timeMs) ? timeMs : Date.now();
+  const dateStr = ymdUtcMinusDays(ref, 1);
+  return rewriteTimeInStyle(preset.style, dateStr);
 }
 
 function activeAlertAtPoint(alerts: AlertFeature[], longitude: number, latitude: number): string | null {
@@ -353,6 +409,19 @@ export function MapView({
   // Last-frame star projections (CSS-pixel space) for click hit-testing.
   const starProjectionsRef = useRef<StarProjection[]>([]);
   const [selectedStar, setSelectedStar] = useState<Star | null>(null);
+
+  // COSMIC-TODO(C): Auto-transition to OrbitalView when zoom drops below ~0. The MapLibre
+  //   globe runs out of meaningful basemap below zoom 2; below zoom 0 we should hide MapLibre,
+  //   mount a WebGL <OrbitalView> sibling, and interpolate the camera basis from ECEF-north-up
+  //   into ecliptic-J2000-z-up. See docs/cosmic-scope-roadmap.md §6.
+  // COSMIC-TODO(C): Wire middle-click drag → pan-in-current-plane in OrbitalView. MapLibre's
+  //   default middle-click is unused; intercept on the container element before MapLibre sees it.
+  // COSMIC-TODO(D): Right-click context menu — "Lock to orbital plane (temporary)", "Focus",
+  //   "Show info", "Add to verification". Should be a separate component so map-mode and
+  //   orbital-mode can share it.
+  // COSMIC-TODO(B): Render Sun position + sub-solar terminator overlay on the Earth globe.
+  //   Sun position comes from /api/cosmic/ephemeris (Horizons-backed). Terminator is a
+  //   great-circle 90° from the sub-solar point — draw with deck.gl GeoJsonLayer.
   void starProjectionsRef;
   void selectedStar;
   void setSelectedStar;
@@ -493,15 +562,37 @@ export function MapView({
       if (bmp) list.push(bmp);
     }
 
+    // Day/night terminator — only meaningful in photorealistic globe mode.
+    // Driven by the global timeline so scrubbing dawn→dusk animates.
+    if (viewMode === "globe" && photorealisticGlobe) {
+      list.push(
+        createTerminatorLayer({
+          id: "terminator-night",
+          timeMs: globalTimeMs,
+          intensity: 0.45,
+        }),
+      );
+    }
+
     return list;
-  }, [activeLayers, alerts, animationFrame, layerState, observations, viewMode, diffOverlay]);
+  }, [
+    activeLayers,
+    alerts,
+    animationFrame,
+    layerState,
+    observations,
+    viewMode,
+    diffOverlay,
+    photorealisticGlobe,
+    globalTimeMs,
+  ]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: getBasemapStyle(basemap),
+      style: getBasemapStyle(basemap, globalTimeMs),
       center: [-97, 57],
       zoom: 3,
       minZoom: 2,
@@ -660,7 +751,7 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const next = getBasemapStyle(basemap);
+    const next = getBasemapStyle(basemap, globalTimeMs);
     map.setStyle(next as any);
     const onStyle = () => {
       syncWmsLayers({ map, layers, runtimeState: layerState, globalTimeMs });
