@@ -1,4 +1,93 @@
 export type SourceStatus = "live" | "mock" | "stale" | "unavailable" | "fallback" | "derived";
+
+// ── Phase A: Foundation Hardening ──────────────────────────────────────────
+// Types for the event-sourced, provenance-first architecture.
+// PHASE-A-TODO: Wire these into InspectorPanel, VerificationPanel, and a new
+// EvidencePanel that shows the full provenance chain for any clicked cell.
+// PHASE-A-TODO: Add ConfidenceLevel and TruthMode as filter toggles in the
+// LeftSidebar so operators can show/hide predicted vs. observed data.
+
+export type ConfidenceLevel =
+  | "confirmed"
+  | "probable"
+  | "estimated"
+  | "conflicting"
+  | "stale"
+  | "synthetic"
+  | "restricted";
+
+export type TruthMode =
+  | "observed"
+  | "legal"
+  | "physical"
+  | "operational"
+  | "predicted"
+  | "historical"
+  | "hypothetical";
+
+export interface SourceAdapterRef {
+  adapter_id: string;
+  adapter_version: string;
+  raw_pointer?: string | null;
+  ingest_duration_ms?: number | null;
+}
+
+export interface SpatiotemporalEvent {
+  event_id: string;
+  event_kind: string;
+  valid_from: string;
+  valid_to?: string | null;
+  observed_at: string;
+  ingested_at: string;
+  superseded_by?: string | null;
+  longitude: number;
+  latitude: number;
+  elevation_m?: number | null;
+  h3_cell?: string | null;
+  variable: string;
+  value: number;
+  unit: string;
+  source_id: string;
+  source_adapter?: SourceAdapterRef | null;
+  confidence: number;
+  confidence_level: ConfidenceLevel;
+  truth_mode: TruthMode;
+  attribution: string;
+  license_url?: string | null;
+  raw_properties: Record<string, unknown>;
+}
+
+export interface DerivedCellState {
+  h3_cell: string;
+  variable: string;
+  value: number;
+  unit: string;
+  source_id: string;
+  confidence: number;
+  confidence_level: ConfidenceLevel;
+  truth_mode: TruthMode;
+  derived_at: string;
+  derived_from_event_ids: string[];
+  conflicting_event_ids: string[];
+}
+
+export interface EvidenceChain {
+  object_id: string;
+  current_value: number;
+  unit: string;
+  confidence_level: ConfidenceLevel;
+  truth_mode: TruthMode;
+  events: SpatiotemporalEvent[];
+  conflict_count: number;
+}
+
+export interface EventIngestionResult {
+  events_written: number;
+  events_skipped_duplicate: number;
+  events_rejected_schema: number;
+  latest_event_id?: string | null;
+}
+// ─────────────────────────────────────────────────────────────────────────
 export type LayerKind = "raster" | "vector" | "point" | "polygon" | "simulation";
 export type LayerServiceType = "ogc_api" | "wms" | "mock" | "generated";
 

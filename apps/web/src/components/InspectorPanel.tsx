@@ -1,5 +1,13 @@
 import type { InspectorState } from "../types/weather";
 
+// PHASE-A-TODO: Add a "View Provenance" button to each value row that calls
+// api.evidenceProvenance() and opens an EvidencePanel slideover.  The panel
+// renders the full EvidenceChain: event timeline, confidence, conflicts.
+// PHASE-A-TODO: Add a ConfidenceLevel badge next to each value (color-coded:
+// confirmed=green, estimated=yellow, conflicting=red, synthetic=purple).
+// PHASE-A-TODO: Add a TruthMode toggle (observed / predicted / historical)
+// so operators can filter which reality layer they're inspecting.
+
 interface InspectorPanelProps {
   inspector: InspectorState | null;
 }

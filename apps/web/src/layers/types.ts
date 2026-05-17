@@ -46,13 +46,6 @@ export interface LayerRendererCapabilities {
   supportsOpacity: boolean;
 }
 
-export interface LayerAnimationState {
-  frameCount: number;
-  frameIntervalSeconds: number;
-  loop: boolean;
-  currentFrame: number;
-}
-
 export interface LayerControlValues {
   min: number;
   max: number;
@@ -125,8 +118,6 @@ export interface LayerDefinition {
   category: LayerCategory;
   sourceId: string;
   status: SourceStatus;
-  isBuiltIn: boolean;
-  isPlugin: boolean;
   isExperimental: boolean;
   defaultVisible: boolean;
   defaultOpacity: number;
@@ -135,7 +126,8 @@ export interface LayerDefinition {
   legend: LayerLegend;
   rendererType: LayerRendererType;
   capabilities: LayerRendererCapabilities;
-  animation: LayerAnimationState;
+  /** Only frameCount is consumed by the render plan. */
+  animation: { frameCount: number };
   controls: LayerControlValues;
   serviceType?: string;
   variable?: string;

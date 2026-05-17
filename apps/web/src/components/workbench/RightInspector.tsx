@@ -1,3 +1,14 @@
+// PHASE-A-TODO: Add an EvidencePanel slideover component triggered by a
+// "Provenance" button on each HeroMetric and inspection value.  The panel
+// calls api.evidenceProvenance() and renders:
+//   1. Event timeline (valid_from → observed_at → ingested_at)
+//   2. Confidence badge + numeric score
+//   3. Source adapter + raw pointer
+//   4. Conflict list (if any) with competing values
+//   5. TruthMode toggle that filters the active reality layer
+// PHASE-A-TODO: Add ConfidenceLevel colour coding to StatusBadge so operators
+// can distinguish at a glance between confirmed (green) and synthetic (purple).
+
 import { LegendPanel } from "./LegendPanel";
 import { StatusBadge } from "./StatusBadge";
 

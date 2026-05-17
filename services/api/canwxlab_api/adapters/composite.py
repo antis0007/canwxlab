@@ -19,7 +19,18 @@ logger = logging.getLogger(__name__)
 
 
 class CompositeWeatherSourceAdapter(WeatherSourceAdapter):
-    """Mode-aware adapter orchestration for mock/live/hybrid data behavior."""
+    """Mode-aware adapter orchestration for mock/live/hybrid data behavior.
+
+    PHASE-A-TODO: Override emit_events() to fan out to the active adapter
+    (live or mock based on data_mode) and pass results through the event store
+    before returning.  This is the single chokepoint where every ingested
+    observation enters the event log — the composite is the natural place
+    to enforce schema validation, dedup, and provenance tagging.
+    """
+
+    # PHASE-A-TODO: accept an EventStore dependency in __init__ so emit_events
+    # can append to the log directly:
+    #   def __init__(self, ..., event_store: EventStore | None = None):
 
     def __init__(
         self,

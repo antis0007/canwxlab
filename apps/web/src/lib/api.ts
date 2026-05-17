@@ -1,12 +1,16 @@
 import type {
   AlertFeature,
   DataSource,
+  DerivedCellState,
+  EvidenceChain,
+  EventIngestionResult,
   Observation,
   OgcFeatureCollection,
   SimulationConfig,
   SimulationRun,
   PluginCatalogResponse,
   SourceStatusResponse,
+  SpatiotemporalEvent,
   VerificationMetric,
   WeatherLayer,
   WmsCapabilitiesSummaryResponse,
@@ -112,4 +116,31 @@ export const api = {
       `/api/verification/cases/${encodeURIComponent(caseId)}/diff/${encodeURIComponent(field)}`,
       { diff_mode: diffMode },
     ),
+
+  // ── Phase A: Evidence API ────────────────────────────────────────────
+  // PHASE-A-TODO: Wire these into InspectorPanel (provenance button) and a
+  // new EvidencePanel component that renders the full event chain timeline.
+  evidenceProvenance: (objectId: string) =>
+    getJson<EvidenceChain>(`/api/evidence/${encodeURIComponent(objectId)}/provenance`),
+  evidenceHistory: (objectId: string) =>
+    getJson<SpatiotemporalEvent[]>(`/api/evidence/${encodeURIComponent(objectId)}/history`),
+  evidenceConflicts: (objectId: string) =>
+    getJson<DerivedCellState[]>(`/api/evidence/${encodeURIComponent(objectId)}/conflicts`),
+  cellState: (query: { h3: string; variable: string }) =>
+    getJson<DerivedCellState>("/api/evidence/cells", query),
+  ingestEvents: (events: SpatiotemporalEvent[]) =>
+    (async (): Promise<EventIngestionResult> => {
+      const response = await fetch(`${API_BASE_URL}/api/events/ingest`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(events),
+      });
+      if (!response.ok) {
+        throw new Error(`${response.status} ${response.statusText}: ingest events`);
+      }
+      return response.json() as Promise<EventIngestionResult>;
+    })(),
+  queryEvents: (query: { bbox?: string; from?: string; to?: string; limit?: number }) =>
+    getJson<SpatiotemporalEvent[]>("/api/events", query),
+  // ─────────────────────────────────────────────────────────────────────
 };

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Literal
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
@@ -11,6 +12,153 @@ class SourceStatus(StrEnum):
     stale = "stale"
     unavailable = "unavailable"
     fallback = "fallback"
+    derived = "derived"
+
+
+# ── Phase A: Foundation Hardening ──────────────────────────────────────────
+# Every ingested observation becomes an append-only SpatiotemporalEvent.
+# The event log is the source of truth; WeatherLayer / Observation are now
+# materialized views derived from the log.  This enables:
+#   • replay any time window for forecast validation
+#   • trace any rendered pixel back to its source + confidence
+#   • detect conflicts when two sources disagree on the same cell
+#   • retrain ML models on exact historical slices
+#
+# PHASE-A-TODO: Add these models to __init__ exports once routes are wired.
+# PHASE-A-TODO: Write event_store.py (append-only log backed by SQLite/Parquet).
+# PHASE-A-TODO: Write world_state.py (materialized current-best per cell).
+# PHASE-A-TODO: Write routes/evidence.py (GET /objects/:id/provenance,
+#              GET /objects/:id/history, GET /objects/:id/conflicts).
+# PHASE-A-TODO: Add ConfidenceScore enum (confirmed, probable, estimated,
+#              conflicting, stale, synthetic, restricted).
+# PHASE-A-TODO: Add TruthMode enum (observed, legal, physical, operational,
+#              predicted, historical, hypothetical).
+
+
+class ConfidenceLevel(StrEnum):
+    """How certain the system is about a value.
+
+    PHASE-A-TODO: Wire this into every rendered object so users can distinguish
+    high-resolution rendering from high-confidence data.
+    """
+    confirmed = "confirmed"
+    probable = "probable"
+    estimated = "estimated"
+    conflicting = "conflicting"
+    stale = "stale"
+    synthetic = "synthetic"
+    restricted = "restricted"
+
+
+class TruthMode(StrEnum):
+    """Which reality layer a fact belongs to.
+
+    PHASE-A-TODO: Expose as a client-side layer toggle so operators can switch
+    between observed / simulated / forecast / historical views without mixing
+    incompatible truth modes in the same render.
+    """
+    observed = "observed"
+    legal = "legal"
+    physical = "physical"
+    operational = "operational"
+    predicted = "predicted"
+    historical = "historical"
+    hypothetical = "hypothetical"
+
+
+class SourceAdapterRef(BaseModel):
+    """Lightweight pointer to the source adapter + raw ingest record.
+
+    Replaces the flat `adapter: str` field on current models.
+    PHASE-A-TODO: Backfill existing adapters to emit this on every fetch.
+    """
+    adapter_id: str
+    adapter_version: str = "0.1.0"
+    raw_pointer: str | None = None  # s3 key, cache path, or API URL
+    ingest_duration_ms: float | None = None
+
+
+class SpatiotemporalEvent(BaseModel):
+    """Append-only event that is the source of truth for all derived state.
+
+    Every observation, forecast frame, alert, and sensor reading enters the
+    system as one of these.  The event log is never mutated — corrections are
+    recorded as new events that supersede old ones.
+
+    PHASE-A-TODO: This is the central schema change for Phase A.  All adapters
+    should emit SpatiotemporalEvent instead of (or in addition to) the current
+    Observation / WeatherLayer models during the migration.
+    """
+    event_id: UUID = Field(default_factory=uuid4)
+    event_kind: str  # "meteorological.observation", "meteorological.forecast", etc.
+    # Bitemporal: when the fact was true vs. when we learned about it
+    valid_from: datetime
+    valid_to: datetime | None = None
+    observed_at: datetime
+    ingested_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    superseded_by: UUID | None = None  # points to replacement event
+    # Spatial
+    longitude: float
+    latitude: float
+    elevation_m: float | None = None
+    h3_cell: str | None = None  # H3 index at appropriate resolution
+    # Value
+    variable: str
+    value: float
+    unit: str
+    # Provenance
+    source_id: str
+    source_adapter: SourceAdapterRef | None = None
+    confidence: float = Field(ge=0.0, le=1.0)
+    confidence_level: ConfidenceLevel = ConfidenceLevel.estimated
+    truth_mode: TruthMode = TruthMode.observed
+    # Audit
+    attribution: str = ""
+    license_url: str | None = None
+    raw_properties: dict[str, Any] = Field(default_factory=dict)
+
+
+class EventIngestionResult(BaseModel):
+    """Returned by the event store after appending events."""
+    events_written: int
+    events_skipped_duplicate: int = 0
+    events_rejected_schema: int = 0
+    latest_event_id: UUID | None = None
+
+
+class DerivedCellState(BaseModel):
+    """Materialized current-best estimate for a single H3 cell + variable.
+
+    PHASE-A-TODO: world_state.py produces these by replaying the event log
+    and picking the latest, highest-confidence event for each (cell, variable).
+    """
+    h3_cell: str
+    variable: str
+    value: float
+    unit: str
+    source_id: str
+    confidence: float
+    confidence_level: ConfidenceLevel
+    truth_mode: TruthMode
+    derived_at: datetime
+    derived_from_event_ids: list[UUID] = Field(default_factory=list)
+    conflicting_event_ids: list[UUID] = Field(default_factory=list)
+
+
+class EvidenceChain(BaseModel):
+    """Full provenance trace for a single rendered value.
+
+    PHASE-A-TODO: Returned by GET /api/evidence/:object_id/provenance.
+    Walks the event log from the current best-estimate back through every
+    observation or forecast that contributed to it.
+    """
+    object_id: str
+    current_value: float
+    unit: str
+    confidence_level: ConfidenceLevel
+    truth_mode: TruthMode
+    events: list[SpatiotemporalEvent]
+    conflict_count: int = 0
 
 
 class LayerKind(StrEnum):

@@ -18,6 +18,17 @@ from canwxlab_api.routes import (
     verification,
 )
 
+# PHASE-A-TODO: from canwxlab_api.routes import evidence
+# PHASE-A-TODO: app.include_router(evidence.router)
+# ── Phase A routes ────────────────────────────────────────────────────────
+# GET  /api/evidence/{object_id}/provenance  → EvidenceChain
+# GET  /api/evidence/{object_id}/history     → list[SpatiotemporalEvent]
+# GET  /api/evidence/{object_id}/conflicts   → list[DerivedCellState]
+# GET  /api/evidence/cells?h3=...&var=...    → DerivedCellState
+# POST /api/events/ingest                    → EventIngestionResult
+# GET  /api/events?bbox=...&from=...&to=...  → list[SpatiotemporalEvent]
+# ─────────────────────────────────────────────────────────────────────────
+
 configure_logging()
 settings = get_settings()
 

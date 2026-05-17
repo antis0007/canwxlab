@@ -31,8 +31,6 @@ const layer: LayerDefinition = {
   category: "forecast",
   sourceId: "mock_canwxlab",
   status: "mock",
-  isBuiltIn: true,
-  isPlugin: false,
   isExperimental: false,
   defaultVisible: true,
   defaultOpacity: 0.7,
@@ -55,7 +53,7 @@ const layer: LayerDefinition = {
     supportsCustomColorRamp: true,
     supportsOpacity: true,
   },
-  animation: { frameCount: 240, frameIntervalSeconds: 300, loop: true, currentFrame: 0 },
+  animation: { frameCount: 240 },
   controls: {
     min: 0,
     max: 1,

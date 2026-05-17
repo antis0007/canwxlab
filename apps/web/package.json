@@ -10,7 +10,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@canwxlab/layer-sdk": "workspace:*",
     "@deck.gl/core": "^9.0.0",
     "@deck.gl/layers": "^9.0.0",
     "@deck.gl/mapbox": "^9.0.0",

@@ -2,11 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PluginCatalogItem, WeatherLayer } from "../types/weather";
 
-// COSMIC-TODO: When OrbitalView lands, cosmic markers (Sun, planets, asteroid clouds,
-// satellites, deep-sky overlays) should plug into this same layer engine so users can
-// toggle visibility, opacity, and z-order from the existing LeftSidebar layer list.
-// Add `LayerCategory` values for `celestial`, `orbital`, and `stellarium` in `types.ts`
-// when the OrbitalView seam is wired — they should not weaken the weather categories.
 import { colorRamps } from "./colorRamps";
 import { buildLayerDefinitions, type DataMode } from "./registry";
 import {
@@ -17,13 +12,6 @@ import {
   type UiPreferences,
 } from "./types";
 
-// v5: default visibility expanded to live OSINT stack (alerts, SWOB, AQHI,
-// hydrometric, climate-stations) and marker radii were converted to pixel
-// units. Bumping the key version forces existing browsers to pick up the new
-// defaults instead of replaying a stale v4 state where these layers were off.
-// v10 bump: WMS default time policy flipped from "latest" → "timeline" so
-// existing operators get animated WMS again on next load (a stored v9 cache
-// would otherwise preserve the broken "latest" everywhere).
 const STORAGE_KEY_LAYER_STATE = "canwxlab.layerState.v10";
 const STORAGE_KEY_LAYER_ORDER = "canwxlab.layerOrder.v10";
 const STORAGE_KEY_PLUGIN_ENABLED = "canwxlab.pluginEnabled.v2";
@@ -75,13 +63,10 @@ function fallbackRuntimeState(): LayerRuntimeState {
   };
 }
 
-function normalizeWmsTimePolicyForLayer(
-  _layer: LayerDefinition,
-  existing: LayerRuntimeState,
-): LayerRuntimeState["wmsTimePolicy"] {
-  if (existing.wmsTimePolicy === "fixed" || existing.wmsTimePolicy === "timeline") return existing.wmsTimePolicy;
-  if (existing.wmsTimePolicy === "latest") return "latest";
-  return "timeline";
+function normalizeWmsTimePolicy(existing: LayerRuntimeState): LayerRuntimeState["wmsTimePolicy"] {
+  return existing.wmsTimePolicy === "fixed" || existing.wmsTimePolicy === "timeline"
+    ? existing.wmsTimePolicy
+    : "timeline";
 }
 
 export function useLayerEngine(input: {
@@ -124,7 +109,7 @@ export function useLayerEngine(input: {
               ...existing,
               colourRamp: normalizeColourRamp(existing.colourRamp),
               controls: { ...defaultLayerControls, ...existing.controls },
-              wmsTimePolicy: normalizeWmsTimePolicyForLayer(layer, existing),
+              wmsTimePolicy: normalizeWmsTimePolicy(existing),
             }
           : defaultRuntimeState(layer);
       });
