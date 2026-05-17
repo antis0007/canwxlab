@@ -139,6 +139,7 @@ describe("workbench components", () => {
         sourceHealthStatus="mock"
         isRefreshing={false}
         onRefresh={() => undefined}
+        onFreshStart={() => undefined}
         timelineMode="live"
         onSetTimelineMode={() => undefined}
         onToggleLeftPanel={() => undefined}

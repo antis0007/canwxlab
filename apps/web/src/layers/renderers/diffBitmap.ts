@@ -72,5 +72,6 @@ export function createDiffBitmapLayer(payload: DiffOverlayPayload): BitmapLayer 
     bounds: payload.bbox,
     opacity: payload.opacity,
     pickable: false,
+    parameters: { depthTest: false },
   });
 }

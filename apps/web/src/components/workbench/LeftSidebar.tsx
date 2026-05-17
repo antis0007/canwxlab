@@ -41,7 +41,7 @@ interface LeftSidebarProps {
   onAddDynamicLayer?: (layer: WeatherLayer) => void;
   cameraState: CameraState;
   onCameraTarget: (state: CameraState) => void;
-  onSetWmsTimePolicy?: (layerId: string, policy: "global" | "latest" | "fixed", fixedTime?: number) => void;
+  onSetWmsTimePolicy?: (layerId: string, policy: "timeline" | "latest" | "fixed", fixedTime?: number) => void;
   onApplyPreset?: (presetId: string) => void;
   onDiffOverlay?: (payload: DiffOverlayPayload | null) => void;
 }
@@ -194,7 +194,7 @@ interface LayerRowProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onReset: () => void;
-  onSetWmsTimePolicy?: (policy: "global" | "latest" | "fixed", fixedTime?: number) => void;
+  onSetWmsTimePolicy?: (policy: "timeline" | "latest" | "fixed", fixedTime?: number) => void;
 }
 
 function LayerRow({
@@ -323,11 +323,11 @@ function LayerRow({
                 <label style={{ gridColumn: "1 / -1" }}>
                   Policy
                   <select
-                    value={state.wmsTimePolicy ?? "global"}
+                    value={state.wmsTimePolicy === "global" ? "latest" : state.wmsTimePolicy ?? "latest"}
                     onChange={(e) => onSetWmsTimePolicy(e.target.value as any, state.wmsFixedTime)}
                   >
-                    <option value="global">Global Timeline</option>
                     <option value="latest">Latest Available</option>
+                    <option value="timeline">Global Timeline</option>
                     <option value="fixed">Fixed Time</option>
                   </select>
                 </label>
@@ -369,7 +369,7 @@ interface LayerTabProps {
   onMoveLayer: (id: string, d: "up" | "down") => void;
   onResetLayer: (id: string) => void;
   onApplyPreset?: (id: string) => void;
-  onSetWmsTimePolicy?: (layerId: string, policy: "global" | "latest" | "fixed", fixedTime?: number) => void;
+  onSetWmsTimePolicy?: (layerId: string, policy: "timeline" | "latest" | "fixed", fixedTime?: number) => void;
 }
 
 function LayerTab({
@@ -426,6 +426,11 @@ function LayerTab({
     );
   }, [filteredLayers]);
 
+  const activeStack = useMemo(
+    () => layers.filter((layer) => runtimeState[layer.id]?.enabled).slice().reverse(),
+    [layers, runtimeState],
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
       {/* Search */}
@@ -452,6 +457,23 @@ function LayerTab({
             >
               {p.name}
             </button>
+          ))}
+        </div>
+      )}
+
+      {activeStack.length > 0 && (
+        <div className="wb-layer-stack" aria-label="Active layer stack">
+          <div className="wb-layer-stack-head">
+            <span>Active stack</span>
+            <small>top first</small>
+          </div>
+          {activeStack.map((layer, index) => (
+            <div key={`stack-${layer.id}`} className="wb-layer-stack-row">
+              <span className="wb-layer-stack-index">{index + 1}</span>
+              <span className="wb-layer-stack-name" title={layer.title}>{layer.title}</span>
+              <button type="button" onClick={() => onMoveLayer(layer.id, "up")} title="Move toward top">Up</button>
+              <button type="button" onClick={() => onMoveLayer(layer.id, "down")} title="Move toward basemap">Down</button>
+            </div>
           ))}
         </div>
       )}
@@ -590,8 +612,8 @@ function PreferencesTab({ uiPreferences, onSetUiPreferences }: Pick<LeftSidebarP
           Compact mode
         </label>
         <label className="wb-inline-toggle" style={{ marginTop: 6 }}>
-          <input type="checkbox" checked={prefs.photorealisticGlobe ?? true} onChange={(e) => set({ photorealisticGlobe: e.target.checked })} />
-          Photorealistic globe (atmosphere & stars)
+          <input type="checkbox" checked={prefs.photorealisticGlobe ?? false} onChange={(e) => set({ photorealisticGlobe: e.target.checked })} />
+          Experimental space backdrop
         </label>
         <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>

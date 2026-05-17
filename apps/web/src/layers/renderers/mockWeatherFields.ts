@@ -1,5 +1,6 @@
 export interface SampledWeatherPoint {
   temperatureC: number;
+  pressureHpa: number;
   precipitationRate: number;
   windU: number;
   windV: number;
@@ -13,6 +14,7 @@ export function sampleMockWeatherPoint(longitude: number, latitude: number, fram
   const waveB = Math.cos(latitude / 9 - phase * 0.7);
 
   const temperatureC = 14 - Math.abs(latitude - 52) * 0.45 + waveA * 4.2 + waveB * 1.9;
+  const pressureHpa = 1012 + Math.sin(longitude / 14 - phase * 0.45) * 8 + Math.cos(latitude / 11 + phase * 0.3) * 5;
   const precipitationRate = Math.max(0, (Math.sin(longitude / 8 + phase * 1.4) + 1) * 3.4 + waveB * 0.8);
 
   const windU = Math.cos((latitude + frame * 0.45) / 10) * 7.5;
@@ -23,11 +25,51 @@ export function sampleMockWeatherPoint(longitude: number, latitude: number, fram
 
   return {
     temperatureC,
+    pressureHpa,
     precipitationRate,
     windU,
     windV,
     windSpeed,
     cloudOpacity,
+  };
+}
+
+export function createPressureGrid(frame: number): GeoJSON.FeatureCollection {
+  const cells: GeoJSON.Feature[] = [];
+  const lonStart = -170;
+  const lonStep = 5;
+  const latStart = -60;
+  const latStep = 4;
+
+  for (let y = 0; y < 30; y += 1) {
+    for (let x = 0; x < 68; x += 1) {
+      const west = lonStart + x * lonStep;
+      const south = latStart + y * latStep;
+      const centerLon = west + lonStep * 0.5;
+      const centerLat = south + latStep * 0.5;
+      const sample = sampleMockWeatherPoint(centerLon, centerLat, frame);
+      cells.push({
+        type: "Feature",
+        properties: {
+          pressure: sample.pressureHpa,
+        },
+        geometry: {
+          type: "Polygon",
+          coordinates: [[
+            [west, south],
+            [west + lonStep, south],
+            [west + lonStep, south + latStep],
+            [west, south + latStep],
+            [west, south],
+          ]],
+        },
+      });
+    }
+  }
+
+  return {
+    type: "FeatureCollection",
+    features: cells,
   };
 }
 

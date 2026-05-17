@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { AnimationPlaybackState } from "./types";
 
-// Timeline window: last 3 hours of radar/satellite, stepping every 5 minutes.
-const FRAME_COUNT = 36;
+// Timeline window: one full UTC day of radar/satellite, stepping every 5 minutes.
+const FRAME_COUNT = 24 * 12 + 1;
 const FRAME_INTERVAL_MS = 5 * 60 * 1000;
 const WINDOW_SPAN_MS = (FRAME_COUNT - 1) * FRAME_INTERVAL_MS;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function useAnimationTimeline() {
   const [isPlaying, setIsPlaying] = useState(true);
@@ -14,7 +15,7 @@ export function useAnimationTimeline() {
   const [loopStart, setLoopStart] = useState(0);
   const [loopEnd, setLoopEnd] = useState(FRAME_COUNT - 1);
   // Window anchor: refreshed on mount so playback covers the last WINDOW_SPAN_MS.
-  const [windowStartMs] = useState(() => Date.now() - WINDOW_SPAN_MS);
+  const [windowStartMs, setWindowStartMs] = useState(() => Date.now() - WINDOW_SPAN_MS);
   const rafRef = useRef<number | null>(null);
   const lastFrameAtRef = useRef<number>(performance.now());
 
@@ -36,7 +37,7 @@ export function useAnimationTimeline() {
     }
 
     const tick = (timestamp: number) => {
-      const intervalMs = 1000 / Math.max(0.25, speedMultiplier * 2);
+      const intervalMs = 1000 / Math.max(0.25, speedMultiplier);
       if (timestamp - lastFrameAtRef.current >= intervalMs) {
         advanceFrame();
         lastFrameAtRef.current = timestamp;
@@ -90,6 +91,10 @@ export function useAnimationTimeline() {
     toggle: () => setIsPlaying((current) => !current),
     reset: () => {
       setFrame(FRAME_COUNT - 1);
+      setIsPlaying(false);
+    },
+    shiftWindowDays: (days: number) => {
+      setWindowStartMs((current) => current + days * DAY_MS);
       setIsPlaying(false);
     },
   };

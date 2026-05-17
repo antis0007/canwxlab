@@ -10,7 +10,11 @@ export interface WmsLayerDefinition {
   timeDimensionSupported: boolean;
   minZoom?: number | null;
   maxZoom?: number | null;
+  bounds?: [number, number, number, number] | null;
 }
+
+const DEFAULT_WMS_REQUEST_TILE_SIZE = 512;
+const DEFAULT_WMS_SOURCE_TILE_SIZE = 256;
 
 export function toWmsLayerDefinition(layer: WeatherLayer): WmsLayerDefinition | null {
   if (layer.service_type !== "wms" || !layer.wms_base_url) {
@@ -26,8 +30,23 @@ export function toWmsLayerDefinition(layer: WeatherLayer): WmsLayerDefinition | 
     styles: layer.styles,
     timeDimensionSupported: layer.time_dimension_supported,
     minZoom: layer.min_zoom,
-    maxZoom: layer.max_zoom
+    maxZoom: layer.max_zoom,
+    bounds: readLonLatBounds(layer.metadata?.wms_bounds_lonlat)
   };
+}
+
+function readLonLatBounds(value: unknown): [number, number, number, number] | null {
+  if (!Array.isArray(value) || value.length !== 4) return null;
+  const nums = value.map((part) => Number(part));
+  if (nums.some((part) => !Number.isFinite(part))) return null;
+  const [west, south, east, north] = nums;
+  if (west >= east || south >= north) return null;
+  return [
+    Math.max(-180, Math.min(180, west)),
+    Math.max(-90, Math.min(90, south)),
+    Math.max(-180, Math.min(180, east)),
+    Math.max(-90, Math.min(90, north)),
+  ];
 }
 
 export function canRenderWmsLayer(definition: WmsLayerDefinition): boolean {
@@ -40,10 +59,10 @@ export function canRenderWmsLayer(definition: WmsLayerDefinition): boolean {
 
 export function buildWmsGetMapTemplate(
   definition: WmsLayerDefinition,
-  options?: { time?: string; format?: string; tileSize?: number }
+  options?: { time?: string; format?: string; requestTileSize?: number }
 ): string {
   const format = options?.format ?? "image/png";
-  const tileSize = options?.tileSize ?? 256;
+  const requestTileSize = options?.requestTileSize ?? DEFAULT_WMS_REQUEST_TILE_SIZE;
   const style = definition.styles[0] ?? "";
 
   const query = new URLSearchParams({
@@ -52,13 +71,16 @@ export function buildWmsGetMapTemplate(
     REQUEST: "GetMap",
     BBOX: "{bbox-epsg-3857}",
     CRS: "EPSG:3857",
-    WIDTH: String(tileSize),
-    HEIGHT: String(tileSize),
+    WIDTH: String(requestTileSize),
+    HEIGHT: String(requestTileSize),
     LAYERS: definition.wmsLayerName ?? "",
-    STYLES: style,
     FORMAT: format,
     TRANSPARENT: "true"
   });
+
+  if (style.length > 0) {
+    query.set("STYLES", style);
+  }
 
   if (options?.time) {
     query.set("TIME", options.time);
@@ -71,14 +93,16 @@ export function buildWmsGetMapTemplate(
 
 export function buildMapLibreWmsSource(
   definition: WmsLayerDefinition,
-  options?: { time?: string; tileSize?: number }
-): { type: "raster"; tiles: string[]; tileSize: number; minzoom?: number; maxzoom?: number } {
-  const tileSize = options?.tileSize ?? 256;
+  options?: { time?: string; requestTileSize?: number; sourceTileSize?: number }
+): { type: "raster"; tiles: string[]; tileSize: number; minzoom?: number; maxzoom?: number; bounds?: [number, number, number, number] } {
+  const requestTileSize = options?.requestTileSize ?? DEFAULT_WMS_REQUEST_TILE_SIZE;
+  const sourceTileSize = options?.sourceTileSize ?? DEFAULT_WMS_SOURCE_TILE_SIZE;
   return {
     type: "raster",
-    tiles: [buildWmsGetMapTemplate(definition, { time: options?.time, tileSize })],
-    tileSize,
+    tiles: [buildWmsGetMapTemplate(definition, { time: options?.time, requestTileSize })],
+    tileSize: sourceTileSize,
     minzoom: definition.minZoom ?? undefined,
-    maxzoom: definition.maxZoom ?? undefined
+    maxzoom: definition.maxZoom ?? undefined,
+    bounds: definition.bounds ?? undefined
   };
 }

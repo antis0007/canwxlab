@@ -80,13 +80,13 @@ export function isTimeInRange(targetTime: number, availableTimes: number[]): boo
  * Resolves the final WMS time string to use based on the layer's time policy.
  * @param globalTime The current global timeline time (ms).
  * @param availableTimes Array of available times in ms.
- * @param policy 'global' | 'latest' | 'fixed'
+ * @param policy 'timeline' | 'global' | 'latest' | 'fixed'
  * @param fixedTime The user-selected fixed time (ms), if policy is 'fixed'.
  */
 export function resolveWmsTimeForTimeline(
   globalTime: number,
   availableTimes: number[],
-  policy: 'global' | 'latest' | 'fixed',
+  policy: 'timeline' | 'global' | 'latest' | 'fixed',
   fixedTime?: number
 ): string | null {
   if (!availableTimes || availableTimes.length === 0) return null;
@@ -98,11 +98,18 @@ export function resolveWmsTimeForTimeline(
   } else if (policy === 'fixed' && fixedTime !== undefined) {
     resolvedMs = nearestTime(fixedTime, availableTimes);
   } else {
-    // policy === 'global'
+    // policy === 'timeline' or historical 'global'
     resolvedMs = nearestTime(globalTime, availableTimes);
   }
 
   if (resolvedMs === null) return null;
 
-  return new Date(resolvedMs).toISOString();
+  // GeoMet WMS rejects fractional seconds in TIME, returning an XML exception
+  // that MapLibre then reports as an unsupported image type. Keep whole-second
+  // UTC timestamps for WMS 1.3.0 GetMap requests.
+  return formatWmsUtcSecond(resolvedMs);
+}
+
+export function formatWmsUtcSecond(ms: number): string {
+  return new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 }

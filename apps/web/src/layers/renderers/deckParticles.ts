@@ -11,7 +11,7 @@ export function createDeckParticleLayer(options: {
   return new PathLayer({
     id: options.id,
     data: options.particles,
-    wrapLongitude: true,
+    wrapLongitude: false,
     getPath: (item: WindParticle) => item.path,
     getColor: (item: WindParticle) => {
       const alpha = Math.round(220 * options.runtime.opacity);
@@ -23,7 +23,9 @@ export function createDeckParticleLayer(options: {
     getWidth: (item: WindParticle) => Math.max(1, item.speed * 0.22),
     widthMinPixels: 1,
     widthMaxPixels: 6,
+    widthUnits: "pixels",
     rounded: true,
     pickable: true,
+    parameters: { depthTest: false },
   });
 }

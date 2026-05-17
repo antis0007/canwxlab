@@ -1,4 +1,4 @@
-export type SourceStatus = "live" | "mock" | "stale" | "unavailable" | "fallback";
+export type SourceStatus = "live" | "mock" | "stale" | "unavailable" | "fallback" | "derived";
 export type LayerKind = "raster" | "vector" | "point" | "polygon" | "simulation";
 export type LayerServiceType = "ogc_api" | "wms" | "mock" | "generated";
 
@@ -110,6 +110,7 @@ export interface WmsCapabilityLayerSummary {
   has_time_dimension: boolean;
   time_extent?: string | null;
   styles?: string[];
+  bounding_boxes?: Record<string, number[]>;
   legend_url?: string | null;
   queryable?: boolean;
 }
@@ -117,6 +118,17 @@ export interface WmsCapabilityLayerSummary {
 export interface WmsCapabilitiesSummaryResponse {
   source: DataSource;
   layers: WmsCapabilityLayerSummary[];
+}
+
+export interface OgcFeatureCollection extends GeoJSON.FeatureCollection {
+  layer_id?: string;
+  collection_id?: string;
+  status?: SourceStatus;
+  retrieved_at?: string | null;
+  expires_at?: string | null;
+  source_url?: string | null;
+  message?: string;
+  error_type?: string | null;
 }
 
 export type PluginType = "source" | "layer" | "physics" | "diagnostic" | "forecast";

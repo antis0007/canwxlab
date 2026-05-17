@@ -2,6 +2,8 @@ import type { SourceStatus } from "../types/weather";
 
 export type ViewMode = "map" | "globe";
 
+export type RendererKind = "maplibre-2d" | "maplibre-globe" | "earth-webgl";
+
 export interface CameraState {
   longitude: number;
   latitude: number;
@@ -63,6 +65,46 @@ export interface LayerControlValues {
   blendMode: string;
 }
 
+export type RenderLayerType =
+  | "wms-raster"
+  | "deck-grid"
+  | "deck-vector"
+  | "native-raster"
+  | "shader-raster";
+
+export type RenderTimePolicy = "latest" | "timeline" | "fixed";
+
+export type RenderBlendMode = "normal" | "screen" | "multiply" | "add" | "max" | "alpha";
+
+export interface RenderSourcePlan {
+  kind: "wms" | "deck" | "native" | "shader";
+  layerId: string;
+  sourceId: string;
+  status: SourceStatus;
+  title: string;
+  urlTemplate?: string;
+  wmsBaseUrl?: string | null;
+  wmsLayerName?: string | null;
+  styles?: string[];
+  timeExtent?: string | null;
+  variable?: string;
+  unit?: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface RenderLayerPlan {
+  id: string;
+  rendererType: RenderLayerType;
+  order: number;
+  opacity: number;
+  visible: boolean;
+  timePolicy: RenderTimePolicy;
+  resolvedTime: string | null;
+  source: RenderSourcePlan;
+  blendMode: RenderBlendMode;
+  priority: number;
+}
+
 export interface LayerLegendStop {
   value: number;
   color: string;
@@ -106,7 +148,7 @@ export interface LayerDefinition {
   metadata?: Record<string, unknown>;
 }
 
-export type WmsTimePolicy = "global" | "latest" | "fixed";
+export type WmsTimePolicy = RenderTimePolicy | "global";
 
 export interface LayerRuntimeState {
   enabled: boolean;
@@ -125,6 +167,11 @@ export interface LayerDiagnostics {
   lastDataRefreshAt: string | null;
   mapMode: ViewMode;
   deckLayerCount: number;
+  rendererKind?: RendererKind;
+  pendingRasterFrames?: number;
+  promotedRasterFrames?: number;
+  failedRasterFrames?: number;
+  lastSourceError?: string | null;
   warnings: string[];
 }
 
@@ -184,7 +231,7 @@ export const defaultUiPreferences: UiPreferences = {
   theme: "dark",
   accentColor: "#58d0bf",
   mapBackgroundStyle: "default",
-  photorealisticGlobe: true,
+  photorealisticGlobe: false,
   starExposure: "realistic",
   starMaxDistanceLy: 500,
   units: {

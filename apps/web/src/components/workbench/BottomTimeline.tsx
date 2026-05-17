@@ -8,6 +8,7 @@ interface BottomTimelineProps {
   onTogglePlay: () => void;
   onStepFrame: (delta: number) => void;
   onSetSpeed: (value: number) => void;
+  onShiftWindowDays: (days: number) => void;
 }
 
 /** Pin "A" or "B" comparison times on the timeline. Stored in localStorage so
@@ -148,6 +149,7 @@ export function BottomTimeline({
   onTogglePlay,
   onStepFrame,
   onSetSpeed,
+  onShiftWindowDays,
 }: BottomTimelineProps) {
   const stripRef = useRef<HTMLDivElement | null>(null);
   const [hoverPct, setHoverPct] = useState<number | null>(null);
@@ -217,6 +219,15 @@ export function BottomTimeline({
         <button
           type="button"
           className="wb-tl-btn wb-tl-step"
+          onClick={() => onShiftWindowDays(-1)}
+          title="Previous UTC day"
+          aria-label="Previous UTC day"
+        >
+          -1d
+        </button>
+        <button
+          type="button"
+          className="wb-tl-btn wb-tl-step"
           onClick={() => onSetFrame(0)}
           title="Jump to first frame (Home)"
           aria-label="First frame"
@@ -275,6 +286,15 @@ export function BottomTimeline({
           <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
             <path d="M11.75 3.25v9.5M3 3l6 5-6 5V3Z" fill="currentColor" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
+        </button>
+        <button
+          type="button"
+          className="wb-tl-btn wb-tl-step"
+          onClick={() => onShiftWindowDays(1)}
+          title="Next UTC day"
+          aria-label="Next UTC day"
+        >
+          +1d
         </button>
         <select
           className="wb-tl-speed"

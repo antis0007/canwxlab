@@ -40,12 +40,20 @@ export function WmsBrowser({ onAddLayer }: WmsBrowserProps) {
   }, []);
 
   const handleAddLayer = useCallback(async (layerInfo: WmsCapabilityLayerSummary) => {
+    const layerText = `${layerInfo.layer_name} ${layerInfo.title ?? ""} ${layerInfo.abstract ?? ""}`.toLowerCase();
+    const variable = layerText.includes("radar")
+      ? "radar"
+      : layerText.includes("cloud")
+        ? "cloud"
+        : layerText.includes("goes") || layerText.includes("satellite")
+          ? "satellite"
+          : "wms_layer";
     const newLayer: WeatherLayer = {
       layer_id: `wms_${layerInfo.layer_name}`,
       name: layerInfo.title || layerInfo.layer_name,
       title: layerInfo.title || layerInfo.layer_name,
       kind: "raster",
-      variable: "wms_layer",
+      variable,
       unit: "none",
       source_id: "eccc_geomet_wms",
       status: "live",
@@ -60,7 +68,14 @@ export function WmsBrowser({ onAddLayer }: WmsBrowserProps) {
       wms_layer_name: layerInfo.layer_name,
       time_dimension_supported: layerInfo.has_time_dimension,
       legend_url: layerInfo.legend_url,
-      metadata: {},
+      metadata: {
+        time_extent: layerInfo.time_extent ?? null,
+        styles: layerInfo.styles ?? [],
+        bounding_boxes: layerInfo.bounding_boxes ?? {},
+        legend_url: layerInfo.legend_url ?? null,
+        capabilities_title: layerInfo.title ?? null,
+        intended_product_type: variable,
+      },
       is_live: true,
       is_experimental: false,
       last_updated: null,

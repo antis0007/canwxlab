@@ -36,9 +36,9 @@ import type {
 } from "./types/weather";
 
 function readViewMode(): ViewMode {
-  if (typeof window === "undefined") return "map";
+  if (typeof window === "undefined") return "globe";
   const raw = window.localStorage.getItem("canwxlab.viewMode.v2");
-  return raw === "globe" ? "globe" : "map";
+  return raw === "map" ? "map" : "globe";
 }
 
 function writeViewMode(mode: ViewMode) {
@@ -46,13 +46,14 @@ function writeViewMode(mode: ViewMode) {
   window.localStorage.setItem("canwxlab.viewMode.v2", mode);
 }
 
-const BASEMAP_STORAGE_KEY = "canwxlab.basemap.v1";
+const BASEMAP_STORAGE_KEY = "canwxlab.basemap.v3";
+const LOCAL_STATE_PREFIX = "canwxlab.";
 
 function readBasemap(): BasemapId {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "satellite";
   const raw = window.localStorage.getItem(BASEMAP_STORAGE_KEY);
   if (raw && BASEMAP_OPTIONS.some((o) => o.id === raw)) return raw as BasemapId;
-  return "dark";
+  return "satellite";
 }
 
 function sourceStatusSummary(sources: DataSource[]): SourceStatus {
@@ -61,6 +62,32 @@ function sourceStatusSummary(sources: DataSource[]): SourceStatus {
   if (sources.some((source) => source.status === "fallback")) return "fallback";
   if (sources.some((source) => source.status === "mock")) return "mock";
   return "unavailable";
+}
+
+async function clearClientStorage(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    Object.keys(window.localStorage)
+      .filter((key) => key.startsWith(LOCAL_STATE_PREFIX))
+      .forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    /* ignore */
+  }
+  try {
+    Object.keys(window.sessionStorage)
+      .filter((key) => key.startsWith(LOCAL_STATE_PREFIX))
+      .forEach((key) => window.sessionStorage.removeItem(key));
+  } catch {
+    /* ignore */
+  }
+  if ("caches" in window) {
+    try {
+      const names = await window.caches.keys();
+      await Promise.all(names.map((name) => window.caches.delete(name)));
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 export function statusMessage(
@@ -99,8 +126,9 @@ export default function App() {
   const [diffOverlay, setDiffOverlay] = useState<DiffOverlayPayload | null>(null);
   const [isRunningSimulation, setIsRunningSimulation] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isResettingExperience, setIsResettingExperience] = useState(false);
   const [activeTab, setActiveTab] = useState("layers");
-  const [cameraState, setCameraState] = useState<CameraState>({ longitude: -97, latitude: 57, zoom: 3, bearing: 0, pitch: 0 });
+  const [cameraState, setCameraState] = useState<CameraState>({ longitude: -35, latitude: 20, zoom: 1.6, bearing: 0, pitch: 0 });
   const [cameraTarget, setCameraTarget] = useState<CameraState | null>(null);
   const [dynamicLayers, setDynamicLayers] = useState<WeatherLayer[]>([]);
   const [timelineMode, setTimelineMode] = useState("live");
@@ -138,6 +166,7 @@ export default function App() {
     setSpeedMultiplier,
     setLoopWindow,
     stepFrame,
+    shiftWindowDays,
     toggle,
     reset,
   } = useAnimationTimeline();
@@ -149,7 +178,13 @@ export default function App() {
   const layerEngine = useLayerEngine({
     backendLayers: [...backendLayers, ...dynamicLayers],
     plugins,
-    dataMode: sourceReport?.data_mode ?? "mock",
+    // Default to the backend's actual default mode ("hybrid") during the brief
+    // window before /api/sources/status returns. If we used "mock" here, the
+    // initial runtimeState would be built with live-layer enabled=false, and
+    // the existing-entry guard in useLayerEngine would then preserve that
+    // false state even after the real data_mode arrives — so the live OSINT
+    // stack would never auto-enable on first load.
+    dataMode: sourceReport?.data_mode ?? "hybrid",
   });
 
   useEffect(() => {
@@ -261,10 +296,11 @@ export default function App() {
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [status, layers, stations, activeAlerts, verification, pluginCatalog] = await Promise.all([
+      const [status, layers, stations, hourly, activeAlerts, verification, pluginCatalog] = await Promise.all([
         api.sourceStatus(),
         api.layers(),
         api.observations(),
+        api.hourlyObservations(),
         api.alerts(),
         api.verification(),
         api.plugins(),
@@ -273,7 +309,7 @@ export default function App() {
       setSourceReport(status);
       setSources(status.sources);
       setBackendLayers(layers);
-      setObservations(stations);
+      setObservations([...stations, ...hourly]);
       setAlerts(activeAlerts);
       setMetrics(verification);
       setPlugins(pluginCatalog.plugins);
@@ -290,6 +326,22 @@ export default function App() {
       logManager.error("api", "Data refresh failed", { error: errorMsg });
     } finally {
       setIsRefreshing(false);
+    }
+  }, []);
+
+  const freshStart = useCallback(async () => {
+    if (typeof window !== "undefined") {
+      const ok = window.confirm("Clear CanWxLab local settings, browser cache, and API cache, then reload?");
+      if (!ok) return;
+    }
+    setIsResettingExperience(true);
+    try {
+      await Promise.allSettled([
+        api.clearServerCache(),
+        clearClientStorage(),
+      ]);
+    } finally {
+      window.location.reload();
     }
   }, []);
 
@@ -340,7 +392,7 @@ export default function App() {
   }, [apiError, globeCapabilityChecked, globeSupported, pluginErrors.length, sourceReport]);
 
   const sourceHealth = useMemo(() => sourceStatusSummary(sources), [sources]);
-  const activeLayerForLegend = layerEngine.activeLayers[0] ?? null;
+  const activeLayerForLegend = layerEngine.activeLayers[layerEngine.activeLayers.length - 1] ?? null;
 
   return (
     <main className="wb-app">
@@ -358,6 +410,8 @@ export default function App() {
         sourceHealthStatus={sourceHealth}
         isRefreshing={isRefreshing}
         onRefresh={refreshData}
+        isResettingExperience={isResettingExperience}
+        onFreshStart={freshStart}
         timelineMode={timelineMode}
         onSetTimelineMode={setTimelineMode}
         onToggleLeftPanel={() => setLeftCollapsed(cur => !cur)}
@@ -424,10 +478,12 @@ export default function App() {
             cameraTarget={cameraTarget}
             onCameraChange={setCameraState}
             basemap={basemap}
-            photorealisticGlobe={layerEngine.uiPreferences.photorealisticGlobe ?? true}
+            photorealisticGlobe={layerEngine.uiPreferences.photorealisticGlobe ?? false}
             diffOverlay={diffOverlay}
             starExposure={layerEngine.uiPreferences.starExposure}
             starMaxDistanceLy={layerEngine.uiPreferences.starMaxDistanceLy}
+            timelinePlaying={playbackState.isPlaying}
+            timelineSpeedMultiplier={playbackState.speedMultiplier}
           />
 
           <LayersPicker
@@ -449,6 +505,7 @@ export default function App() {
             onTogglePlay={toggle}
             onStepFrame={stepFrame}
             onSetSpeed={setSpeedMultiplier}
+            onShiftWindowDays={shiftWindowDays}
           />
         </section>
 

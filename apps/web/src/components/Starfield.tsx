@@ -41,6 +41,7 @@ interface StarfieldProps {
   verticalFovDeg?: number;
   exposure?: StarExposure;
   maxDistanceLy?: number;
+  maxFps?: number;
   /** Parent-owned ref into which we write the latest frame's CSS-space projections (for hit-testing). */
   projectionsRef?: RefObject<StarProjection[]>;
 }
@@ -73,6 +74,7 @@ export function Starfield({
   verticalFovDeg = 36.87,
   exposure = "realistic",
   maxDistanceLy = 500,
+  maxFps = 24,
   projectionsRef,
 }: StarfieldProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -80,9 +82,11 @@ export function Starfield({
   // Mirror props through refs so the rAF loop reads latest values without restarting.
   const exposureRef = useRef(exposure);
   const maxDistRef = useRef(maxDistanceLy);
+  const maxFpsRef = useRef(maxFps);
   const fovRef = useRef(verticalFovDeg);
   useEffect(() => { exposureRef.current = exposure; }, [exposure]);
   useEffect(() => { maxDistRef.current = maxDistanceLy; }, [maxDistanceLy]);
+  useEffect(() => { maxFpsRef.current = maxFps; }, [maxFps]);
   useEffect(() => { fovRef.current = verticalFovDeg; }, [verticalFovDeg]);
 
   useEffect(() => {
@@ -105,7 +109,16 @@ export function Starfield({
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    const draw = () => {
+    let lastDrawAt = 0;
+
+    const draw = (timestamp: number) => {
+      const frameInterval = 1000 / Math.max(1, maxFpsRef.current);
+      if (timestamp - lastDrawAt < frameInterval) {
+        rafRef.current = requestAnimationFrame(draw);
+        return;
+      }
+      lastDrawAt = timestamp;
+
       const cam = cameraRef.current;
       const tMs = timeRef.current ?? Date.now();
       const w = canvas.width;

@@ -92,6 +92,31 @@ export function starEci(s: Star): Vec3 {
   };
 }
 
+/** Approximate Sun direction in the same geocentric ECI frame as stars. */
+export function sunEci(ms: number): Vec3 {
+  const jd = julianDate(ms);
+  const T = (jd - 2_451_545.0) / 36_525.0;
+  const L0 = 280.46646 + T * (36_000.76983 + T * 0.0003032);
+  const M = 357.52911 + T * (35_999.05029 - 0.0001537 * T);
+  const Mr = M * DEG;
+  const C =
+    Math.sin(Mr) * (1.914602 - T * (0.004817 + 0.000014 * T)) +
+    Math.sin(2 * Mr) * (0.019993 - 0.000101 * T) +
+    Math.sin(3 * Mr) * 0.000289;
+  const trueLong = L0 + C;
+  const omega = 125.04 - 1934.136 * T;
+  const lambda = (trueLong - 0.00569 - 0.00478 * Math.sin(omega * DEG)) * DEG;
+  const epsilon =
+    (23 + (26 + (21.448 - T * (46.815 + T * (0.00059 - T * 0.001813))) / 60) / 60) * DEG;
+  const ra = Math.atan2(Math.cos(epsilon) * Math.sin(lambda), Math.cos(lambda));
+  const dec = Math.asin(Math.sin(epsilon) * Math.sin(lambda));
+  return {
+    x: Math.cos(dec) * Math.cos(ra),
+    y: Math.cos(dec) * Math.sin(ra),
+    z: Math.sin(dec),
+  };
+}
+
 function vlen(v: Vec3) { return Math.hypot(v.x, v.y, v.z); }
 function vnorm(v: Vec3): Vec3 { const L = vlen(v) || 1; return { x: v.x / L, y: v.y / L, z: v.z / L }; }
 function vdot(a: Vec3, b: Vec3) { return a.x * b.x + a.y * b.y + a.z * b.z; }

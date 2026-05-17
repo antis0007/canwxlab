@@ -39,10 +39,10 @@ function capabilitiesForRenderer(rendererType: LayerRendererType): LayerRenderer
       supportsOpacity: true,
     };
   }
-  if (rendererType === "deck-particles") {
+  if (rendererType === "deck-grid" || rendererType === "deck-particles") {
     return {
       supportsMap: true,
-      supportsGlobe: true,
+      supportsGlobe: false,
       supportsAnimation: true,
       supportsPicking: true,
       supportsShader: true,
@@ -86,11 +86,15 @@ function categoryDefaultVisibility(layer: WeatherLayer, dataMode: DataMode): boo
       "mock_stations",
       "demo_radar_animation",
       "demo_wind_particles",
+      "eccc_radar_1km_rrai",
+      "eccc_goes_east_cloud_type",
     ].includes(layer.layer_id);
   }
   // Live / hybrid: turn on a useful default stack so the map is not blank.
   return [
     "eccc_radar_1km_rrai",
+    "eccc_gdps_p_msl",
+    "eccc_goes_east_cloud_type",
     "eccc_weather_alerts",
     "eccc_climate_stations",
   ].includes(layer.layer_id);
@@ -250,6 +254,30 @@ function demoLayers(baseIndex: number, dataMode: DataMode): LayerDefinition[] {
       metadata: {},
     },
     {
+      id: "demo_pressure_msl",
+      title: "[MOCK] Demo Mean Sea Level Pressure",
+      description: "Animated mock MSLP analysis field for pressure-pattern inspection.",
+      category: "forecast",
+      sourceId: "mock_canwxlab",
+      status: "mock",
+      isBuiltIn: true,
+      isPlugin: false,
+      isExperimental: false,
+      defaultVisible: visibleByDefault,
+      defaultOpacity: 0.42,
+      zIndex: baseIndex + 2,
+      colourRamp: "pressure",
+      legend: legendFromRamp("MSLP", "hPa", "pressure"),
+      rendererType: "deck-grid",
+      capabilities: capabilitiesForRenderer("deck-grid"),
+      animation: { frameCount: 240, frameIntervalSeconds: 300, loop: true, currentFrame: 0 },
+      controls: { ...defaultLayerControls, min: 980, max: 1045, smoothing: 0.7, contourInterval: 4 },
+      variable: "pressure_msl",
+      unit: "hPa",
+      message: "MOCK/DEMO",
+      metadata: {},
+    },
+    {
       id: "demo_wind_particles",
       title: "[MOCK] Demo Wind Particles",
       description: "Animated wind particle paths from deterministic mock vector field.",
@@ -261,7 +289,7 @@ function demoLayers(baseIndex: number, dataMode: DataMode): LayerDefinition[] {
       isExperimental: false,
       defaultVisible: visibleByDefault,
       defaultOpacity: 0.84,
-      zIndex: baseIndex + 2,
+      zIndex: baseIndex + 3,
       colourRamp: "wind",
       legend: legendFromRamp("Wind", "m/s", "wind"),
       rendererType: "deck-particles",
@@ -285,7 +313,7 @@ function demoLayers(baseIndex: number, dataMode: DataMode): LayerDefinition[] {
       isExperimental: false,
       defaultVisible: visibleByDefault,
       defaultOpacity: 0.46,
-      zIndex: baseIndex + 3,
+      zIndex: baseIndex + 4,
       colourRamp: "cloud-gray",
       legend: legendFromRamp("Cloud Opacity", "0-1", "cloud-gray"),
       rendererType: "deck-grid",
@@ -308,8 +336,11 @@ export function buildLayerDefinitions(input: {
   dataMode?: DataMode;
 }): LayerDefinition[] {
   const dataMode: DataMode = input.dataMode ?? "mock";
-  const backend = input.backendLayers.map((layer, index) => backendLayerToDefinition(layer, index + 100, dataMode));
-  const demos = demoLayers(10, dataMode);
+  const backendInput = dataMode === "mock"
+    ? input.backendLayers
+    : input.backendLayers.filter((layer) => layer.status !== "mock" && !layer.layer_id.startsWith("mock_"));
+  const backend = backendInput.map((layer, index) => backendLayerToDefinition(layer, index + 100, dataMode));
+  const demos = dataMode === "mock" ? demoLayers(10, dataMode) : [];
 
   const pluginLayers = input.plugins
     .filter((plugin) => input.pluginEnabled[plugin.id] ?? plugin.enabled_default)

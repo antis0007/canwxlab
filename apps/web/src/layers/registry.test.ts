@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { fallbackLayers } from "../lib/layerRegistry";
 import { buildLayerDefinitions } from "./registry";
 
 describe("buildLayerDefinitions decontamination", () => {
-  it("hides demo layers by default in live mode", () => {
+  it("omits demo layers in live mode", () => {
     const defs = buildLayerDefinitions({
       backendLayers: [],
       plugins: [],
@@ -11,11 +12,10 @@ describe("buildLayerDefinitions decontamination", () => {
       dataMode: "live",
     });
     const demos = defs.filter((d) => d.id.startsWith("demo_"));
-    expect(demos.length).toBeGreaterThan(0);
-    expect(demos.every((d) => d.defaultVisible === false)).toBe(true);
+    expect(demos).toHaveLength(0);
   });
 
-  it("hides demo layers by default in hybrid mode", () => {
+  it("omits demo layers in hybrid mode", () => {
     const defs = buildLayerDefinitions({
       backendLayers: [],
       plugins: [],
@@ -23,7 +23,7 @@ describe("buildLayerDefinitions decontamination", () => {
       dataMode: "hybrid",
     });
     const demos = defs.filter((d) => d.id.startsWith("demo_"));
-    expect(demos.every((d) => d.defaultVisible === false)).toBe(true);
+    expect(demos).toHaveLength(0);
   });
 
   it("shows demo layers by default in mock mode", () => {
@@ -37,6 +37,24 @@ describe("buildLayerDefinitions decontamination", () => {
     expect(demos.some((d) => d.defaultVisible === true)).toBe(true);
   });
 
+  it("keeps documented ECCC WMS radar and cloud overlays renderable in fallback mode", () => {
+    const defs = buildLayerDefinitions({
+      backendLayers: fallbackLayers,
+      plugins: [],
+      pluginEnabled: {},
+      dataMode: "mock",
+    });
+    const radar = defs.find((d) => d.id === "eccc_radar_1km_rrai");
+    const cloud = defs.find((d) => d.id === "eccc_goes_east_cloud_type");
+
+    expect(radar?.rendererType).toBe("wms-raster");
+    expect(radar?.wmsLayerName).toBe("RADAR_1KM_RRAI");
+    expect(radar?.defaultVisible).toBe(true);
+    expect(cloud?.rendererType).toBe("wms-raster");
+    expect(cloud?.wmsLayerName).toBe("GOES-East_1km_DayCloudType-NightMicrophysics");
+    expect(cloud?.defaultVisible).toBe(true);
+  });
+
   it("demo layers are tagged [MOCK] in title", () => {
     const defs = buildLayerDefinitions({
       backendLayers: [],
@@ -46,5 +64,17 @@ describe("buildLayerDefinitions decontamination", () => {
     });
     const demos = defs.filter((d) => d.id.startsWith("demo_"));
     expect(demos.every((d) => /^\[MOCK\]/.test(d.title))).toBe(true);
+  });
+
+  it("marks flat animated deck layers as map-only", () => {
+    const defs = buildLayerDefinitions({
+      backendLayers: [],
+      plugins: [],
+      pluginEnabled: {},
+      dataMode: "mock",
+    });
+    const flatDemoLayers = defs.filter((d) => d.rendererType === "deck-grid" || d.rendererType === "deck-particles");
+    expect(flatDemoLayers.length).toBeGreaterThan(0);
+    expect(flatDemoLayers.every((d) => d.capabilities.supportsGlobe === false)).toBe(true);
   });
 });

@@ -17,6 +17,8 @@ interface TopBarProps {
   sourceHealthStatus: SourceStatus;
   isRefreshing: boolean;
   onRefresh: () => void;
+  isResettingExperience?: boolean;
+  onFreshStart: () => void;
   timelineMode: string;
   onSetTimelineMode: (mode: string) => void;
   onToggleLeftPanel: () => void;
@@ -61,6 +63,8 @@ export function TopBar({
   sourceHealthStatus,
   isRefreshing,
   onRefresh,
+  isResettingExperience,
+  onFreshStart,
   timelineMode,
   onSetTimelineMode,
   onToggleLeftPanel,
@@ -163,6 +167,15 @@ export function TopBar({
       <div className="wb-topbar-group wb-topbar-group--right">
         <span className="wb-topbar-label">SRC</span>
         <StatusBadge status={sourceHealthStatus} />
+        <button
+          type="button"
+          className="wb-danger-mini"
+          onClick={onFreshStart}
+          disabled={isResettingExperience}
+          title="Clear local settings, browser caches, and API cache"
+        >
+          {isResettingExperience ? "CLR" : "RESET"}
+        </button>
         <button
           type="button"
           className="wb-icon-btn"

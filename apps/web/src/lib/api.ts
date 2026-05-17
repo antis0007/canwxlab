@@ -2,6 +2,7 @@ import type {
   AlertFeature,
   DataSource,
   Observation,
+  OgcFeatureCollection,
   SimulationConfig,
   SimulationRun,
   PluginCatalogResponse,
@@ -24,6 +25,14 @@ async function getJson<T>(path: string, query?: Record<string, string | number |
   }
 
   const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}: ${path}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+async function postJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, { method: "POST" });
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText}: ${path}`);
   }
@@ -61,6 +70,13 @@ export const api = {
     getJson<{ url: string }>("/api/eccc/wms/build-url", query),
   wmsDiagnostics: () =>
     getJson<Record<string, unknown>>("/api/eccc/wms/diagnostics"),
+  clearServerCache: () =>
+    postJson<{ ok: boolean; cleared: string }>("/api/admin/clear-cache"),
+  ogcLayerFeatures: (layerId: string, query?: { bbox?: string; limit?: number }) =>
+    getJson<OgcFeatureCollection>(
+      `/api/eccc/ogc/layers/${encodeURIComponent(layerId)}/features`,
+      query,
+    ),
   plugins: () => getJson<PluginCatalogResponse>("/api/plugins"),
   verification: () => getJson<VerificationMetric[]>("/api/verification/summary"),
   createSimulation: async (config: SimulationConfig): Promise<SimulationRun> => {

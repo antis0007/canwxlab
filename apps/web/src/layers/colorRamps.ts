@@ -102,6 +102,19 @@ export const colorRamps: ColorRamp[] = [
     recommendedVariables: ["wind_10m", "wind_speed_10m"],
   },
   {
+    id: "pressure",
+    label: "Mean Sea Level Pressure",
+    cssGradient: "linear-gradient(90deg, #3b2f7f 0%, #2677a8 28%, #eef4f8 50%, #d78b36 72%, #8f2d24 100%)",
+    stops: [
+      { value: 980, color: "#3b2f7f" },
+      { value: 996, color: "#2677a8" },
+      { value: 1013, color: "#eef4f8" },
+      { value: 1028, color: "#d78b36" },
+      { value: 1045, color: "#8f2d24" },
+    ],
+    recommendedVariables: ["pressure_msl", "mslp", "pressure"],
+  },
+  {
     id: "anomaly-blue-red",
     label: "Anomaly Blue-Red",
     cssGradient: "linear-gradient(90deg, #313695 0%, #74add1 40%, #f7f7f7 50%, #f46d43 70%, #a50026 100%)",

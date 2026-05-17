@@ -4,6 +4,7 @@ import {
   nearestTime,
   isTimeInRange,
   resolveWmsTimeForTimeline,
+  formatWmsUtcSecond,
 } from './wmsTime';
 
 describe('wmsTime utilities', () => {
@@ -38,18 +39,26 @@ describe('wmsTime utilities', () => {
   it('resolveWmsTimeForTimeline - global', () => {
     const times = [1000, 2000, 3000];
     const resolved = resolveWmsTimeForTimeline(1600, times, 'global');
-    expect(resolved).toBe(new Date(2000).toISOString());
+    expect(resolved).toBe(formatWmsUtcSecond(2000));
   });
 
   it('resolveWmsTimeForTimeline - latest', () => {
     const times = [1000, 2000, 3000];
     const resolved = resolveWmsTimeForTimeline(1600, times, 'latest');
-    expect(resolved).toBe(new Date(3000).toISOString());
+    expect(resolved).toBe(formatWmsUtcSecond(3000));
   });
 
   it('resolveWmsTimeForTimeline - fixed', () => {
     const times = [1000, 2000, 3000];
     const resolved = resolveWmsTimeForTimeline(1600, times, 'fixed', 1000);
-    expect(resolved).toBe(new Date(1000).toISOString());
+    expect(resolved).toBe(formatWmsUtcSecond(1000));
+  });
+
+  it('formats WMS TIME without milliseconds for GeoMet', () => {
+    const times = parseWmsTimeDimension('2026-05-16T00:00:00Z/2026-05-16T06:00:00Z/PT3H');
+    expect(resolveWmsTimeForTimeline(Date.parse('2026-05-16T05:59:59.999Z'), times, 'global'))
+      .toBe('2026-05-16T06:00:00Z');
+    expect(formatWmsUtcSecond(Date.parse('2026-05-16T06:00:00.000Z')))
+      .toBe('2026-05-16T06:00:00Z');
   });
 });

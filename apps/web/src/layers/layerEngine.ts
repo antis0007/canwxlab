@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PluginCatalogItem, WeatherLayer } from "../types/weather";
 
+// COSMIC-TODO: When OrbitalView lands, cosmic markers (Sun, planets, asteroid clouds,
+// satellites, deep-sky overlays) should plug into this same layer engine so users can
+// toggle visibility, opacity, and z-order from the existing LeftSidebar layer list.
+// Add `LayerCategory` values for `celestial`, `orbital`, and `stellarium` in `types.ts`
+// when the OrbitalView seam is wired — they should not weaken the weather categories.
 import { colorRamps } from "./colorRamps";
 import { buildLayerDefinitions, type DataMode } from "./registry";
 import {
@@ -12,10 +17,14 @@ import {
   type UiPreferences,
 } from "./types";
 
-const STORAGE_KEY_LAYER_STATE = "canwxlab.layerState.v3";
-const STORAGE_KEY_LAYER_ORDER = "canwxlab.layerOrder.v3";
+// v5: default visibility expanded to live OSINT stack (alerts, SWOB, AQHI,
+// hydrometric, climate-stations) and marker radii were converted to pixel
+// units. Bumping the key version forces existing browsers to pick up the new
+// defaults instead of replaying a stale v4 state where these layers were off.
+const STORAGE_KEY_LAYER_STATE = "canwxlab.layerState.v9";
+const STORAGE_KEY_LAYER_ORDER = "canwxlab.layerOrder.v9";
 const STORAGE_KEY_PLUGIN_ENABLED = "canwxlab.pluginEnabled.v2";
-const STORAGE_KEY_UI_PREFS = "canwxlab.uiPrefs.v2";
+const STORAGE_KEY_UI_PREFS = "canwxlab.uiPrefs.v4";
 
 function readJson<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -40,7 +49,7 @@ function defaultRuntimeState(layer: LayerDefinition): LayerRuntimeState {
     colourRamp: layer.colourRamp,
     zIndex: layer.zIndex,
     controls: { ...defaultLayerControls, ...layer.controls },
-    wmsTimePolicy: "global",
+    wmsTimePolicy: layer.rendererType === "wms-raster" ? "latest" : "timeline",
   };
 }
 
@@ -55,8 +64,17 @@ function fallbackRuntimeState(): LayerRuntimeState {
     colourRamp: "viridis-like",
     zIndex: 0,
     controls: { ...defaultLayerControls },
-    wmsTimePolicy: "global",
+    wmsTimePolicy: "latest",
   };
+}
+
+function normalizeWmsTimePolicyForLayer(
+  layer: LayerDefinition,
+  existing: LayerRuntimeState,
+): LayerRuntimeState["wmsTimePolicy"] {
+  if (existing.wmsTimePolicy === "fixed" || existing.wmsTimePolicy === "timeline") return existing.wmsTimePolicy;
+  if (existing.wmsTimePolicy === "latest") return "latest";
+  return layer.rendererType === "wms-raster" ? "latest" : "timeline";
 }
 
 export function useLayerEngine(input: {
@@ -99,6 +117,7 @@ export function useLayerEngine(input: {
               ...existing,
               colourRamp: normalizeColourRamp(existing.colourRamp),
               controls: { ...defaultLayerControls, ...existing.controls },
+              wmsTimePolicy: normalizeWmsTimePolicyForLayer(layer, existing),
             }
           : defaultRuntimeState(layer);
       });
@@ -137,12 +156,7 @@ export function useLayerEngine(input: {
   }, [definitions, layerOrder]);
 
   const activeLayers = useMemo(
-    () =>
-      orderedLayers.filter((layer) => runtimeState[layer.id]?.enabled).sort((a, b) => {
-        const zA = runtimeState[a.id]?.zIndex ?? a.zIndex;
-        const zB = runtimeState[b.id]?.zIndex ?? b.zIndex;
-        return zA - zB;
-      }),
+    () => orderedLayers.filter((layer) => runtimeState[layer.id]?.enabled),
     [orderedLayers, runtimeState]
   );
 
@@ -203,7 +217,7 @@ export function useLayerEngine(input: {
     []
   );
 
-  const setWmsTimePolicy = useCallback((layerId: string, policy: "global" | "latest" | "fixed", fixedTime?: number) => {
+  const setWmsTimePolicy = useCallback((layerId: string, policy: "timeline" | "latest" | "fixed", fixedTime?: number) => {
     setRuntimeState((current) => ({
       ...current,
       [layerId]: {
@@ -230,7 +244,9 @@ export function useLayerEngine(input: {
     setLayerOrder((current) => {
       const index = current.indexOf(layerId);
       if (index < 0) return current;
-      const nextIndex = direction === "up" ? index - 1 : index + 1;
+      // layerOrder is stored bottom-to-top. "Up" moves a layer toward the
+      // visual top of the stack; "down" moves it toward the basemap.
+      const nextIndex = direction === "up" ? index + 1 : index - 1;
       if (nextIndex < 0 || nextIndex >= current.length) return current;
       const next = [...current];
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];

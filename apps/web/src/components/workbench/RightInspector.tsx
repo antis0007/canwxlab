@@ -66,14 +66,27 @@ export function RightInspector({
                 <p className="wb-muted" style={{ margin: "0 0 2px" }}>⊙ {nearestStation}</p>
               )}
               {activeAlert && (
-                <p style={{ margin: "0 0 2px", fontSize: 10, color: "var(--wb-warn)" }}>⚠ {activeAlert}</p>
+                <div
+                  style={{
+                    margin: "0 0 4px",
+                    fontSize: 10,
+                    color: "var(--wb-warn)",
+                    whiteSpace: "pre-wrap",
+                    lineHeight: 1.35,
+                  }}
+                >
+                  ⚠ {activeAlert}
+                </div>
               )}
               {values.length > 0 && (
                 <div className="wb-value-grid" style={{ marginTop: 4 }}>
                   {values.map((v) => (
                     <div key={v.label}>
                       <span>{v.label}</span>
-                      <strong>{v.value} <span style={{ color: "var(--wb-muted)" }}>{v.unit}</span></strong>
+                      <strong>
+                        {v.value} <span style={{ color: "var(--wb-muted)" }}>{v.unit}</span>
+                        <span style={{ color: "var(--wb-muted)", marginLeft: 4 }}>{v.status}</span>
+                      </strong>
                     </div>
                   ))}
                 </div>
@@ -125,7 +138,9 @@ export function RightInspector({
                   Time: {resolveWmsTimeForTimeline(
                     validTimeMs,
                     parseWmsTimeDimension(activeLayer.metadata.time_extent as string),
-                    runtimeState[activeLayer.id]?.wmsTimePolicy ?? "global",
+                    runtimeState[activeLayer.id]?.wmsTimePolicy === "global"
+                      ? "latest"
+                      : runtimeState[activeLayer.id]?.wmsTimePolicy ?? "latest",
                     runtimeState[activeLayer.id]?.wmsFixedTime,
                   ) || "—"}
                 </p>
@@ -144,12 +159,18 @@ export function RightInspector({
             <div><span>Layers</span><strong>{diagnostics.activeLayerCount}</strong></div>
             <div><span>Animated</span><strong>{diagnostics.animatedLayerCount}</strong></div>
             <div><span>Deck</span><strong>{diagnostics.deckLayerCount}</strong></div>
-            <div><span>Mode</span><strong>{diagnostics.mapMode}</strong></div>
+            <div><span>Mode</span><strong>{diagnostics.rendererKind ?? diagnostics.mapMode}</strong></div>
+            <div><span>WMS Pending</span><strong>{diagnostics.pendingRasterFrames ?? 0}</strong></div>
+            <div><span>WMS Promoted</span><strong>{diagnostics.promotedRasterFrames ?? 0}</strong></div>
+            <div><span>WMS Failed</span><strong>{diagnostics.failedRasterFrames ?? 0}</strong></div>
             <div>
               <span>Refresh</span>
               <strong>{diagnostics.lastDataRefreshAt ? new Date(diagnostics.lastDataRefreshAt).toLocaleTimeString() : "—"}</strong>
             </div>
           </div>
+          {diagnostics.lastSourceError && (
+            <p className="wb-warning" style={{ margin: "6px 0 0" }}>{diagnostics.lastSourceError}</p>
+          )}
           {diagnostics.warnings.length > 0 && (
             <ul className="wb-warnings">
               {diagnostics.warnings.map((w) => <li key={w}>{w}</li>)}
