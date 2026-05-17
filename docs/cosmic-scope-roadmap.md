@@ -209,12 +209,23 @@ These are *phases of the cosmic extension*, sitting on top of the existing weath
       (still inside MapLibre — they appear as celestial sources, not 3D bodies yet).
 - [ ] Surface sub-solar point + terminator overlay on the Earth globe (driven by Sun position).
 
+Additional Phase B requirements:
+
+- [ ] Add an ephemeris-window cache contract: fetch vectors for a timeline window, then
+      interpolate locally until the camera/time window exits the cached span.
+- [ ] Add Earth rotation as a first-class transform, not as a texture animation hack:
+      UTC -> GMST -> ECEF/ECI transform -> renderer camera basis.
+
 ### Cosmic-Phase C — Inner solar system OrbitalView
 - [ ] New WebGL canvas component sibling to MapLibre.
 - [ ] Auto-transition at zoom < 0.
 - [ ] Sun + 4 inner planets + Earth's moon, drawn at correct heliocentric positions.
 - [ ] Reference grid for the ecliptic plane.
 - [ ] Middle-click pan, wheel zoom.
+- [ ] Rotating textured bodies: Earth, Moon, Mars, Jupiter. Each body needs rotation period,
+      pole orientation, prime meridian, axial tilt, and texture provenance.
+- [ ] Dynamic LOD: impostor point/sprite at far range, shaded sphere near range, textured
+      sphere at inspection range.
 
 ### Cosmic-Phase D — Outer planets + named small bodies
 - [ ] Add Jupiter–Neptune.
@@ -225,6 +236,8 @@ These are *phases of the cosmic extension*, sitting on top of the existing weath
 - [ ] SBDB ingest; render numbered asteroids as a marker cloud.
 - [ ] CelesTrak ingest; SGP4 web worker; render satellites.
 - [ ] CNEOS close-approach overlay.
+- [ ] Orbit trails generated from cached elements, not polled positions.
+- [ ] Refresh TLE/GP sets on a source-defined cadence and propagate locally every frame.
 
 ### Cosmic-Phase F — Ground stellarium mode
 - [ ] Observer location (lat/lon) + alt-az camera.
@@ -317,16 +330,47 @@ MapLibre experience.
    driven by GIBS cloud fraction; atmospheric haze.
 6. **Z-6 verification & cutover** — side-by-side parity QA.
 
-### Until then — current photorealistic ceiling
+### Until then - current MapLibre ceiling
 
-The MapLibre globe path now ships with:
+The MapLibre globe path is intentionally limited to stable imagery and layer composition:
 
 - NASA GIBS MODIS Terra and VIIRS NOAA-20 daily true-colour basemaps (date-aware,
   T-1) — clouds are already in the reflectance itself.
-- `setSky` atmosphere blend with sky/horizon/halo tuning.
-- Directional `setLight` approximating the sub-solar point.
-- A deck.gl PolygonLayer night-side terminator driven by the global timeline.
+- No active `setSky` atmosphere tuning, directional sun light, or screen-space night-side
+  terminator. Those were removed because they produced date-line artifacts and incoherent limb
+  lighting.
 - Per-layer reprojection skip for flat-grid layers known to glitch on the sphere.
 
-That's the photorealistic ceiling MapLibre can reach without a renderer swap.
+That is the practical ceiling for the current MapLibre path. Photorealistic atmosphere returns only
+inside a renderer where the globe mesh, imagery, atmosphere, and camera share one shader pipeline.
+
+## 14. Next-phase implementation contract
+
+The space engine must not poll live sources every animation frame. The data flow is:
+
+1. Source adapter fetches a bounded time window from Horizons, SBDB, MPC, CelesTrak, or other
+   official source.
+2. Backend stores the raw response plus normalized state vectors/elements in `.canwxlab/cache`.
+3. Client downloads a compact window around the current timeline.
+4. Web worker propagates or interpolates positions locally.
+5. Renderer consumes immutable frame snapshots.
+6. Background refresh only happens when the requested time leaves the cache window, the source TTL
+   expires, or the user explicitly asks for fresh data.
+
+Required packages/modules:
+
+- `services/api/canwxlab_api/adapters/cosmic_horizons.py`: Horizons vectors and cache.
+- `services/api/canwxlab_api/adapters/cosmic_celestrak.py`: GP/TLE/OMM group fetch and TTL cache.
+- `services/api/canwxlab_api/adapters/cosmic_sbdb.py`: small-body elements and metadata.
+- `apps/web/src/cosmic/ephemeris/`: interpolation, time scales, frames.
+- `apps/web/src/cosmic/orbits/`: Kepler propagation and SGP4 worker bridge.
+- `apps/web/src/components/OrbitalView.tsx`: WebGL renderer handoff at zoom < 0.
+- `apps/web/src/components/PlanetBody.tsx`: rotating textured body primitive.
+
+Open renderer decision:
+
+- Cesium first if the priority is photorealistic Earth quickly.
+- Three.js/regl first if the priority is Space Engine style solar-system scale and custom
+  atmospheric shaders.
+- Do not continue adding heavy SVG/canvas overlays to MapLibre as the photorealistic path.
 

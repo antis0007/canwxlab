@@ -88,6 +88,8 @@ shipping independently.
 See **[`cosmic-scope-roadmap.md`](./cosmic-scope-roadmap.md)** for the full plan, data-source
 contract, coordinate-system pipeline, renderer architecture, phased delivery (A–F), and open
 questions.
+See **[`global-osint-data-sources.md`](./global-osint-data-sources.md)** for the global source
+inventory and adapter backlog.
 
 Currently in-flight: **Cosmic-Phase A** — celestial sphere with real bright-star positions,
 GMST-rotated camera frame, click-for-OSINT info, exposure controls. The starfield is wired

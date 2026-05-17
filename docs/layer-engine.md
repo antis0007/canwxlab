@@ -51,10 +51,15 @@ Each layer definition includes:
 
 Storage keys:
 
-- `canwxlab.layerState.v2`
-- `canwxlab.layerOrder.v2`
+- `canwxlab.layerState.v9`
+- `canwxlab.layerOrder.v9`
 - `canwxlab.pluginEnabled.v2`
-- `canwxlab.uiPrefs.v2`
+- `canwxlab.uiPrefs.v4`
+
+Layer order is stored bottom-to-top. Active layers preserve that order all the way into the
+renderers. Moving a layer "up" moves it toward the visual top of the stack; moving it "down" moves
+it toward the basemap. WMS layers are reinserted in MapLibre to match the active stack, and the
+legend follows the top active layer.
 
 ## Built-in Demo Layers
 
@@ -74,6 +79,15 @@ These are clearly marked `MOCK/DEMO`.
 - `deckVector.ts`: alerts/stations overlays
 - `maplibreRaster.ts`: WMS raster source/layer synchronization
 - `mockWeatherFields.ts`: deterministic mock field generation and point sampling
+
+Current blend-mode caveat: the layer contract exposes `blendMode`, but MapLibre raster layers do
+not support general per-pixel compositing or footprint feathering. Those controls become real
+shader controls in the planned Cesium/Three/regl renderer. In the current renderer, WMS layers use
+opacity and load-gated double buffering only.
+
+The layer engine now feeds a normalized `RenderLayerPlan[]` into the active renderer. WMS defaults
+to `latest`; users must explicitly choose `Global Timeline` or `Fixed Time` before MapLibre follows
+the workbench timeline for WMS-T.
 
 ## WMS Preparation
 
