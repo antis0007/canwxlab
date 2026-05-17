@@ -1,4 +1,5 @@
 import type { Star } from "../lib/celestialSphere";
+import { DraggablePanel } from "./DraggablePanel";
 
 // COSMIC-TODO(A): On open, fire a debounced fetch to the API:
 //   GET /api/cosmic/star/{hipId}        → richer Hipparcos/Gaia astrometry
@@ -23,15 +24,16 @@ export function StarInfoCard({ star, onClose }: StarInfoCardProps) {
   const wikiQuery = encodeURIComponent(star.name + " (star)");
 
   return (
-    <div className="wb-star-card" role="dialog" aria-label={`Star info: ${star.name}`}>
-      <header className="wb-star-card-head">
-        <div>
-          <div className="wb-star-card-name">{star.name}</div>
-          {star.bayer && <div className="wb-star-card-bayer">{star.bayer}{star.constellation ? ` · ${star.constellation}` : ""}</div>}
-        </div>
-        <button type="button" className="wb-star-card-close" onClick={onClose} aria-label="Close">×</button>
-      </header>
-
+    <DraggablePanel
+      title={star.name}
+      subtitle={star.bayer ? `${star.bayer}${star.constellation ? ` · ${star.constellation}` : ""}` : null}
+      onClose={onClose}
+      storageKey="star-info"
+      width={300}
+      defaultPosition={{ x: typeof window !== "undefined" ? Math.max(24, window.innerWidth - 320) : 24, y: 60 }}
+      className="wb-star-card"
+      ariaLabel={`Star info: ${star.name}`}
+    >
       <dl className="wb-star-card-grid">
         <dt>App. mag</dt>           <dd>{fmt(star.mag)}</dd>
         <dt>Distance</dt>           <dd>{star.distanceLy != null ? `${fmt(star.distanceLy, 1)} ly` : "—"}</dd>
@@ -62,6 +64,6 @@ export function StarInfoCard({ star, onClose }: StarInfoCardProps) {
           >NASA Exoplanet Archive</a>
         )}
       </footer>
-    </div>
+    </DraggablePanel>
   );
 }

@@ -9,6 +9,8 @@ interface BottomTimelineProps {
   onStepFrame: (delta: number) => void;
   onSetSpeed: (value: number) => void;
   onShiftWindowDays: (days: number) => void;
+  /** Operator-selected IANA time zone for the strip readouts. Defaults to UTC. */
+  timeZone?: string;
 }
 
 /** Pin "A" or "B" comparison times on the timeline. Stored in localStorage so
@@ -150,6 +152,7 @@ export function BottomTimeline({
   onStepFrame,
   onSetSpeed,
   onShiftWindowDays,
+  timeZone = "UTC",
 }: BottomTimelineProps) {
   const stripRef = useRef<HTMLDivElement | null>(null);
   const [hoverPct, setHoverPct] = useState<number | null>(null);
@@ -194,7 +197,7 @@ export function BottomTimeline({
   const loopStartPct = (playback.loopStart / Math.max(1, playback.frameCount - 1)) * 100;
   const loopEndPct = (playback.loopEnd / Math.max(1, playback.frameCount - 1)) * 100;
   const validLabel = new Date(playback.selectedValidTime).toLocaleString("en-CA", {
-    year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC",
+    year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone,
   });
 
   const hoverMs = hoverPct !== null
@@ -202,8 +205,8 @@ export function BottomTimeline({
     : null;
   const hoverLabel = hoverMs !== null
     ? new Date(hoverMs).toLocaleString("en-CA", {
-        month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC",
-      }) + "Z"
+        month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone,
+      }) + (timeZone === "UTC" ? "Z" : "")
     : null;
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {

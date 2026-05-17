@@ -96,3 +96,53 @@ Primary references:
   but unsampled.
 - No atmosphere, terminator, or date-line visual hack is reintroduced. Physical atmosphere returns
   only when a globe mesh, imagery, lighting, and camera are in one shader pipeline.
+
+## Rayleigh / Atmospheric Scattering: NOT implemented
+
+There is no Rayleigh scattering, Mie scattering, or physical sky model in the current
+build. The previous screen-space "atmosphere" overlay was removed because it was
+inaccurate at the limb, fought the basemap z-buffer, and made the day/night seam
+visibly broken. We have **not** added a replacement in this rewrite.
+
+The reason is deliberate: doing Rayleigh correctly requires the renderer to own
+the globe mesh, the camera, the sun position, and the imagery in a single shader
+pipeline so the in-scatter / out-scatter integrals can be evaluated per pixel
+against the actual surface depth. MapLibre's globe projection draws the basemap
+as a textured sphere we do not control, so any overlay we add on top is fighting
+its compositor instead of participating in it.
+
+A `Starfield` canvas does paint a low-amplitude blue halo around the apparent
+limb when `photorealistic globe` is enabled — that is a 2D radial gradient on a
+sibling canvas, not scattering. It exists only to soften the otherwise hard
+black outline of the sphere; it does not vary with sun angle, altitude, view
+direction, or wavelength.
+
+Physical Rayleigh + Mie is on the roadmap as part of the `earth-webgl`
+renderer (`docs/orbital-view-architecture.md`, `docs/cosmic-scope-roadmap.md`).
+Until that renderer exists, the workbench will not pretend to have an
+atmosphere.
+
+## Workstation UI Layer (post-rewrite)
+
+The rewrite intentionally kept the React shell thin. The post-rewrite UI layer
+adds the parts a power-user/meteorologist workbench needs without coupling them
+to the renderer:
+
+- `useResizableWidth` for the left/right sidebars (persists to `localStorage`).
+- `DraggablePanel` for floating sub-popups; `StarInfoCard` and `CityPicker`
+  both consume it. Positions persist per panel key.
+- `TimeZoneSelector` in the top bar — `lib/timezone.ts` is the single source
+  of truth and is threaded through TopBar, BottomTimeline, and RightInspector
+  so every timestamp in the workstation honours the operator's chosen IANA
+  zone. The selection persists across sessions.
+- `CityPicker` (curated world catalog of ~80 cities) jumps the camera, shows a
+  quick-weather snapshot from the nearest observation, and offers a one-click
+  adopt-this-city's-timezone action.
+- The animation timeline now opens **paused at the latest frame ("now")** so a
+  fresh tab does not burn fetches/cycles before the operator has even chosen a
+  layer stack.
+- Performance: the device-pixel-ratio cap dropped to 1.5 (from 2.0) to keep
+  fill cost sane with multiple concurrent WMS rasters; the WMS sync effect is
+  now keyed on a compact signature instead of the full render-plan reference,
+  so it no longer re-fires on every `globalTimeMs` tick when nothing relevant
+  changed.

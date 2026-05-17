@@ -1,7 +1,9 @@
 import { StatusBadge } from "./StatusBadge";
+import { TimeZoneSelector } from "./TimeZoneSelector";
 
 import type { AnimationPlaybackState, ViewMode } from "../../layers/types";
 import type { SourceStatus } from "../../types/weather";
+import { formatInZone } from "../../lib/timezone";
 
 interface TopBarProps {
   dataMode: "mock" | "live" | "hybrid";
@@ -25,6 +27,11 @@ interface TopBarProps {
   onToggleRightPanel: () => void;
   leftPanelOpen: boolean;
   rightPanelOpen: boolean;
+  /** Operator-selected IANA time zone. Drives the VALID + NOW readouts. */
+  timeZone: string;
+  onSetTimeZone: (zone: string) => void;
+  /** Open the City Picker quick-jump panel. */
+  onOpenCityPicker: () => void;
 }
 
 const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
@@ -37,17 +44,10 @@ const TIMELINE_MODES = [
   { value: "verification", label: "VRFY" },
 ];
 
-function fmtTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleTimeString("en-CA", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    });
-  } catch {
-    return "--:--:--";
-  }
+function fmtTime(iso: string, timeZone: string): string {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return "--:--:--";
+  return formatInZone(ms, { timeZone, withSeconds: true });
 }
 
 export function TopBar({
@@ -71,9 +71,12 @@ export function TopBar({
   onToggleRightPanel,
   leftPanelOpen,
   rightPanelOpen,
+  timeZone,
+  onSetTimeZone,
+  onOpenCityPicker,
 }: TopBarProps) {
-  const nowStr = fmtTime(new Date().toISOString());
-  const validStr = fmtTime(timelineTime);
+  const nowStr = fmtTime(new Date().toISOString(), timeZone);
+  const validStr = fmtTime(timelineTime, timeZone);
   const dataBadgeStatus = dataMode === "live" ? "live" : dataMode === "hybrid" ? "fallback" : "mock";
 
   return (
@@ -129,6 +132,7 @@ export function TopBar({
         <span className="wb-topbar-label" style={{ opacity: 0.3 }}>│</span>
         <span className="wb-topbar-label">VALID</span>
         <span className="wb-topbar-label" style={{ color: "var(--wb-accent)" }}>{validStr}</span>
+        <TimeZoneSelector value={timeZone} onChange={onSetTimeZone} refMs={Date.parse(timelineTime) || Date.now()} />
         <select
           value={timelineMode}
           onChange={(e) => onSetTimelineMode(e.target.value)}
@@ -139,6 +143,14 @@ export function TopBar({
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
+        <button
+          type="button"
+          className="wb-panel-toggle"
+          onClick={onOpenCityPicker}
+          title="Open city quick-jump picker"
+        >
+          CITIES
+        </button>
       </div>
 
       {/* Map projection */}

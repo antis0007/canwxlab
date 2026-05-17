@@ -74,7 +74,7 @@ export function Starfield({
   verticalFovDeg = 36.87,
   exposure = "realistic",
   maxDistanceLy = 500,
-  maxFps = 24,
+  maxFps = 60,
   projectionsRef,
 }: StarfieldProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

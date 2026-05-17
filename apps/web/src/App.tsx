@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { MapView } from "./components/MapView";
 import { LayersPicker, type BasemapId, BASEMAP_OPTIONS } from "./components/LayersPicker";
+import { CityPicker } from "./components/CityPicker";
 import { BottomTimeline } from "./components/workbench/BottomTimeline";
 import { LeftSidebar } from "./components/workbench/LeftSidebar";
 import { RightInspector } from "./components/workbench/RightInspector";
@@ -15,6 +16,7 @@ import type { LayerDiagnostics, RendererFeatureValue, ViewMode, CameraState } fr
 import { api } from "./lib/api";
 import { logManager } from "./lib/logging";
 import { useAppLogging } from "./hooks/useAppLogging";
+import { useResizableWidth } from "./hooks/useResizableWidth";
 import { builtInPresets } from "./layers/presets";
 import type { DiffOverlayPayload } from "./layers/renderers/diffBitmap";
 import {
@@ -23,6 +25,11 @@ import {
   fallbackObservations,
   fallbackSources,
 } from "./lib/layerRegistry";
+import {
+  getStoredTimeZone,
+  setStoredTimeZone,
+} from "./lib/timezone";
+import type { CityEntry } from "./lib/cityCatalog";
 import type {
   AlertFeature,
   DataSource,
@@ -174,6 +181,28 @@ export default function App() {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
+  const [cityPickerOpen, setCityPickerOpen] = useState(false);
+  const [selectedCity, setSelectedCity] = useState<CityEntry | null>(null);
+  const [timeZone, setTimeZone] = useState<string>(() => getStoredTimeZone());
+
+  const leftSidebar = useResizableWidth({
+    storageKey: "leftSidebarWidth",
+    defaultWidth: 300,
+    minWidth: 220,
+    maxWidth: 560,
+    edge: "right",
+  });
+  const rightSidebar = useResizableWidth({
+    storageKey: "rightSidebarWidth",
+    defaultWidth: 250,
+    minWidth: 220,
+    maxWidth: 520,
+    edge: "left",
+  });
+
+  useEffect(() => {
+    setStoredTimeZone(timeZone);
+  }, [timeZone]);
 
   const layerEngine = useLayerEngine({
     backendLayers: [...backendLayers, ...dynamicLayers],
@@ -418,9 +447,18 @@ export default function App() {
         onToggleRightPanel={() => setRightCollapsed(cur => !cur)}
         leftPanelOpen={!leftCollapsed}
         rightPanelOpen={!rightCollapsed}
+        timeZone={timeZone}
+        onSetTimeZone={setTimeZone}
+        onOpenCityPicker={() => setCityPickerOpen(true)}
       />
 
-      <section className={`wb-main ${leftCollapsed ? 'left-collapsed' : ''} ${rightCollapsed ? 'right-collapsed' : ''}`}>
+      <section
+        className={`wb-main ${leftCollapsed ? 'left-collapsed' : ''} ${rightCollapsed ? 'right-collapsed' : ''}`}
+        style={{
+          ["--wb-left-width" as any]: `${leftSidebar.width}px`,
+          ["--wb-right-width" as any]: `${rightSidebar.width}px`,
+        }}
+      >
         <LeftSidebar
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -449,6 +487,17 @@ export default function App() {
           onSetWmsTimePolicy={layerEngine.setWmsTimePolicy}
           onDiffOverlay={setDiffOverlay}
         />
+
+        {!leftCollapsed && (
+          <div
+            className="wb-resize-handle"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize layers panel"
+            title="Drag to resize · double-click to reset"
+            {...leftSidebar.handlers}
+          />
+        )}
 
         <section className="wb-map-area">
           {(notices.length > 0 || isRefreshing) && (
@@ -506,8 +555,20 @@ export default function App() {
             onStepFrame={stepFrame}
             onSetSpeed={setSpeedMultiplier}
             onShiftWindowDays={shiftWindowDays}
+            timeZone={timeZone}
           />
         </section>
+
+        {!rightCollapsed && (
+          <div
+            className="wb-resize-handle"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize inspector panel"
+            title="Drag to resize · double-click to reset"
+            {...rightSidebar.handlers}
+          />
+        )}
 
         <RightInspector
           longitude={inspectorState.longitude}
@@ -521,7 +582,28 @@ export default function App() {
           animationFrame={playbackState.frame}
           selectedValidTime={playbackState.selectedValidTime}
           runtimeState={layerEngine.runtimeState}
+          timeZone={timeZone}
         />
+
+        {cityPickerOpen && (
+          <CityPicker
+            onClose={() => setCityPickerOpen(false)}
+            observations={observations}
+            selectedCity={selectedCity}
+            onPickCity={(city) => {
+              setSelectedCity(city);
+              setCameraTarget({
+                longitude: city.longitude,
+                latitude: city.latitude,
+                zoom: Math.max(cameraState.zoom, 6.5),
+                bearing: 0,
+                pitch: 0,
+              });
+            }}
+            onAdoptTimeZone={(tz) => setTimeZone(tz)}
+            cameraState={cameraState}
+          />
+        )}
       </section>
     </main>
   );

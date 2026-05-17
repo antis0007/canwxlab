@@ -4,6 +4,7 @@ import { StatusBadge } from "./StatusBadge";
 import type { LayerDefinition, LayerDiagnostics, RendererFeatureValue, LayerRuntimeState } from "../../layers/types";
 import type { DataSource } from "../../types/weather";
 import { parseWmsTimeDimension, resolveWmsTimeForTimeline } from "../../time/wmsTime";
+import { formatInZone } from "../../lib/timezone";
 
 interface RightInspectorProps {
   longitude: number | null;
@@ -17,6 +18,8 @@ interface RightInspectorProps {
   animationFrame: number;
   selectedValidTime: string;
   runtimeState: Record<string, LayerRuntimeState>;
+  /** Operator-selected IANA time zone for all rendered timestamps. */
+  timeZone: string;
 }
 
 function SectionHeader({ label }: { label: string }) {
@@ -40,12 +43,14 @@ export function RightInspector({
   animationFrame,
   selectedValidTime,
   runtimeState,
+  timeZone,
 }: RightInspectorProps) {
   const activeSource = activeLayer
     ? sources.find((s) => s.source_id === activeLayer.sourceId)
     : null;
 
   const validTimeMs = new Date(selectedValidTime).getTime();
+  const fmtClock = (ms: number) => formatInZone(ms, { timeZone, withSeconds: true });
 
   return (
     <aside className="wb-right-panel">
@@ -55,7 +60,7 @@ export function RightInspector({
         <SectionHeader label="Inspector" />
         <div className="wb-section-body">
           <p className="wb-muted" style={{ margin: "0 0 4px" }}>
-            Frame {animationFrame + 1} · {new Date(selectedValidTime).toLocaleTimeString()}
+            Frame {animationFrame + 1} · {fmtClock(validTimeMs)} ({timeZone})
           </p>
           {longitude !== null && latitude !== null ? (
             <>
@@ -118,7 +123,7 @@ export function RightInspector({
             <p className="wb-muted" style={{ margin: "0 0 6px" }}>
               Active: {activeSource?.name ?? activeLayer.sourceId}
               {activeSource?.retrieved_at
-                ? ` · ${new Date(activeSource.retrieved_at).toLocaleTimeString()}`
+                ? ` · ${fmtClock(new Date(activeSource.retrieved_at).getTime())}`
                 : ""}
             </p>
           )}
@@ -165,7 +170,7 @@ export function RightInspector({
             <div><span>WMS Failed</span><strong>{diagnostics.failedRasterFrames ?? 0}</strong></div>
             <div>
               <span>Refresh</span>
-              <strong>{diagnostics.lastDataRefreshAt ? new Date(diagnostics.lastDataRefreshAt).toLocaleTimeString() : "—"}</strong>
+              <strong>{diagnostics.lastDataRefreshAt ? fmtClock(new Date(diagnostics.lastDataRefreshAt).getTime()) : "—"}</strong>
             </div>
           </div>
           {diagnostics.lastSourceError && (

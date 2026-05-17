@@ -9,12 +9,18 @@ const WINDOW_SPAN_MS = (FRAME_COUNT - 1) * FRAME_INTERVAL_MS;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function useAnimationTimeline() {
-  const [isPlaying, setIsPlaying] = useState(true);
+  // The workstation opens paused at the latest frame ("now"). The operator
+  // explicitly hits Play; we never autoplay because the dev cost of having
+  // a fresh tab burning fetches and animation cycles is much higher than
+  // the convenience of an autoplay.
+  const [isPlaying, setIsPlaying] = useState(false);
   const [speedMultiplier, setSpeedMultiplier] = useState(1);
   const [frame, setFrame] = useState(FRAME_COUNT - 1);
   const [loopStart, setLoopStart] = useState(0);
   const [loopEnd, setLoopEnd] = useState(FRAME_COUNT - 1);
   // Window anchor: refreshed on mount so playback covers the last WINDOW_SPAN_MS.
+  // The final frame (FRAME_COUNT-1) maps to "now" in UTC; the inspector and
+  // top-bar render that instant in the operator's active timezone.
   const [windowStartMs, setWindowStartMs] = useState(() => Date.now() - WINDOW_SPAN_MS);
   const rafRef = useRef<number | null>(null);
   const lastFrameAtRef = useRef<number>(performance.now());

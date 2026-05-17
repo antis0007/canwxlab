@@ -104,11 +104,28 @@ const NORMALIZED_OBSERVATION_LAYER_IDS = new Set([
   "eccc_climate_hourly",
   "mock_stations",
 ]);
-const MAX_RENDER_PIXEL_RATIO = 2;
+// Performance cap. 2.0 would render 4× the pixels on a Retina display which
+// crushes mid-range GPUs when multiple WMS rasters and deck overlays are
+// active simultaneously. 1.5 keeps text crisp without exploding fill cost.
+const MAX_RENDER_PIXEL_RATIO = 1.5;
 
 function renderPixelRatio(): number {
   if (typeof window === "undefined") return 1;
   return Math.max(1, Math.min(window.devicePixelRatio || 1, MAX_RENDER_PIXEL_RATIO));
+}
+
+/**
+ * Compact signature of the WMS-relevant slice of a render plan. The WMS sync
+ * pass only needs to fire when one of these fields actually changes; the full
+ * plan reference flips on every `globalTimeMs` tick, which is far too often.
+ */
+function wmsSyncSignature(plan: RenderLayerPlan[]): string {
+  let acc = "";
+  for (const entry of plan) {
+    if (entry.rendererType !== "wms-raster") continue;
+    acc += `${entry.id}|${entry.visible ? 1 : 0}|${entry.opacity.toFixed(3)}|${entry.timePolicy}|${entry.resolvedTime ?? ""}|${entry.source.wmsBaseUrl ?? ""}|${entry.source.wmsLayerName ?? ""};`;
+  }
+  return acc;
 }
 
 function normalizeLongitude(longitude: number): number {
@@ -1329,11 +1346,16 @@ export function MapView({
     else map.once("style.load", onStyle);
   }, [basemap, basemapDateKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const wmsSignature = useMemo(() => wmsSyncSignature(renderPlan), [renderPlan]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
     syncWmsLayers({ map, renderPlan, isPlaying: timelinePlaying });
-  }, [mapReady, renderPlan, timelinePlaying]);
+    // The signature key is the real driver; renderPlan is left out of the
+    // dependency array on purpose to avoid resyncing on every globalTimeMs
+    // tick when no WMS field actually changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, wmsSignature, timelinePlaying]);
 
   useEffect(() => {
     const now = performance.now();
@@ -1368,7 +1390,7 @@ export function MapView({
           timeRef={liveTimeRef}
           exposure={starExposure}
           maxDistanceLy={starMaxDistanceLy}
-          maxFps={timelinePlaying ? 12 : 24}
+          maxFps={timelinePlaying ? 45 : 60}
           projectionsRef={starProjectionsRef}
         />
       )}

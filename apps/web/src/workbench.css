@@ -267,7 +267,7 @@ input[type="search"]::placeholder { color: var(--wb-muted); }
 
 /* ===== LEFT PANEL ===== */
 .wb-left-panel {
-  width: 300px;
+  width: var(--wb-left-width, 300px);
   flex-shrink: 0;
   background: var(--wb-panel);
   border-right: 1px solid var(--wb-line);
@@ -669,7 +669,7 @@ input[type="search"]::placeholder { color: var(--wb-muted); }
 
 /* ===== RIGHT PANEL ===== */
 .wb-right-panel {
-  width: 250px;
+  width: var(--wb-right-width, 250px);
   flex-shrink: 0;
   background: var(--wb-panel);
   border-left: 1px solid var(--wb-line);
@@ -1550,6 +1550,285 @@ input[type="number"]::-webkit-inner-spin-button {
 /* ===== COLLAPSE ===== */
 .left-collapsed .wb-left-panel { display: none; }
 .right-collapsed .wb-right-panel { display: none; }
+
+/* ===== RESIZE HANDLE (sidebars) ===== */
+.wb-resize-handle {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  border-left: 1px solid var(--wb-line);
+  border-right: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+  touch-action: none;
+}
+.wb-resize-handle:hover,
+.wb-resize-handle:active {
+  background: var(--wb-accent-glow);
+  border-left-color: var(--wb-accent-dim);
+  border-right-color: var(--wb-accent-dim);
+}
+
+/* ===== DRAGGABLE PANEL (popups) ===== */
+.wb-draggable-panel {
+  position: absolute;
+  z-index: 12;
+  background: rgba(9, 13, 20, 0.96);
+  border: 1px solid var(--wb-line);
+  border-radius: 4px;
+  color: var(--wb-text);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  font-size: 11px;
+  user-select: none;
+}
+.wb-draggable-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--wb-line);
+  cursor: grab;
+  touch-action: none;
+  background: var(--wb-panel-hi);
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+}
+.wb-draggable-panel-header:active { cursor: grabbing; }
+.wb-draggable-panel-title-block { min-width: 0; }
+.wb-draggable-panel-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wb-accent);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb-draggable-panel-subtitle {
+  margin-top: 1px;
+  font-size: 10px;
+  color: var(--wb-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb-draggable-panel-close {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  background: transparent;
+  color: var(--wb-muted);
+  border: 1px solid var(--wb-line);
+  border-radius: 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.wb-draggable-panel-close:hover { color: var(--wb-text); border-color: var(--wb-accent-dim); }
+.wb-draggable-panel-body { padding: 8px 10px 10px; user-select: text; }
+
+/* Override legacy .wb-star-card absolute-positioning rules: when DraggablePanel
+   sets left/top, we must not pin to top/right anymore. */
+.wb-draggable-panel.wb-star-card {
+  top: auto;
+  right: auto;
+}
+
+/* ===== TIME-ZONE PICKER ===== */
+.wb-tz-picker { position: relative; display: inline-flex; align-items: center; }
+.wb-tz-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  background: var(--wb-panel);
+  color: var(--wb-text);
+  border: 1px solid var(--wb-line);
+  border-radius: 2px;
+  font-size: 10px;
+  font-family: ui-monospace, "Cascadia Code", "JetBrains Mono", monospace;
+  cursor: pointer;
+  margin-left: 4px;
+  letter-spacing: 0.04em;
+}
+.wb-tz-chip:hover { border-color: var(--wb-accent-dim); color: var(--wb-accent); }
+.wb-tz-chip.is-open { background: var(--wb-accent-glow); border-color: var(--wb-accent-dim); color: var(--wb-accent); }
+.wb-tz-chip-label { color: var(--wb-muted); font-weight: 700; letter-spacing: 0.08em; }
+.wb-tz-chip-value { font-weight: 600; }
+
+.wb-tz-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 14;
+  width: 280px;
+  max-height: 380px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: rgba(9, 13, 20, 0.97);
+  border: 1px solid var(--wb-line);
+  border-radius: 3px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+}
+.wb-tz-search {
+  width: 100%;
+  height: 24px;
+  background: var(--wb-panel-hi);
+  border: 1px solid var(--wb-line);
+  color: var(--wb-text);
+  font-size: 11px;
+  padding: 0 6px;
+  margin-bottom: 4px;
+}
+.wb-tz-quick-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.wb-tz-quick-row button {
+  flex: 1;
+  height: 22px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.wb-tz-quick-row button.is-active {
+  color: var(--wb-accent);
+  border-color: var(--wb-accent-dim);
+  background: var(--wb-accent-glow);
+}
+.wb-tz-list {
+  flex: 1;
+  overflow-y: auto;
+  border-top: 1px solid var(--wb-line-dim);
+  padding-top: 2px;
+}
+.wb-tz-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--wb-text);
+  cursor: pointer;
+  font-size: 11px;
+  text-align: left;
+  margin-top: 1px;
+}
+.wb-tz-option:hover { background: rgba(255,255,255,0.06); }
+.wb-tz-option.is-active {
+  color: var(--wb-accent);
+  background: var(--wb-accent-glow);
+  border-color: var(--wb-accent-dim);
+}
+.wb-tz-option-offset {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--wb-muted);
+  margin-left: 8px;
+}
+.wb-tz-empty {
+  padding: 8px;
+  color: var(--wb-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+/* ===== CITY PICKER ===== */
+.wb-city-picker .wb-draggable-panel-body { padding: 6px 8px 8px; }
+.wb-city-search {
+  width: 100%;
+  height: 24px;
+  background: var(--wb-panel-hi);
+  border: 1px solid var(--wb-line);
+  color: var(--wb-text);
+  font-size: 11px;
+  padding: 0 6px;
+}
+.wb-city-list {
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 4px 0;
+  border: 1px solid var(--wb-line-dim);
+}
+.wb-city-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  height: 22px;
+  padding: 0 8px;
+  border: none;
+  border-bottom: 1px solid var(--wb-line-dim);
+  background: transparent;
+  color: var(--wb-text);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.wb-city-row:last-child { border-bottom: none; }
+.wb-city-row:hover { background: rgba(255,255,255,0.06); }
+.wb-city-row.is-active { background: var(--wb-accent-glow); color: var(--wb-accent); }
+.wb-city-row-name { font-weight: 600; }
+.wb-city-row-country {
+  font-size: 10px;
+  color: var(--wb-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.wb-city-empty { padding: 6px 8px; font-size: 10px; color: var(--wb-muted); }
+.wb-city-detail {
+  border-top: 1px solid var(--wb-line);
+  margin-top: 4px;
+  padding-top: 6px;
+}
+.wb-city-detail-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.wb-city-detail-head strong { font-size: 12px; color: var(--wb-text); }
+.wb-city-detail-country {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--wb-muted);
+  letter-spacing: 0.06em;
+}
+.wb-city-detail-coords {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--wb-muted);
+  margin: 2px 0 5px;
+}
+.wb-city-weather-grid {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 2px 6px;
+  margin: 0 0 5px;
+  font-size: 10px;
+}
+.wb-city-weather-grid dt { color: var(--wb-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.wb-city-weather-grid dd { margin: 0; color: var(--wb-text); font-family: ui-monospace, monospace; }
+.wb-city-weather-empty {
+  font-size: 10px;
+  color: var(--wb-muted);
+  padding: 4px 0;
+}
+.wb-city-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.wb-city-actions button { height: 22px; font-size: 10px; padding: 0 8px; }
 
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1280px) {

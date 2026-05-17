@@ -146,6 +146,9 @@ describe("workbench components", () => {
         onToggleRightPanel={() => undefined}
         leftPanelOpen
         rightPanelOpen
+        timeZone="UTC"
+        onSetTimeZone={() => undefined}
+        onOpenCityPicker={() => undefined}
       />
     );
 
