@@ -20,3 +20,13 @@ Thumbs.db
 /data/forecasts/
 /data/verification/
 !data/sample/
+
+# Runtime/dev artefacts produced by the local API + web dev servers.
+# These files churn on every restart and should not pollute commits.
+.canwxlab/cache/
+.canwxlab/dev-logs/
+.canwxlab/pytest-tmp/
+.canwxlab/_collections.json
+services/api/.canwxlab/
+apps/web/tsconfig.tsbuildinfo
+.claude/settings.local.json
