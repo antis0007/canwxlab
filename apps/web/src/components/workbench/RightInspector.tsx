@@ -1,33 +1,71 @@
 import { LegendPanel } from "./LegendPanel";
 import { StatusBadge } from "./StatusBadge";
 
-import type { LayerDefinition, LayerDiagnostics, RendererFeatureValue, LayerRuntimeState } from "../../layers/types";
+import type {
+  LayerDefinition,
+  LayerDiagnostics,
+  RendererFeatureValue,
+  LayerRuntimeState,
+} from "../../layers/types";
+import type { HeroMetric } from "../../layers/inspection";
+import type { PressureSystem } from "../../layers/pressureSystems";
 import type { DataSource } from "../../types/weather";
 import { parseWmsTimeDimension, resolveWmsTimeForTimeline } from "../../time/wmsTime";
 import { formatInZone } from "../../lib/timezone";
+
+interface InspectorWmsRow {
+  title: string;
+  resolvedTime: string | null;
+  timePolicy: string;
+  status: import("../../types/weather").SourceStatus;
+}
 
 interface RightInspectorProps {
   longitude: number | null;
   latitude: number | null;
   values: RendererFeatureValue[];
+  /** Big-number metric cards (TEMP / MSLP / WIND / PRECIP / DEW / RH / DENSITY). */
+  heroMetrics: HeroMetric[];
+  /** Detected synoptic pressure systems from observations. */
+  pressureSystems: PressureSystem[];
+  /** Top WMS layers contributing to the current view. */
+  wmsLayerRows: InspectorWmsRow[];
   activeLayer: LayerDefinition | null;
   sources: DataSource[];
   diagnostics: LayerDiagnostics;
   nearestStation: string | null;
+  nearestStationKm: number | null;
   activeAlert: string | null;
   animationFrame: number;
   selectedValidTime: string;
   runtimeState: Record<string, LayerRuntimeState>;
-  /** Operator-selected IANA time zone for all rendered timestamps. */
   timeZone: string;
 }
 
-function SectionHeader({ label }: { label: string }) {
+function SectionHeader({ label, hint }: { label: string; hint?: string }) {
   return (
-    <summary className="wb-section-header" style={{ listStyle: "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-      {label}
+    <summary className="wb-section-header">
+      <span>{label}</span>
+      {hint ? <span className="wb-section-hint">{hint}</span> : null}
       <span className="wb-section-chevron">▶</span>
     </summary>
+  );
+}
+
+function HeroMetricCard({ metric }: { metric: HeroMetric }) {
+  return (
+    <div className={`wb-hero-card wb-hero-${metric.id}`}>
+      <div className="wb-hero-label">{metric.label}</div>
+      <div className="wb-hero-value">
+        <span className="wb-hero-num">{metric.value}</span>
+        <span className="wb-hero-unit">{metric.unit}</span>
+      </div>
+      {metric.caption && <div className="wb-hero-caption">{metric.caption}</div>}
+      <div className="wb-hero-status">
+        <StatusBadge status={metric.status} />
+        {metric.source && <span className="wb-hero-source">{metric.source}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -35,10 +73,14 @@ export function RightInspector({
   longitude,
   latitude,
   values,
+  heroMetrics,
+  pressureSystems,
+  wmsLayerRows,
   activeLayer,
   sources,
   diagnostics,
   nearestStation,
+  nearestStationKm,
   activeAlert,
   animationFrame,
   selectedValidTime,
@@ -51,60 +93,144 @@ export function RightInspector({
 
   const validTimeMs = new Date(selectedValidTime).getTime();
   const fmtClock = (ms: number) => formatInZone(ms, { timeZone, withSeconds: true });
+  const hasCursor = longitude !== null && latitude !== null;
+  const hasHero = heroMetrics.length > 0;
 
   return (
     <aside className="wb-right-panel">
+      {/* Hero: at-a-glance meteorology */}
+      <section className="wb-inspector-hero">
+        <header className="wb-hero-header">
+          <div className="wb-hero-timestamp">
+            <span className="wb-hero-timestamp-tz">{timeZone}</span>
+            <span className="wb-hero-timestamp-clock">{fmtClock(validTimeMs)}</span>
+          </div>
+          <div className="wb-hero-frame">Frame {animationFrame + 1}</div>
+        </header>
 
-      {/* Inspector */}
-      <details className="wb-section" open>
-        <SectionHeader label="Inspector" />
-        <div className="wb-section-body">
-          <p className="wb-muted" style={{ margin: "0 0 4px" }}>
-            Frame {animationFrame + 1} · {fmtClock(validTimeMs)} ({timeZone})
-          </p>
-          {longitude !== null && latitude !== null ? (
-            <>
-              <p className="wb-muted" style={{ margin: "0 0 4px", fontFamily: "monospace" }}>
-                {longitude.toFixed(4)}, {latitude.toFixed(4)}
-              </p>
-              {nearestStation && (
-                <p className="wb-muted" style={{ margin: "0 0 2px" }}>⊙ {nearestStation}</p>
-              )}
-              {activeAlert && (
-                <div
-                  style={{
-                    margin: "0 0 4px",
-                    fontSize: 10,
-                    color: "var(--wb-warn)",
-                    whiteSpace: "pre-wrap",
-                    lineHeight: 1.35,
-                  }}
-                >
-                  ⚠ {activeAlert}
-                </div>
-              )}
-              {values.length > 0 && (
-                <div className="wb-value-grid" style={{ marginTop: 4 }}>
-                  {values.map((v) => (
-                    <div key={v.label}>
-                      <span>{v.label}</span>
-                      <strong>
-                        {v.value} <span style={{ color: "var(--wb-muted)" }}>{v.unit}</span>
-                        <span style={{ color: "var(--wb-muted)", marginLeft: 4 }}>{v.status}</span>
-                      </strong>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="wb-muted" style={{ margin: 0 }}>Click map to inspect.</p>
-          )}
-        </div>
-      </details>
+        {hasCursor ? (
+          <div className="wb-hero-location">
+            <div className="wb-hero-coords">
+              {latitude!.toFixed(4)}°, {longitude!.toFixed(4)}°
+            </div>
+            {nearestStation && (
+              <div className="wb-hero-station">
+                Nearest: {nearestStation}
+                {nearestStationKm != null && (
+                  <span className="wb-hero-station-distance"> · {nearestStationKm.toFixed(0)} km</span>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="wb-hero-empty">Click the map to inspect a point.</div>
+        )}
+
+        {activeAlert && (
+          <div className="wb-hero-alert" role="alert">
+            <span className="wb-hero-alert-icon">⚠</span>
+            <span className="wb-hero-alert-text">{activeAlert}</span>
+          </div>
+        )}
+
+        {hasHero ? (
+          <div className="wb-hero-grid">
+            {heroMetrics.map((metric) => (
+              <HeroMetricCard key={metric.id} metric={metric} />
+            ))}
+          </div>
+        ) : hasCursor ? (
+          <div className="wb-hero-empty wb-hero-empty-noobs">
+            No station observation near this point and no mock field is enabled.
+            Enable a station/observation layer or a mock field to see numbers here.
+          </div>
+        ) : null}
+      </section>
+
+      {/* Pressure systems */}
+      {pressureSystems.length > 0 && (
+        <details className="wb-section" open>
+          <SectionHeader
+            label="Pressure systems"
+            hint={`${pressureSystems.length} detected`}
+          />
+          <div className="wb-section-body wb-pressure-body">
+            <table className="wb-pressure-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>MSLP</th>
+                  <th>Contrast</th>
+                  <th>Station</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pressureSystems.slice(0, 8).map((system) => (
+                  <tr key={`${system.kind}-${system.stationId}`} className={`wb-pressure-row wb-pressure-${system.kind}`}>
+                    <td className="wb-pressure-kind">
+                      <span className={`wb-pressure-glyph wb-pressure-glyph-${system.kind}`}>{system.kind}</span>
+                    </td>
+                    <td>{system.pressureHpa.toFixed(1)} hPa</td>
+                    <td>{system.contrastHpa.toFixed(1)}</td>
+                    <td title={`${system.stationName} (${system.stationId})`}>
+                      {system.stationName}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="wb-muted wb-pressure-note">
+              Local-extrema detection on station MSLP within 800 km. Strong systems first.
+            </p>
+          </div>
+        </details>
+      )}
+
+      {/* Analysis rows (microphysics, layer stack, …) */}
+      {values.length > 0 && (
+        <details className="wb-section" open>
+          <SectionHeader label="Analysis" hint={`${values.length} row${values.length === 1 ? "" : "s"}`} />
+          <div className="wb-section-body">
+            <ul className="wb-analysis-list">
+              {values.map((value) => (
+                <li key={value.label}>
+                  <div className="wb-analysis-label">
+                    {value.label}
+                    {value.unit && <span className="wb-analysis-unit">{value.unit}</span>}
+                  </div>
+                  <div className="wb-analysis-value">{value.value}</div>
+                  <div className="wb-analysis-status"><StatusBadge status={value.status} /></div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
+
+      {/* WMS layers */}
+      {wmsLayerRows.length > 0 && (
+        <details className="wb-section" open>
+          <SectionHeader label="WMS in view" hint={`top ${wmsLayerRows.length}`} />
+          <div className="wb-section-body">
+            <ul className="wb-wms-list">
+              {wmsLayerRows.map((row) => (
+                <li key={row.title}>
+                  <div className="wb-wms-title">{row.title}</div>
+                  <div className="wb-wms-meta">
+                    <span>{row.timePolicy}</span>
+                    <span>·</span>
+                    <span>{row.resolvedTime ?? "latest"}</span>
+                    <StatusBadge status={row.status} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
 
       {/* Legend */}
-      <details className="wb-section" open>
+      <details className="wb-section">
         <SectionHeader label="Legend" />
         <div className="wb-section-body">
           {activeLayer ? (
@@ -116,8 +242,8 @@ export function RightInspector({
       </details>
 
       {/* Sources */}
-      <details className="wb-section" open>
-        <SectionHeader label="Sources" />
+      <details className="wb-section">
+        <SectionHeader label="Sources" hint={`${sources.length}`} />
         <div className="wb-section-body">
           {activeLayer && (
             <p className="wb-muted" style={{ margin: "0 0 6px" }}>
@@ -144,8 +270,8 @@ export function RightInspector({
                     validTimeMs,
                     parseWmsTimeDimension(activeLayer.metadata.time_extent as string),
                     runtimeState[activeLayer.id]?.wmsTimePolicy === "global"
-                      ? "latest"
-                      : runtimeState[activeLayer.id]?.wmsTimePolicy ?? "latest",
+                      ? "timeline"
+                      : runtimeState[activeLayer.id]?.wmsTimePolicy ?? "timeline",
                     runtimeState[activeLayer.id]?.wmsFixedTime,
                   ) || "—"}
                 </p>
@@ -159,20 +285,20 @@ export function RightInspector({
       <details className="wb-section">
         <SectionHeader label="Diagnostics" />
         <div className="wb-section-body">
-          <div className="wb-value-grid">
-            <div><span>FPS</span><strong>{diagnostics.fps.toFixed(1)}</strong></div>
-            <div><span>Layers</span><strong>{diagnostics.activeLayerCount}</strong></div>
-            <div><span>Animated</span><strong>{diagnostics.animatedLayerCount}</strong></div>
-            <div><span>Deck</span><strong>{diagnostics.deckLayerCount}</strong></div>
-            <div><span>Mode</span><strong>{diagnostics.rendererKind ?? diagnostics.mapMode}</strong></div>
-            <div><span>WMS Pending</span><strong>{diagnostics.pendingRasterFrames ?? 0}</strong></div>
-            <div><span>WMS Promoted</span><strong>{diagnostics.promotedRasterFrames ?? 0}</strong></div>
-            <div><span>WMS Failed</span><strong>{diagnostics.failedRasterFrames ?? 0}</strong></div>
-            <div>
+          <ul className="wb-diag-list">
+            <li><span>FPS</span><strong>{diagnostics.fps.toFixed(1)}</strong></li>
+            <li><span>Layers</span><strong>{diagnostics.activeLayerCount}</strong></li>
+            <li><span>Animated</span><strong>{diagnostics.animatedLayerCount}</strong></li>
+            <li><span>Deck</span><strong>{diagnostics.deckLayerCount}</strong></li>
+            <li><span>Mode</span><strong>{diagnostics.rendererKind ?? diagnostics.mapMode}</strong></li>
+            <li><span>WMS Pending</span><strong>{diagnostics.pendingRasterFrames ?? 0}</strong></li>
+            <li><span>WMS Promoted</span><strong>{diagnostics.promotedRasterFrames ?? 0}</strong></li>
+            <li><span>WMS Failed</span><strong>{diagnostics.failedRasterFrames ?? 0}</strong></li>
+            <li>
               <span>Refresh</span>
               <strong>{diagnostics.lastDataRefreshAt ? fmtClock(new Date(diagnostics.lastDataRefreshAt).getTime()) : "—"}</strong>
-            </div>
-          </div>
+            </li>
+          </ul>
           {diagnostics.lastSourceError && (
             <p className="wb-warning" style={{ margin: "6px 0 0" }}>{diagnostics.lastSourceError}</p>
           )}
@@ -183,7 +309,6 @@ export function RightInspector({
           )}
         </div>
       </details>
-
     </aside>
   );
 }

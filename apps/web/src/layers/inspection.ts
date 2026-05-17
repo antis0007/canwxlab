@@ -1,7 +1,35 @@
-import type { AlertFeature, Observation } from "../types/weather";
+import type { AlertFeature, Observation, SourceStatus } from "../types/weather";
 import { solarElevationDeg } from "../time/solarBands";
 import { sampleMockWeatherPoint } from "./renderers/mockWeatherFields";
+import {
+  airDensityKgM3,
+  beaufortFromWindMs,
+  cardinalDirection,
+  dewpointFromTempRH,
+  haversineKm,
+  rhFromTempDewpoint,
+  windDirectionFromUVDeg,
+  windSpeedFromUV,
+} from "./weatherAnalysis";
+import { detectPressureSystems, type PressureSystem } from "./pressureSystems";
 import type { LayerDefinition, RendererFeatureValue, RenderLayerPlan } from "./types";
+
+export interface HeroMetric {
+  /** Stable id so the UI can key elements and apply consistent colour. */
+  id: "temperature" | "pressure" | "wind" | "precipitation" | "humidity" | "dewpoint" | "density";
+  /** Short, all-caps label rendered above the value (e.g. "TEMP"). */
+  label: string;
+  /** Pre-formatted number string (e.g. "13.4"). */
+  value: string;
+  /** Unit suffix shown smaller next to the value. */
+  unit: string;
+  /** Provenance shown as a small chip ("live", "mock", "derived", …). */
+  status: SourceStatus;
+  /** Optional caption line (e.g. "WSW · Light breeze" for wind). */
+  caption?: string;
+  /** Optional source identifier for "from: station-name" attribution. */
+  source?: string;
+}
 
 export interface InspectorBuildInput {
   longitude: number;
@@ -15,12 +43,28 @@ export interface InspectorBuildInput {
   sampledAtMs?: number;
 }
 
+export interface InspectorWmsRow {
+  title: string;
+  resolvedTime: string | null;
+  timePolicy: string;
+  status: SourceStatus;
+}
+
 export interface InspectorPayload {
   longitude: number;
   latitude: number;
+  /** Big-number metric cards rendered at the top of the inspector. */
+  heroMetrics: HeroMetric[];
+  /** Free-form analytic rows (microphysics hint, layer stack, etc.). */
   values: RendererFeatureValue[];
   nearestStation: string | null;
+  /** Distance in km to the nearest station, or null if unknown. */
+  nearestStationKm: number | null;
   activeAlert: string | null;
+  /** Synoptic-pattern lows/highs from station observations. */
+  pressureSystems: PressureSystem[];
+  /** Up-to-three top WMS layers contributing to the current view. */
+  wmsLayers: InspectorWmsRow[];
 }
 
 function summarizeAlert(alert: AlertFeature): string {
@@ -97,10 +141,6 @@ export function nearestStationName(
   return nearest ? `${nearest.station_name} (${nearest.station_id})` : null;
 }
 
-function hasLayer(activeLayers: LayerDefinition[], predicate: (layer: LayerDefinition) => boolean): boolean {
-  return activeLayers.some(predicate);
-}
-
 function isDayNightMicrophysicsLayer(layer: LayerDefinition | RenderLayerPlan): boolean {
   const parts = "source" in layer
     ? [layer.source.title, layer.source.wmsLayerName, layer.source.variable]
@@ -114,14 +154,9 @@ function isDayNightMicrophysicsLayer(layer: LayerDefinition | RenderLayerPlan): 
   );
 }
 
-function rgbDistance(a: [number, number, number], b: [number, number, number]): number {
-  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-}
-
 interface MicrophysicsClass {
   label: string;
   color: [number, number, number];
-  /** Plain-language precipitation/cloud-type hint per the NOAA RGB quick guide. */
   precipHint: string;
 }
 
@@ -156,6 +191,10 @@ interface MicrophysicsResult {
   dayLikelihood: "day" | "night";
 }
 
+function rgbDistance(a: [number, number, number], b: [number, number, number]): number {
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+
 function isLikelyDayAt(
   longitude: number,
   latitude: number,
@@ -163,12 +202,8 @@ function isLikelyDayAt(
   sampledAtMs: number | undefined,
 ): boolean {
   if (sampledAtMs !== undefined && Number.isFinite(sampledAtMs)) {
-    // Real solar geometry: civil-twilight cutoff is the same threshold used by
-    // GOES-R when switching from Day Cloud Phase to Nighttime Microphysics.
     return solarElevationDeg(latitude, longitude, sampledAtMs) >= -6;
   }
-  // No time available: fall back to a brightness heuristic. Daylight imagery is
-  // generally brighter than nighttime IR-derived RGB.
   return rgb[0] + rgb[1] + rgb[2] > 230;
 }
 
@@ -192,125 +227,260 @@ function classifyMicrophysics(
   };
 }
 
-function addMockFieldValues(
-  values: RendererFeatureValue[],
-  longitude: number,
-  latitude: number,
-  frame: number,
-  activeLayers: LayerDefinition[],
-) {
-  const sampled = sampleMockWeatherPoint(longitude, latitude, frame);
-
-  if (hasLayer(activeLayers, (layer) => layer.id === "demo_temperature_field" || layer.id === "mock_temperature")) {
-    values.push({ label: "Sampled Temperature", value: sampled.temperatureC.toFixed(1), unit: "degC", status: "mock" });
-  }
-  if (hasLayer(activeLayers, (layer) => layer.id === "demo_pressure_msl" || layer.variable === "pressure_msl")) {
-    values.push({ label: "Sampled Pressure", value: sampled.pressureHpa.toFixed(1), unit: "hPa", status: "mock" });
-  }
-  if (hasLayer(activeLayers, (layer) => layer.id === "demo_radar_animation" || layer.id === "mock_radar" || layer.category === "radar")) {
-    values.push({ label: "Sampled Precip/Radar", value: sampled.precipitationRate.toFixed(2), unit: "mm/h", status: "mock" });
-  }
-  if (hasLayer(activeLayers, (layer) => layer.id === "demo_wind_particles" || layer.id === "mock_wind")) {
-    values.push({ label: "Sampled Wind Speed", value: sampled.windSpeed.toFixed(1), unit: "m/s", status: "mock" });
-    values.push({ label: "Sampled Wind Vector", value: `${sampled.windU.toFixed(1)}, ${sampled.windV.toFixed(1)}`, unit: "u/v", status: "mock" });
-  }
-  if (hasLayer(activeLayers, (layer) => layer.id === "demo_clouds")) {
-    values.push({ label: "Sampled Cloud Opacity", value: sampled.cloudOpacity.toFixed(2), unit: "ratio", status: "mock" });
-  }
+function readNumber(values: Record<string, number>, key: string): number | null {
+  const raw = values[key];
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
 }
 
-function addStationValues(
-  values: RendererFeatureValue[],
-  observations: Observation[],
-  longitude: number,
-  latitude: number,
-) {
-  const nearest = nearestObservation(observations, longitude, latitude);
-  if (!nearest) return;
-  const stationValues: Array<[string, string, string]> = [
-    ["temperature_2m", "Station Temperature", "degC"],
-    ["pressure_msl", "Station Pressure", "hPa"],
-    ["wind_speed_10m", "Station Wind", "m/s"],
-  ];
-  for (const [key, label, fallbackUnit] of stationValues) {
-    const raw = nearest.values[key];
-    if (typeof raw !== "number" || !Number.isFinite(raw)) continue;
-    values.push({
-      label,
-      value: raw.toFixed(1),
-      unit: nearest.units[key] ?? fallbackUnit,
-      status: nearest.source_status,
+function buildHeroMetrics(input: InspectorBuildInput): HeroMetric[] {
+  const metrics: HeroMetric[] = [];
+  const nearest = nearestObservation(input.observations, input.longitude, input.latitude);
+
+  // Prefer station observations because they are real measurements. Fall back
+  // to the mock sampled field only when nothing measured is available so the
+  // hero strip is never empty.
+  const stationTemp = nearest ? readNumber(nearest.values, "temperature_2m") : null;
+  const stationPressure = nearest ? readNumber(nearest.values, "pressure_msl") : null;
+  const stationWindSpeed = nearest ? readNumber(nearest.values, "wind_speed_10m") : null;
+  const stationWindDir = nearest ? readNumber(nearest.values, "wind_direction_10m") : null;
+  const stationWindU = nearest ? readNumber(nearest.values, "wind_u_10m") : null;
+  const stationWindV = nearest ? readNumber(nearest.values, "wind_v_10m") : null;
+  const stationDew = nearest ? readNumber(nearest.values, "dewpoint_2m") : null;
+  const stationRH = nearest ? readNumber(nearest.values, "relative_humidity_2m") : null;
+  const stationPrecip1h = nearest ? readNumber(nearest.values, "precipitation_1h") : null;
+
+  // Derived dewpoint when only RH is reported, or derived RH when only dew is.
+  const dewpoint = stationDew ?? (stationTemp !== null && stationRH !== null
+    ? dewpointFromTempRH(stationTemp, stationRH)
+    : null);
+  const rh = stationRH ?? (stationTemp !== null && stationDew !== null
+    ? rhFromTempDewpoint(stationTemp, stationDew)
+    : null);
+
+  // Wind: prefer measured speed/dir; otherwise compute from u/v components.
+  const derivedSpeed = stationWindSpeed
+    ?? (stationWindU !== null && stationWindV !== null ? windSpeedFromUV(stationWindU, stationWindV) : null);
+  const derivedDir = stationWindDir
+    ?? (stationWindU !== null && stationWindV !== null ? windDirectionFromUVDeg(stationWindU, stationWindV) : null);
+
+  const sampled = sampleMockWeatherPoint(input.longitude, input.latitude, input.frame);
+  const hasMockTemp = input.activeLayers.some((layer) => layer.id === "demo_temperature_field" || layer.id === "mock_temperature");
+  const hasMockPressure = input.activeLayers.some((layer) => layer.id === "demo_pressure_msl" || layer.variable === "pressure_msl");
+  const hasMockWind = input.activeLayers.some((layer) => layer.id === "demo_wind_particles" || layer.id === "mock_wind");
+  const hasMockRadar = input.activeLayers.some((layer) => layer.id === "demo_radar_animation" || layer.id === "mock_radar" || layer.category === "radar");
+
+  if (stationTemp !== null) {
+    metrics.push({
+      id: "temperature",
+      label: "TEMP",
+      value: stationTemp.toFixed(1),
+      unit: nearest?.units.temperature_2m ?? "°C",
+      status: nearest?.source_status ?? "live",
+      caption: nearest?.station_name,
+      source: nearest?.station_id,
+    });
+  } else if (hasMockTemp) {
+    metrics.push({
+      id: "temperature",
+      label: "TEMP",
+      value: sampled.temperatureC.toFixed(1),
+      unit: "°C",
+      status: "mock",
+      caption: "sampled mock field",
     });
   }
-  if (nearest.observed_at) {
-    values.push({
-      label: "Station Time",
-      value: new Date(nearest.observed_at).toLocaleString(),
-      status: nearest.source_status,
+
+  if (stationPressure !== null) {
+    metrics.push({
+      id: "pressure",
+      label: "MSLP",
+      value: stationPressure.toFixed(1),
+      unit: nearest?.units.pressure_msl ?? "hPa",
+      status: nearest?.source_status ?? "live",
+      caption: nearest?.station_name,
+      source: nearest?.station_id,
+    });
+  } else if (hasMockPressure) {
+    metrics.push({
+      id: "pressure",
+      label: "MSLP",
+      value: sampled.pressureHpa.toFixed(1),
+      unit: "hPa",
+      status: "mock",
+      caption: "sampled mock field",
     });
   }
+
+  if (derivedSpeed !== null) {
+    const dirText = derivedDir !== null
+      ? `${cardinalDirection(derivedDir)} (${derivedDir.toFixed(0)}°)`
+      : null;
+    const beaufort = beaufortFromWindMs(derivedSpeed);
+    const captionBits: string[] = [];
+    if (dirText) captionBits.push(dirText);
+    if (beaufort) captionBits.push(`F${beaufort.force} · ${beaufort.label}`);
+    metrics.push({
+      id: "wind",
+      label: "WIND",
+      value: derivedSpeed.toFixed(1),
+      unit: nearest?.units.wind_speed_10m ?? "m/s",
+      status: nearest?.source_status ?? "derived",
+      caption: captionBits.join(" · ") || undefined,
+      source: nearest?.station_id,
+    });
+  } else if (hasMockWind) {
+    const dir = windDirectionFromUVDeg(sampled.windU, sampled.windV);
+    const beaufort = beaufortFromWindMs(sampled.windSpeed);
+    metrics.push({
+      id: "wind",
+      label: "WIND",
+      value: sampled.windSpeed.toFixed(1),
+      unit: "m/s",
+      status: "mock",
+      caption: dir !== null && beaufort
+        ? `${cardinalDirection(dir)} · F${beaufort.force}`
+        : "sampled mock field",
+    });
+  }
+
+  if (stationPrecip1h !== null) {
+    metrics.push({
+      id: "precipitation",
+      label: "PRECIP 1h",
+      value: stationPrecip1h.toFixed(2),
+      unit: nearest?.units.precipitation_1h ?? "mm",
+      status: nearest?.source_status ?? "live",
+      source: nearest?.station_id,
+    });
+  } else if (hasMockRadar) {
+    metrics.push({
+      id: "precipitation",
+      label: "PRECIP",
+      value: sampled.precipitationRate.toFixed(2),
+      unit: "mm/h",
+      status: "mock",
+      caption: "sampled mock radar",
+    });
+  }
+
+  if (dewpoint !== null && stationTemp !== null) {
+    metrics.push({
+      id: "dewpoint",
+      label: "DEW PT",
+      value: dewpoint.toFixed(1),
+      unit: "°C",
+      status: stationDew !== null ? (nearest?.source_status ?? "live") : "derived",
+      caption: stationDew === null ? "derived from T + RH" : undefined,
+      source: nearest?.station_id,
+    });
+  }
+
+  if (rh !== null) {
+    metrics.push({
+      id: "humidity",
+      label: "RH",
+      value: rh.toFixed(0),
+      unit: "%",
+      status: stationRH !== null ? (nearest?.source_status ?? "live") : "derived",
+      caption: stationRH === null ? "derived from T + DP" : undefined,
+      source: nearest?.station_id,
+    });
+  }
+
+  if (stationTemp !== null && stationPressure !== null) {
+    const density = airDensityKgM3(stationPressure, stationTemp, dewpoint);
+    if (density !== null) {
+      metrics.push({
+        id: "density",
+        label: "ρ AIR",
+        value: density.toFixed(3),
+        unit: "kg/m³",
+        status: "derived",
+        caption: "ideal-gas moist air",
+        source: nearest?.station_id,
+      });
+    }
+  }
+
+  return metrics;
 }
 
-function addWmsValues(
-  values: RendererFeatureValue[],
-  renderPlan: RenderLayerPlan[],
-  longitude: number,
-  latitude: number,
-  sampledRgb?: [number, number, number] | null,
-  sampledAtMs?: number,
-) {
-  const wmsLayers = renderPlan.filter((plan) => plan.visible && plan.rendererType === "wms-raster");
-  for (const plan of wmsLayers.slice().sort((a, b) => b.order - a.order).slice(0, 3)) {
-    values.push({
-      label: `WMS Layer: ${plan.source.title}`,
-      value: plan.resolvedTime ?? (plan.timePolicy === "latest" ? "latest advertised" : "untimed"),
-      unit: plan.timePolicy,
-      status: plan.source.status,
-    });
-  }
+function buildAnalysisRows(input: InspectorBuildInput): RendererFeatureValue[] {
+  const values: RendererFeatureValue[] = [];
 
+  const wmsLayers = input.renderPlan.filter((plan) => plan.visible && plan.rendererType === "wms-raster");
   const microphysics = wmsLayers.find(isDayNightMicrophysicsLayer);
-  if (!microphysics) return;
-  if (sampledRgb) {
-    const classified = classifyMicrophysics(longitude, latitude, sampledRgb, sampledAtMs);
+  if (microphysics) {
+    if (input.sampledRgb) {
+      const classified = classifyMicrophysics(
+        input.longitude,
+        input.latitude,
+        input.sampledRgb,
+        input.sampledAtMs,
+      );
+      values.push({
+        label: "GOES Microphysics RGB",
+        value: `${classified.mode}: ${classified.label}`,
+        unit: `rgb(${input.sampledRgb.join(",")})`,
+        status: "derived",
+      });
+      values.push({
+        label: "Precip / Cloud Hint",
+        value: classified.precipHint,
+        unit: classified.dayLikelihood,
+        status: "derived",
+      });
+    } else {
+      values.push({
+        label: "GOES Microphysics RGB",
+        value: "active; pixel colour sample unavailable",
+        unit: "qualitative",
+        status: "derived",
+      });
+    }
     values.push({
-      label: "GOES Microphysics RGB",
-      value: `${classified.mode}: ${classified.label}`,
-      unit: `rgb(${sampledRgb.join(",")})`,
-      status: "derived",
-    });
-    values.push({
-      label: "Precip / Cloud Hint",
-      value: classified.precipHint,
-      unit: classified.dayLikelihood,
-      status: "derived",
-    });
-  } else {
-    values.push({
-      label: "GOES Microphysics RGB",
-      value: "active; pixel colour sample unavailable",
-      unit: "qualitative",
+      label: "Microphysics Note",
+      value: "qualitative RGB guidance; not a direct precipitation measurement",
       status: "derived",
     });
   }
-  values.push({
-    label: "Microphysics Note",
-    value: "qualitative RGB guidance; not a direct precipitation measurement",
-    status: "derived",
-  });
+
+  return values;
+}
+
+function buildWmsRows(plan: RenderLayerPlan[]): InspectorWmsRow[] {
+  const wmsLayers = plan.filter((entry) => entry.visible && entry.rendererType === "wms-raster");
+  return wmsLayers
+    .slice()
+    .sort((a, b) => b.order - a.order)
+    .slice(0, 3)
+    .map((entry) => ({
+      title: entry.source.title,
+      resolvedTime: entry.resolvedTime,
+      timePolicy: entry.timePolicy,
+      status: entry.source.status,
+    }));
 }
 
 export function buildInspectorPayload(input: InspectorBuildInput): InspectorPayload {
-  const values: RendererFeatureValue[] = [];
-  addMockFieldValues(values, input.longitude, input.latitude, input.frame, input.activeLayers);
-  addStationValues(values, input.observations, input.longitude, input.latitude);
-  addWmsValues(values, input.renderPlan, input.longitude, input.latitude, input.sampledRgb, input.sampledAtMs);
+  const heroMetrics = buildHeroMetrics(input);
+  const values = buildAnalysisRows(input);
+  const wmsLayers = buildWmsRows(input.renderPlan);
+  const pressureSystems = detectPressureSystems(input.observations);
+  const nearest = nearestObservation(input.observations, input.longitude, input.latitude);
+  const nearestStationKm = nearest
+    ? haversineKm(input.longitude, input.latitude, nearest.longitude, nearest.latitude)
+    : null;
 
   return {
     longitude: input.longitude,
     latitude: input.latitude,
+    heroMetrics,
     values,
     nearestStation: nearestStationName(input.observations, input.longitude, input.latitude),
+    nearestStationKm,
     activeAlert: activeAlertAtPoint(input.alerts, input.longitude, input.latitude),
+    pressureSystems,
+    wmsLayers,
   };
 }

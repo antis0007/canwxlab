@@ -30,6 +30,8 @@ import {
   setStoredTimeZone,
 } from "./lib/timezone";
 import type { CityEntry } from "./lib/cityCatalog";
+import { buildInspectorPayload } from "./layers/inspection";
+import { buildRenderPlan } from "./layers/renderPlan";
 import type {
   AlertFeature,
   DataSource,
@@ -147,13 +149,21 @@ export default function App() {
     longitude: number | null;
     latitude: number | null;
     values: RendererFeatureValue[];
+    heroMetrics: import("./layers/inspection").HeroMetric[];
+    pressureSystems: import("./layers/pressureSystems").PressureSystem[];
+    wmsLayerRows: Array<{ title: string; resolvedTime: string | null; timePolicy: string; status: import("./types/weather").SourceStatus }>;
     nearestStation: string | null;
+    nearestStationKm: number | null;
     activeAlert: string | null;
   }>({
     longitude: null,
     latitude: null,
     values: [],
+    heroMetrics: [],
+    pressureSystems: [],
+    wmsLayerRows: [],
     nearestStation: null,
+    nearestStationKm: null,
     activeAlert: null,
   });
 
@@ -194,9 +204,9 @@ export default function App() {
   });
   const rightSidebar = useResizableWidth({
     storageKey: "rightSidebarWidth",
-    defaultWidth: 250,
-    minWidth: 220,
-    maxWidth: 520,
+    defaultWidth: 320,
+    minWidth: 240,
+    maxWidth: 560,
     edge: "left",
   });
 
@@ -413,6 +423,61 @@ export default function App() {
     };
   }, [simulationRun]);
 
+  // The inspector is always populated. If the operator has never clicked the
+  // map, we auto-seed at the first available observation so the panel shows
+  // real numbers immediately. Once the operator clicks, MapView's onInspect
+  // takes over (handleInspect below sets clickedInspect = true).
+  const [clickedInspect, setClickedInspect] = useState(false);
+  useEffect(() => {
+    if (clickedInspect) return;
+    if (observations.length === 0) return;
+    const seed = observations[0];
+    const renderPlan = buildRenderPlan({
+      layers: layerEngine.activeLayers,
+      runtimeState: layerEngine.runtimeState,
+      globalTimeMs: new Date(playbackState.selectedValidTime).getTime(),
+      viewMode,
+    });
+    const payload = buildInspectorPayload({
+      longitude: seed.longitude,
+      latitude: seed.latitude,
+      frame: playbackState.frame,
+      activeLayers: layerEngine.activeLayers,
+      renderPlan,
+      observations,
+      alerts,
+      sampledRgb: null,
+      sampledAtMs: new Date(playbackState.selectedValidTime).getTime(),
+    });
+    setInspectorState({
+      longitude: payload.longitude,
+      latitude: payload.latitude,
+      values: payload.values,
+      heroMetrics: payload.heroMetrics,
+      pressureSystems: payload.pressureSystems,
+      wmsLayerRows: payload.wmsLayers,
+      nearestStation: payload.nearestStation,
+      nearestStationKm: payload.nearestStationKm,
+      activeAlert: payload.activeAlert,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [observations, clickedInspect, alerts, viewMode, playbackState.selectedValidTime]);
+
+  const handleInspect = useCallback((payload: {
+    longitude: number;
+    latitude: number;
+    values: RendererFeatureValue[];
+    heroMetrics: import("./layers/inspection").HeroMetric[];
+    pressureSystems: import("./layers/pressureSystems").PressureSystem[];
+    wmsLayerRows: Array<{ title: string; resolvedTime: string | null; timePolicy: string; status: import("./types/weather").SourceStatus }>;
+    nearestStation: string | null;
+    nearestStationKm: number | null;
+    activeAlert: string | null;
+  }) => {
+    setClickedInspect(true);
+    setInspectorState(payload);
+  }, []);
+
   const notices = useMemo(() => {
     const base = statusMessage(sourceReport, globeCapabilityChecked, globeSupported);
     if (apiError) base.push(`API error: ${apiError}`);
@@ -517,7 +582,7 @@ export default function App() {
             viewMode={viewMode}
             animationFrame={playbackState.frame}
             globalTimeMs={new Date(playbackState.selectedValidTime).getTime()}
-            onInspect={setInspectorState}
+            onInspect={handleInspect}
             onDiagnostics={(partial) => setDiagnostics((current) => ({
               ...current,
               ...partial,
@@ -574,10 +639,14 @@ export default function App() {
           longitude={inspectorState.longitude}
           latitude={inspectorState.latitude}
           values={inspectorState.values}
+          heroMetrics={inspectorState.heroMetrics}
+          pressureSystems={inspectorState.pressureSystems}
+          wmsLayerRows={inspectorState.wmsLayerRows}
           activeLayer={activeLayerForLegend}
           sources={sources}
           diagnostics={diagnostics}
           nearestStation={inspectorState.nearestStation}
+          nearestStationKm={inspectorState.nearestStationKm}
           activeAlert={inspectorState.activeAlert}
           animationFrame={playbackState.frame}
           selectedValidTime={playbackState.selectedValidTime}

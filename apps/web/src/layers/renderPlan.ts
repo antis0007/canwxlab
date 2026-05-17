@@ -18,10 +18,13 @@ export function rendererKindForViewMode(viewMode: ViewMode): RendererKind {
 
 export function normalizeWmsTimePolicy(policy: WmsTimePolicy | undefined): RenderTimePolicy {
   if (policy === "fixed") return "fixed";
-  if (policy === "timeline") return "timeline";
-  // Historical `global` meant timeline-following, but WMS defaults now resolve
-  // to latest unless the operator explicitly opts into timeline/fixed.
-  return "latest";
+  if (policy === "latest") return "latest";
+  // `timeline` is the default so time-aware WMS layers actually advance with
+  // the operator's timeline. The earlier "default to latest" tradeoff stopped
+  // animations dead — the double-buffered raster runtime exists precisely so
+  // timeline-following requests can be made without flicker. Historical
+  // `global` value is also treated as timeline-following.
+  return "timeline";
 }
 
 function rendererTypeForLayer(layer: LayerDefinition): RenderLayerType {

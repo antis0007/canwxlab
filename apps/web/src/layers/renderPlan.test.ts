@@ -41,7 +41,7 @@ describe("buildRenderPlan", () => {
     expect(plan[0].source.metadata.rendererKind).toBe("maplibre-globe");
   });
 
-  it("maps historical global WMS policy back to latest default", () => {
+  it("maps historical global WMS policy to timeline (the new default)", () => {
     const layer = buildLayerDefinitions({
       backendLayers: fallbackLayers,
       plugins: [],
@@ -66,6 +66,8 @@ describe("buildRenderPlan", () => {
       viewMode: "map",
     });
 
-    expect(plan.timePolicy).toBe("latest");
+    // Time-aware layers must follow the timeline by default so playback
+    // actually animates; "latest" is now opt-in.
+    expect(plan.timePolicy).toBe("timeline");
   });
 });

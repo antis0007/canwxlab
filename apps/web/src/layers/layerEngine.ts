@@ -21,8 +21,11 @@ import {
 // hydrometric, climate-stations) and marker radii were converted to pixel
 // units. Bumping the key version forces existing browsers to pick up the new
 // defaults instead of replaying a stale v4 state where these layers were off.
-const STORAGE_KEY_LAYER_STATE = "canwxlab.layerState.v9";
-const STORAGE_KEY_LAYER_ORDER = "canwxlab.layerOrder.v9";
+// v10 bump: WMS default time policy flipped from "latest" → "timeline" so
+// existing operators get animated WMS again on next load (a stored v9 cache
+// would otherwise preserve the broken "latest" everywhere).
+const STORAGE_KEY_LAYER_STATE = "canwxlab.layerState.v10";
+const STORAGE_KEY_LAYER_ORDER = "canwxlab.layerOrder.v10";
 const STORAGE_KEY_PLUGIN_ENABLED = "canwxlab.pluginEnabled.v2";
 const STORAGE_KEY_UI_PREFS = "canwxlab.uiPrefs.v4";
 
@@ -49,7 +52,11 @@ function defaultRuntimeState(layer: LayerDefinition): LayerRuntimeState {
     colourRamp: layer.colourRamp,
     zIndex: layer.zIndex,
     controls: { ...defaultLayerControls, ...layer.controls },
-    wmsTimePolicy: layer.rendererType === "wms-raster" ? "latest" : "timeline",
+    // Time-aware WMS layers follow the timeline by default so playback
+    // actually animates. The double-buffered raster runtime keeps frames
+    // from flickering during rapid timeline ticks. Operators can flip an
+    // individual layer to "latest" or "fixed" from the controls panel.
+    wmsTimePolicy: "timeline",
   };
 }
 
@@ -69,12 +76,12 @@ function fallbackRuntimeState(): LayerRuntimeState {
 }
 
 function normalizeWmsTimePolicyForLayer(
-  layer: LayerDefinition,
+  _layer: LayerDefinition,
   existing: LayerRuntimeState,
 ): LayerRuntimeState["wmsTimePolicy"] {
   if (existing.wmsTimePolicy === "fixed" || existing.wmsTimePolicy === "timeline") return existing.wmsTimePolicy;
   if (existing.wmsTimePolicy === "latest") return "latest";
-  return layer.rendererType === "wms-raster" ? "latest" : "timeline";
+  return "timeline";
 }
 
 export function useLayerEngine(input: {

@@ -669,7 +669,8 @@ input[type="search"]::placeholder { color: var(--wb-muted); }
 
 /* ===== RIGHT PANEL ===== */
 .wb-right-panel {
-  width: var(--wb-right-width, 250px);
+  width: var(--wb-right-width, 320px);
+  min-width: 220px;
   flex-shrink: 0;
   background: var(--wb-panel);
   border-left: 1px solid var(--wb-line);
@@ -1550,6 +1551,326 @@ input[type="number"]::-webkit-inner-spin-button {
 /* ===== COLLAPSE ===== */
 .left-collapsed .wb-left-panel { display: none; }
 .right-collapsed .wb-right-panel { display: none; }
+
+/* ===== INSPECTOR — HERO + SECTIONS ===== */
+.wb-inspector-hero {
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid var(--wb-line);
+  background: linear-gradient(180deg, rgba(0, 200, 232, 0.04), transparent 60%);
+}
+.wb-hero-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+}
+.wb-hero-timestamp {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.wb-hero-timestamp-tz {
+  font-size: 9px;
+  color: var(--wb-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.wb-hero-timestamp-clock {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wb-accent);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.wb-hero-frame {
+  font-size: 10px;
+  color: var(--wb-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.wb-hero-location {
+  margin: 6px 0 4px;
+}
+.wb-hero-coords {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--wb-text);
+  letter-spacing: 0.02em;
+}
+.wb-hero-station {
+  font-size: 10px;
+  color: var(--wb-muted);
+  margin-top: 1px;
+}
+.wb-hero-station-distance {
+  font-family: ui-monospace, monospace;
+}
+.wb-hero-empty {
+  margin: 6px 0 4px;
+  font-size: 10px;
+  color: var(--wb-muted);
+  line-height: 1.4;
+}
+.wb-hero-empty-noobs {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px dashed var(--wb-line);
+  background: rgba(255, 255, 255, 0.02);
+}
+.wb-hero-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 6px 0 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--wb-warn);
+  color: var(--wb-warn);
+  background: rgba(232, 192, 64, 0.07);
+  font-size: 10.5px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  border-radius: 2px;
+}
+.wb-hero-alert-icon { font-size: 14px; line-height: 1; flex-shrink: 0; }
+.wb-hero-alert-text { min-width: 0; word-break: break-word; }
+
+.wb-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+.wb-hero-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 1px solid var(--wb-line);
+  background: var(--wb-panel-hi);
+  border-radius: 3px;
+  min-width: 0;
+}
+.wb-hero-card.wb-hero-temperature  { border-left: 3px solid #ff7a55; }
+.wb-hero-card.wb-hero-pressure     { border-left: 3px solid var(--wb-accent); }
+.wb-hero-card.wb-hero-wind         { border-left: 3px solid #98c8ff; }
+.wb-hero-card.wb-hero-precipitation{ border-left: 3px solid #5db9ff; }
+.wb-hero-card.wb-hero-dewpoint     { border-left: 3px solid #7ad88a; }
+.wb-hero-card.wb-hero-humidity     { border-left: 3px solid #c898ff; }
+.wb-hero-card.wb-hero-density      { border-left: 3px solid #c0a060; }
+
+.wb-hero-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--wb-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.wb-hero-value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+  min-width: 0;
+}
+.wb-hero-num {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--wb-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb-hero-unit {
+  font-size: 10px;
+  color: var(--wb-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.wb-hero-caption {
+  font-size: 10px;
+  color: var(--wb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-hero-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 9px;
+}
+.wb-hero-source {
+  color: var(--wb-muted);
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pressure system table */
+.wb-pressure-body { padding: 4px 0 0; }
+.wb-pressure-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+  font-family: ui-monospace, monospace;
+}
+.wb-pressure-table th,
+.wb-pressure-table td {
+  text-align: left;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--wb-line-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb-pressure-table th {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--wb-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.wb-pressure-table td:last-child { white-space: normal; }
+.wb-pressure-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-weight: 700;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  border: 1.5px solid currentColor;
+  background: rgba(0,0,0,0.3);
+}
+.wb-pressure-glyph-L { color: #ff7a55; }
+.wb-pressure-glyph-H { color: #5db9ff; }
+.wb-pressure-row.wb-pressure-L { background: rgba(255, 122, 85, 0.04); }
+.wb-pressure-row.wb-pressure-H { background: rgba(93, 185, 255, 0.04); }
+.wb-pressure-note {
+  padding: 4px 8px 0;
+  margin: 0;
+  font-size: 10px;
+  color: var(--wb-muted);
+}
+
+/* Analysis list (microphysics, layer stack) */
+.wb-analysis-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wb-analysis-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 0 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--wb-line-dim);
+  font-size: 10.5px;
+}
+.wb-analysis-list li:last-child { border-bottom: none; }
+.wb-analysis-label {
+  grid-column: 1;
+  grid-row: 1;
+  color: var(--wb-muted);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.wb-analysis-unit {
+  margin-left: 4px;
+  font-family: ui-monospace, monospace;
+  color: var(--wb-muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.wb-analysis-value {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  color: var(--wb-text);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.wb-analysis-status {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* WMS-in-view list */
+.wb-wms-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wb-wms-list li {
+  padding: 4px 6px;
+  border: 1px solid var(--wb-line-dim);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 2px;
+}
+.wb-wms-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wb-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb-wms-meta {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 9.5px;
+  color: var(--wb-muted);
+  flex-wrap: wrap;
+}
+
+/* Diagnostics list — vertical, never overflows */
+.wb-diag-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px 8px;
+  font-size: 10.5px;
+}
+.wb-diag-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--wb-line-dim);
+}
+.wb-diag-list li span { color: var(--wb-muted); font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; }
+.wb-diag-list li strong { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 10.5px; }
+
+/* Section header hint chip */
+.wb-section-hint {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--wb-muted);
+  text-transform: none;
+  margin-left: 6px;
+  margin-right: auto;
+}
 
 /* ===== RESIZE HANDLE (sidebars) ===== */
 .wb-resize-handle {

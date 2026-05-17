@@ -39,12 +39,23 @@ import { StarInfoCard } from "./StarInfoCard";
 import type { Star } from "../lib/celestialSphere";
 import type { StarExposure } from "../layers/types";
 import { createDiffBitmapLayer, type DiffOverlayPayload } from "../layers/renderers/diffBitmap";
+import { detectPressureSystems } from "../layers/pressureSystems";
+import { createPressureSystemLayers } from "../layers/renderers/pressureSystemMarkers";
 
 interface MapInspectPayload {
   longitude: number;
   latitude: number;
   values: RendererFeatureValue[];
+  heroMetrics: import("../layers/inspection").HeroMetric[];
+  pressureSystems: import("../layers/pressureSystems").PressureSystem[];
+  wmsLayerRows: Array<{
+    title: string;
+    resolvedTime: string | null;
+    timePolicy: string;
+    status: import("../types/weather").SourceStatus;
+  }>;
   nearestStation: string | null;
+  nearestStationKm: number | null;
   activeAlert: string | null;
 }
 
@@ -799,7 +810,18 @@ export function MapView({
       sampledRgb: sampleCompositeRgb(point),
       sampledAtMs: liveTimeRef.current,
     });
-    onInspectRef.current(nearestStationDetailsEnabled ? payload : { ...payload, nearestStation: null });
+    const mapped: MapInspectPayload = {
+      longitude: payload.longitude,
+      latitude: payload.latitude,
+      values: payload.values,
+      heroMetrics: payload.heroMetrics,
+      pressureSystems: payload.pressureSystems,
+      wmsLayerRows: payload.wmsLayers,
+      nearestStation: nearestStationDetailsEnabled ? payload.nearestStation : null,
+      nearestStationKm: nearestStationDetailsEnabled ? payload.nearestStationKm : null,
+      activeAlert: payload.activeAlert,
+    };
+    onInspectRef.current(mapped);
   }
 
   function inspectLayerStackAt(longitude: number, latitude: number, point?: [number, number]) {
@@ -820,17 +842,21 @@ export function MapView({
       .sort((a, b) => b.order - a.order)
       .map((plan, index) => `${index + 1}. ${plan.source.title}`)
       .join(" | ");
-    onInspectRef.current({
-      ...payload,
+    const mapped: MapInspectPayload = {
+      longitude: payload.longitude,
+      latitude: payload.latitude,
       values: [
-        {
-          label: "Layer Stack",
-          value: stack || "no active render layers",
-          status: "derived",
-        },
+        { label: "Layer Stack", value: stack || "no active render layers", status: "derived" },
         ...payload.values,
       ],
-    });
+      heroMetrics: payload.heroMetrics,
+      pressureSystems: payload.pressureSystems,
+      wmsLayerRows: payload.wmsLayers,
+      nearestStation: payload.nearestStation,
+      nearestStationKm: payload.nearestStationKm,
+      activeAlert: payload.activeAlert,
+    };
+    onInspectRef.current(mapped);
   }
 
   function centerMapAt(longitude: number, latitude: number) {
@@ -1074,6 +1100,14 @@ export function MapView({
     if (diffOverlay && viewMode !== "globe") {
       const bmp = createDiffBitmapLayer(diffOverlay);
       if (bmp) list.push(bmp);
+    }
+
+    // Pressure-system L/H markers — detected from observations and drawn on
+    // top of the basemap so the synoptic pattern is visible at a glance.
+    const stationLayerActive = activeLayers.some((layer) => NORMALIZED_OBSERVATION_LAYER_IDS.has(layer.id));
+    if (stationLayerActive && observations.length > 0) {
+      const systems = detectPressureSystems(observations);
+      list.push(...createPressureSystemLayers(systems));
     }
 
     // TIMELINE-TODO: Add a shader/canvas day-night globe overlay driven by ephemeris-backed
