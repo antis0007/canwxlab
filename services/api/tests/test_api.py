@@ -258,6 +258,65 @@ def test_alerts_normalized_from_mocked_geomet_payload(tmp_path: Path) -> None:
     assert body[0]["source_status"] == "live"
 
 
+def test_ogc_layer_features_endpoint_uses_curated_collection_id(tmp_path: Path) -> None:
+    adapter = CompositeWeatherSourceAdapter(
+        data_mode="live",
+        live_enabled=True,
+        mock_adapter=MockWeatherSourceAdapter(),
+        live_adapter=EcccGeoMetSourceAdapter(
+            ogc_api_base="https://api.weather.gc.ca",
+            wms_base="https://geo.weather.gc.ca/geomet",
+            live_enabled=True,
+            timeout_seconds=2.0,
+            cache_ttl_seconds=60,
+            cache_dir=str(tmp_path),
+        ),
+    )
+    app.dependency_overrides[get_source_adapter] = lambda: adapter
+
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "id": "swob-1",
+                "geometry": {"type": "Point", "coordinates": [-113.5, 53.5]},
+                "properties": {"stn_nam-value": "Edmonton Intl", "air_temp-value": 4.2},
+            }
+        ],
+    }
+
+    now = datetime.now(UTC)
+
+    async def fake_fetch_items(collection_id: str, bbox, limit: int) -> FetchResult:
+        _ = bbox, limit
+        assert collection_id == "swob-realtime"
+        return FetchResult(
+            payload=payload,
+            retrieved_at=now,
+            expires_at=now,
+            source_url="https://api.weather.gc.ca/collections/swob-realtime/items",
+            attempted_at=now,
+            from_cache=False,
+            stale=False,
+            live_fetch_succeeded=True,
+        )
+
+    adapter.live_adapter._fetch_collection_items = fake_fetch_items  # type: ignore[method-assign]
+    response = client.get("/api/eccc/ogc/layers/eccc_swob_realtime/features?limit=5")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["collection_id"] == "swob-realtime"
+    assert body["status"] == "live"
+    assert len(body["features"]) == 1
+    assert body["features"][0]["properties"]["_canwxlab_layer_id"] == "eccc_swob_realtime"
+    # Display fields should be populated for stable client-side rendering.
+    assert body["features"][0]["properties"]["_display_title"] == "Edmonton Intl"
+
+
 
 def test_stations_normalized_from_mocked_geomet_payload(tmp_path: Path) -> None:
     adapter = CompositeWeatherSourceAdapter(
@@ -390,6 +449,84 @@ def test_layers_include_canwxsim() -> None:
     assert response.status_code == 200
     layer_ids = {layer["layer_id"] for layer in response.json()}
     assert "canwxsim_output" in layer_ids
+
+
+def test_cosmic_planning_routes_are_seed_labelled() -> None:
+    status_response = client.get("/api/cosmic/status")
+    assert status_response.status_code == 200
+    status = status_response.json()
+    assert status["status"] == "unavailable"
+    assert all(source["data_class"] == "planned" for source in status["sources"])
+
+    sources_response = client.get("/api/cosmic/sources")
+    assert sources_response.status_code == 200
+    source_ids = {source["source_id"] for source in sources_response.json()["sources"]}
+    assert {"jpl_horizons", "jpl_sbdb", "celestrak"}.issubset(source_ids)
+
+    objects_response = client.get("/api/cosmic/objects/seed")
+    assert objects_response.status_code == 200
+    objects = objects_response.json()
+    assert objects["data_class"] == "seed"
+    assert objects["star_catalog"][0]["data_class"] == "seed"
+    assert objects["orbital_bodies"][0]["source_status"] == "mock"
+
+    ephemeris_response = client.get("/api/cosmic/ephemeris", params={"body": "sun"})
+    assert ephemeris_response.status_code == 200
+    ephemeris = ephemeris_response.json()
+    # Planning endpoint must never present empty samples as if they were live data.
+    assert ephemeris["data_class"] == "unavailable"
+    assert ephemeris["samples"] == []
+    assert ephemeris["object_id"] == "sun"
+    assert ephemeris["source_id"] == "jpl_horizons"
+
+
+def test_cosmic_ephemeris_accepts_target_center_and_window_params() -> None:
+    response = client.get(
+        "/api/cosmic/ephemeris",
+        params={
+            "target": "mars",
+            "center": "sun",
+            "start": "2026-05-15T00:00:00Z",
+            "end": "2026-05-16T00:00:00Z",
+            "step_seconds": 1800,
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["object_id"] == "mars"
+    assert body["step_seconds"] == 1800
+    assert body["data_class"] == "unavailable"
+    # Provenance must surface the cache contract so callers can introspect it.
+    provenance = body["provenance"]
+    assert provenance["adapter"] == "cosmic_horizons"
+    assert provenance["center"] == "sun"
+    assert ".canwxlab" in provenance["cache_root"].replace("\\", "/")
+    assert provenance["cache_path_planned"].endswith(".json")
+
+
+def test_cosmic_ephemeris_handles_missing_target_gracefully() -> None:
+    # Older clients may omit target entirely; the contract still returns a planning
+    # shape rather than a 422 so the frontend never has to special-case the call.
+    response = client.get("/api/cosmic/ephemeris")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["object_id"] == "unspecified"
+    assert body["data_class"] == "unavailable"
+
+
+def test_cosmic_cache_dirs_are_created_on_import() -> None:
+    from pathlib import Path
+
+    from canwxlab_api.adapters.cosmic_horizons import (
+        COSMIC_CACHE_ROOT,
+        ensure_cosmic_cache_dirs,
+    )
+
+    paths = ensure_cosmic_cache_dirs()
+    assert paths["root"] == COSMIC_CACHE_ROOT
+    assert Path(paths["horizons"]).is_dir()
+    assert Path(paths["sbdb"]).is_dir()
+    assert Path(paths["celestrak"]).is_dir()
 
 
 

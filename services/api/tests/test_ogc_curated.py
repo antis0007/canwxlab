@@ -19,8 +19,8 @@ def test_load_curated_ogc_has_expected_entries():
         "eccc_swob_realtime",
         "eccc_aqhi_realtime",
         "eccc_hydrometric_realtime",
-        "eccc_lightning_strikes",
-        "eccc_hurricane_realtime",
+        "eccc_hurricane_cyclone",
+        "eccc_hurricane_track",
     }
     assert expected_subset.issubset(ids)
 

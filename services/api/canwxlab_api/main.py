@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
+from pathlib import Path
+import shutil
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from canwxlab_api.config import get_settings
@@ -49,6 +51,18 @@ async def health() -> dict[str, str]:
         "version": "0.1.0",
         "timestamp": datetime.now(UTC).isoformat(),
     }
+
+
+@app.post("/api/admin/clear-cache")
+async def clear_cache() -> dict[str, str | bool]:
+    cache_path = Path(settings.cache_dir).resolve()
+    cwd = Path.cwd().resolve()
+    if not cache_path.is_relative_to(cwd):
+        raise HTTPException(status_code=400, detail="Refusing to clear cache outside workspace")
+    if cache_path.exists():
+        shutil.rmtree(cache_path)
+    cache_path.mkdir(parents=True, exist_ok=True)
+    return {"ok": True, "cleared": str(cache_path)}
 
 
 app.include_router(sources.router)

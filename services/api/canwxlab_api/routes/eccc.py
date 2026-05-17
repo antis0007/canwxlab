@@ -11,6 +11,7 @@ from canwxlab_api.adapters.eccc_geomet import (
 )
 from canwxlab_api.dependencies import get_source_adapter
 from canwxlab_api.models import WmsCapabilitiesSummaryResponse, WmsCapabilityLayerSummary
+from canwxlab_api.routes.params import parse_bbox_param
 
 router = APIRouter(prefix="/api/eccc", tags=["eccc"])
 
@@ -55,6 +56,17 @@ async def get_ogc_diagnostics(
         "probe_status": payload.get("status"),
         "curated": build_ogc_collections_diagnostics(ids),
     }
+
+
+@router.get("/ogc/layers/{layer_id}/features")
+async def get_ogc_layer_features(
+    layer_id: str,
+    bbox: str | None = Query(default=None, description="minLon,minLat,maxLon,maxLat"),
+    limit: int = Query(default=500, ge=1, le=1000),
+    adapter: WeatherSourceAdapter = Depends(get_source_adapter),
+) -> dict[str, Any]:
+    parsed_bbox = parse_bbox_param(bbox)
+    return await adapter.fetch_layer_features(layer_id=layer_id, bbox=parsed_bbox, limit=limit)
 
 
 @router.get("/collections/{collection_id}")

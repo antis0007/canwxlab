@@ -268,6 +268,50 @@ class CompositeWeatherSourceAdapter(WeatherSourceAdapter):
             return summary
         return await self.live_adapter.get_wms_capabilities_summary()
 
+    async def fetch_layer_features(
+        self,
+        layer_id: str,
+        bbox: BBox | None = None,
+        limit: int = 500,
+    ) -> dict:
+        if self.data_mode == "mock":
+            return {
+                "type": "FeatureCollection",
+                "layer_id": layer_id,
+                "status": SourceStatus.mock,
+                "features": [],
+                "message": "Mock mode active: live OGC feature lookup disabled.",
+            }
+
+        if self.data_mode == "hybrid" and not self.live_enabled:
+            return {
+                "type": "FeatureCollection",
+                "layer_id": layer_id,
+                "status": SourceStatus.fallback,
+                "features": [],
+                "message": "Live ECCC data disabled; no generic mock feature fallback exists.",
+            }
+
+        try:
+            return await self.live_adapter.fetch_layer_features(
+                layer_id=layer_id,
+                bbox=bbox,
+                limit=limit,
+            )
+        except Exception as exc:  # noqa: BLE001
+            status = (
+                SourceStatus.fallback
+                if self.data_mode == "hybrid"
+                else SourceStatus.unavailable
+            )
+            return {
+                "type": "FeatureCollection",
+                "layer_id": layer_id,
+                "status": status,
+                "features": [],
+                "message": f"Live OGC feature request failed ({type(exc).__name__}): {exc}",
+            }
+
     async def _with_optional_fallback(
         self,
         fallback_flag: str,

@@ -13,14 +13,14 @@ foreach ($port in $Ports) {
   }
 
   foreach ($connection in $connections) {
-    $pid = $connection.OwningProcess
-    if ($pid -and $pid -ne 0) {
+    $processId = $connection.OwningProcess
+    if ($processId -and $processId -ne 0) {
       try {
-        $process = Get-Process -Id $pid -ErrorAction Stop
-        Stop-Process -Id $pid -Force
-        Write-Host "Stopped $($process.ProcessName) (PID $pid) on port $port"
+        $process = Get-Process -Id $processId -ErrorAction Stop
+        Stop-Process -Id $processId -Force
+        Write-Host "Stopped $($process.ProcessName) (PID $processId) on port $port"
       } catch {
-        Write-Warning "Failed stopping PID $pid on port $port: $_"
+        Write-Warning "Failed stopping PID $processId on port ${port}: $_"
       }
     }
   }

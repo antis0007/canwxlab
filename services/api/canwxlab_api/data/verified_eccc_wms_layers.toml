@@ -173,3 +173,36 @@ source = "eccc_geomet_wms"
 attribution = "Environment and Climate Change Canada / Meteorological Service of Canada."
 notes = "Regional Ice-Ocean Prediction System ice concentration field."
 verified = false
+
+[[layer]]
+id = "eccc_goes_east_cloud_type"
+title = "ECCC GOES-East - Day Cloud Type / Night Microphysics"
+category = "satellite"
+intended_product_type = "cloud"
+candidate_layer_names = ["GOES-East_1km_DayCloudType-NightMicrophysics"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / NOAA."
+notes = "GOES-East cloud type / night microphysics satellite product at 1 km."
+verified = true
+
+[[layer]]
+id = "eccc_goes_west_natural"
+title = "ECCC GOES-West - Natural Colour"
+category = "satellite"
+intended_product_type = "satellite"
+candidate_layer_names = ["GOES-West_1km_NaturalColor"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / NOAA."
+notes = "GOES-West natural colour composite at 1 km."
+verified = true
+
+[[layer]]
+id = "eccc_goes_west_cloud_type"
+title = "ECCC GOES-West - Day Cloud Type / Night Microphysics"
+category = "satellite"
+intended_product_type = "cloud"
+candidate_layer_names = ["GOES-West_1km_DayCloudType-NightMicrophysics"]
+source = "eccc_geomet_wms"
+attribution = "Environment and Climate Change Canada / NOAA."
+notes = "GOES-West cloud type / night microphysics satellite product at 1 km."
+verified = true

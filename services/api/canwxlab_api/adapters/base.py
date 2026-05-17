@@ -65,3 +65,12 @@ class WeatherSourceAdapter(ABC):
     async def get_wms_capabilities_summary(self) -> WmsCapabilitiesSummaryResponse:
         source = await self.get_source_status()
         return WmsCapabilitiesSummaryResponse(source=source, layers=[])
+
+    async def fetch_layer_features(
+        self,
+        layer_id: str,
+        bbox: BBox | None = None,
+        limit: int = 500,
+    ) -> dict:
+        _ = layer_id, bbox, limit
+        return {"type": "FeatureCollection", "features": [], "status": "unavailable"}

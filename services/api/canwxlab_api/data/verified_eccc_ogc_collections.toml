@@ -13,13 +13,13 @@
 
 [[collection]]
 id = "eccc_weather_alerts"
-collection_id = "weather-alerts-realtime"
-title = "ECCC Weather Alerts (realtime)"
+collection_id = "weather-alerts"
+title = "ECCC Weather Alerts"
 kind = "polygon"
 variable = "alerts"
 category = "alert"
 unit = "category"
-description = "Active ECCC weather alert polygons."
+description = "Active ECCC public weather alert polygons (warnings, watches, statements)."
 verified = true
 
 # ── Surface observations ──────────────────────────────────────────────────
@@ -116,28 +116,48 @@ unit = "mixed"
 description = "Daily-mean water level and discharge."
 verified = false
 
-# ── Lightning ─────────────────────────────────────────────────────────────
+# ── Hurricane / tropical (CHC) ────────────────────────────────────────────
 
 [[collection]]
-id = "eccc_lightning_strikes"
-collection_id = "lightning-realtime"
-title = "ECCC CLDN — Lightning Strikes (realtime)"
+id = "eccc_hurricane_cyclone"
+collection_id = "hurricanes-cyclone-realtime"
+title = "ECCC CHC — Hurricane Cyclones (realtime)"
 kind = "point"
-variable = "lightning"
-category = "observation"
-unit = "event"
-description = "Canadian Lightning Detection Network strike points."
-verified = false
-
-# ── Hurricane / tropical ──────────────────────────────────────────────────
-
-[[collection]]
-id = "eccc_hurricane_realtime"
-collection_id = "hurricanes-realtime"
-title = "ECCC CHC — Hurricanes (realtime)"
-kind = "polygon"
-variable = "hurricane"
+variable = "hurricane_cyclone"
 category = "alert"
 unit = "category"
-description = "Canadian Hurricane Centre tropical-system features."
+description = "Canadian Hurricane Centre cyclone centre points (current position)."
+verified = false
+
+[[collection]]
+id = "eccc_hurricane_track"
+collection_id = "hurricanes-track-realtime"
+title = "ECCC CHC — Hurricane Tracks (realtime)"
+kind = "vector"
+variable = "hurricane_track"
+category = "alert"
+unit = "category"
+description = "Canadian Hurricane Centre forecast and historic track lines."
+verified = false
+
+[[collection]]
+id = "eccc_hurricane_error_cone"
+collection_id = "hurricanes-error_cone-realtime"
+title = "ECCC CHC — Hurricane Forecast Cones (realtime)"
+kind = "polygon"
+variable = "hurricane_error_cone"
+category = "alert"
+unit = "category"
+description = "Canadian Hurricane Centre forecast error cones (uncertainty)."
+verified = false
+
+[[collection]]
+id = "eccc_hurricane_wind_radii"
+collection_id = "hurricanes-wind_radii-realtime"
+title = "ECCC CHC — Hurricane Wind Radii (realtime)"
+kind = "polygon"
+variable = "hurricane_wind_radii"
+category = "alert"
+unit = "category"
+description = "Canadian Hurricane Centre wind-radius polygons (34/50/64 kt)."
 verified = false

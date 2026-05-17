@@ -31,6 +31,12 @@ ECCC_LICENSE_URL = "https://eccc-msc.github.io/open-data/readme_en/"
 class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
     """Live-capable ECCC/MSC GeoMet source adapter with local cache fallback."""
 
+    # GEOMET-TODO: Keep this adapter the Phase 1 priority. Add curated ingestion for radar,
+    # satellite/GOES products, model grids, hydrometric, lightning, AQHI, wildfire/smoke,
+    # historical climate, and Datamart-only products where OGC API/WMS is insufficient.
+    # GEOMET-TODO: Preserve source URL, retrieval time, cache state, layer time dimension,
+    # and license/provenance on every normalized product.
+
     def __init__(
         self,
         ogc_api_base: str,
@@ -113,7 +119,10 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
             return []
 
         result = await self._fetch_collection_items(
-            collection_id="weather-alerts",
+            collection_id=_collection_id_for_layer(
+                "eccc_weather_alerts",
+                fallback="weather-alerts",
+            ),
             bbox=bbox,
             limit=limit,
         )
@@ -146,7 +155,10 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
             return []
 
         result = await self._fetch_collection_items(
-            collection_id="climate-stations",
+            collection_id=_collection_id_for_layer(
+                "eccc_climate_stations",
+                fallback="climate-stations",
+            ),
             bbox=bbox,
             limit=limit,
         )
@@ -179,7 +191,10 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
             return []
 
         result = await self._fetch_collection_items(
-            collection_id="climate-hourly",
+            collection_id=_collection_id_for_layer(
+                "eccc_climate_hourly",
+                fallback="climate-hourly",
+            ),
             bbox=bbox,
             limit=limit,
         )
@@ -316,9 +331,9 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
                     expires_at=capabilities.source.expires_at,
                     attribution=definition.get("attribution") or ECCC_ATTRIBUTION,
                     license_url=ECCC_LICENSE_URL,
-                    default_opacity=0.65,
+                    default_opacity=_curated_default_opacity(product),
                     color_ramps=[],
-                    styles=["default"],
+                    styles=matched.styles if matched and matched.styles else [],
                     wms_base_url=self.wms_base,
                     wms_layer_name=matched.layer_name if matched else None,
                     time_dimension_supported=matched.has_time_dimension if matched else False,
@@ -333,6 +348,12 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
                         "intended_product_type": product,
                         "capabilities_title": matched.title if matched else None,
                         "time_extent": matched.time_extent if matched else None,
+                        "styles": matched.styles if matched else [],
+                        "legend_url": matched.legend_url if matched else None,
+                        "bounding_boxes": matched.bounding_boxes if matched else {},
+                        "wms_bounds_lonlat": (
+                            _wms_bounds_lonlat(matched.bounding_boxes) if matched else None
+                        ),
                         # legacy field for back-compat
                         "keywords": keywords_legacy,
                     },
@@ -450,6 +471,15 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
                 message=source.message,
                 error_type=source.error_type,
                 is_live=source.status == SourceStatus.live,
+                metadata={
+                    "curated": True,
+                    "ogc_collection_id": _collection_id_for_layer(
+                        "eccc_weather_alerts",
+                        fallback="weather-alerts",
+                    ),
+                    "category_hint": "alert",
+                    "verified_runtime": source.status in {SourceStatus.live, SourceStatus.stale},
+                },
             ),
             WeatherLayer(
                 layer_id="eccc_climate_stations",
@@ -475,6 +505,15 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
                 message=source.message,
                 error_type=source.error_type,
                 is_live=source.status == SourceStatus.live,
+                metadata={
+                    "curated": True,
+                    "ogc_collection_id": _collection_id_for_layer(
+                        "eccc_climate_stations",
+                        fallback="climate-stations",
+                    ),
+                    "category_hint": "observation",
+                    "verified_runtime": source.status in {SourceStatus.live, SourceStatus.stale},
+                },
             ),
             WeatherLayer(
                 layer_id="eccc_climate_hourly",
@@ -500,6 +539,15 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
                 message=source.message,
                 error_type=source.error_type,
                 is_live=source.status == SourceStatus.live,
+                metadata={
+                    "curated": True,
+                    "ogc_collection_id": _collection_id_for_layer(
+                        "eccc_climate_hourly",
+                        fallback="climate-hourly",
+                    ),
+                    "category_hint": "observation",
+                    "verified_runtime": source.status in {SourceStatus.live, SourceStatus.stale},
+                },
             ),
         ]
 
@@ -537,6 +585,90 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
             ttl_seconds=self.cache_ttl_seconds,
             allow_stale_on_error=True,
         )
+
+    async def fetch_layer_features(
+        self,
+        layer_id: str,
+        bbox: BBox | None = None,
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        collection_id = _collection_id_for_layer(layer_id)
+        if collection_id is None:
+            return {
+                "type": "FeatureCollection",
+                "layer_id": layer_id,
+                "status": SourceStatus.unavailable,
+                "features": [],
+                "message": f"No curated OGC collection is configured for layer '{layer_id}'.",
+            }
+
+        if not self.live_enabled:
+            return {
+                "type": "FeatureCollection",
+                "layer_id": layer_id,
+                "collection_id": collection_id,
+                "status": SourceStatus.unavailable,
+                "features": [],
+                "message": "Live ECCC data disabled.",
+            }
+
+        try:
+            result = await self._fetch_collection_items(
+                collection_id=collection_id,
+                bbox=bbox,
+                limit=limit,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "type": "FeatureCollection",
+                "layer_id": layer_id,
+                "collection_id": collection_id,
+                "status": SourceStatus.unavailable,
+                "features": [],
+                "message": f"OGC feature collection unavailable: {exc}",
+                "error_type": type(exc).__name__,
+            }
+
+        status = SourceStatus.stale if result.stale else SourceStatus.live
+        features = []
+        for feature in result.payload.get("features", []):
+            if not isinstance(feature, dict):
+                continue
+            if not isinstance(feature.get("geometry"), dict):
+                continue
+            properties = feature.get("properties")
+            if not isinstance(properties, dict):
+                properties = {}
+            display = _derive_display_properties(layer_id, properties)
+            features.append(
+                {
+                    **feature,
+                    "properties": {
+                        **properties,
+                        **display,
+                        "_canwxlab_layer_id": layer_id,
+                        "_canwxlab_collection_id": collection_id,
+                        "_canwxlab_source_status": status,
+                        "_canwxlab_source_url": result.source_url,
+                    },
+                }
+            )
+
+        return {
+            "type": "FeatureCollection",
+            "layer_id": layer_id,
+            "collection_id": collection_id,
+            "status": status,
+            "retrieved_at": result.retrieved_at,
+            "expires_at": result.expires_at,
+            "source_url": result.source_url,
+            "features": features,
+            "message": (
+                "Cached OGC features used after fetch error."
+                if result.stale
+                else "Live OGC features fetched successfully."
+            ),
+        }
 
     def _disabled_source(
         self,
@@ -634,24 +766,64 @@ def _normalize_alert_feature(
         feature.get("id")
         or properties.get("identifier")
         or properties.get("cap:identifier")
+        or properties.get("id")
         or f"eccc-alert-{index}"
     )
 
+    # MSC GeoMet `weather-alerts` properties use Canadian-specific names;
+    # CAP-style names are kept as fallbacks for compatibility with synthetic
+    # / partner feeds.
     issued_at = _first_datetime(
         properties,
-        ["sent", "effective", "published", "issued_at", "issueTime"],
+        [
+            "publication_datetime",
+            "validity_datetime",
+            "sent",
+            "effective",
+            "published",
+            "issued_at",
+            "issueTime",
+        ],
         fallback=result.retrieved_at,
     )
     expires_at = _first_datetime(
         properties,
-        ["expires", "end", "ends", "expiry"],
+        [
+            "expiration_datetime",
+            "event_end_datetime",
+            "expires",
+            "end",
+            "ends",
+            "expiry",
+        ],
         fallback=None,
     )
 
-    severity = _normalize_severity(str(properties.get("severity", "unknown")))
+    alert_type = str(properties.get("alert_type") or "").strip().lower()
+    severity_raw = str(properties.get("severity") or _severity_from_alert_type(alert_type))
+    severity = _normalize_severity(severity_raw)
     cap_status = _normalize_cap_status(str(properties.get("status", "actual")))
-    event = str(properties.get("event") or properties.get("eventType") or "Weather alert")
-    headline = str(properties.get("headline") or properties.get("title") or event)
+
+    name_en = (
+        properties.get("alert_name_en")
+        or properties.get("alert_short_name_en")
+        or properties.get("event")
+        or properties.get("eventType")
+    )
+    event = str(name_en or "Weather alert")
+
+    headline_en = (
+        properties.get("headline")
+        or properties.get("title")
+        or _format_alert_headline(event, alert_type, properties.get("alert_code"))
+    )
+    headline = str(headline_en)
+
+    description = str(
+        properties.get("alert_text_en")
+        or properties.get("description")
+        or headline
+    )
 
     return AlertFeature(
         alert_id=alert_id,
@@ -662,7 +834,7 @@ def _normalize_alert_feature(
         severity=severity,
         status=cap_status,
         headline=headline,
-        description=str(properties.get("description") or headline),
+        description=description,
         issued_at=issued_at,
         expires_at=expires_at,
         geometry=geometry,
@@ -670,6 +842,135 @@ def _normalize_alert_feature(
         retrieved_at=result.retrieved_at,
         raw_properties=properties,
     )
+
+
+def _severity_from_alert_type(alert_type: str) -> str:
+    """Map ECCC `alert_type` (warning/watch/advisory/statement) to CAP severity."""
+    mapping = {
+        "warning": "severe",
+        "watch": "moderate",
+        "advisory": "moderate",
+        "statement": "minor",
+        "ended": "minor",
+    }
+    return mapping.get(alert_type, "unknown")
+
+
+def _derive_display_properties(layer_id: str, properties: dict[str, Any]) -> dict[str, Any]:
+    """Produce a stable, renderer-friendly subset of property fields.
+
+    Curated OGC collections each carry their own GeoMet property vocabulary.
+    Surface the most useful label/value/timestamp under known keys so the
+    web client can render tooltips without knowing per-collection schemas.
+    """
+    display: dict[str, Any] = {}
+
+    def first(*keys: str) -> Any:
+        for key in keys:
+            value = properties.get(key)
+            if value not in (None, ""):
+                return value
+        return None
+
+    # --- weather alerts ----------------------------------------------------
+    if layer_id == "eccc_weather_alerts":
+        name = first("alert_name_en", "alert_short_name_en", "event")
+        atype = first("alert_type") or ""
+        code = first("alert_code")
+        text = first("alert_text_en", "description", "headline")
+        if name:
+            display["_display_title"] = (
+                f"{name} {atype}".strip() if atype and atype.lower() not in str(name).lower() else str(name)
+            )
+        if code:
+            display["_display_subtitle"] = f"Code: {code}"
+        if text:
+            display["_display_body"] = text
+        display["_display_event_kind"] = "alert"
+
+    # --- AQHI observations / forecasts ------------------------------------
+    elif layer_id in {"eccc_aqhi_realtime", "eccc_aqhi_forecasts"}:
+        location = first("location_name_en", "location_name", "station_name_en", "station_name")
+        aqhi = first("aqhi", "aqhi_value", "value")
+        observed = first("observation_datetime", "forecast_datetime", "datetime")
+        if location:
+            display["_display_title"] = str(location)
+        if aqhi is not None:
+            display["_display_subtitle"] = f"AQHI {aqhi}"
+        if observed:
+            display["_display_body"] = f"Observed/Forecast: {observed}"
+        display["_display_event_kind"] = "aqhi"
+
+    # --- Hydrometric realtime / daily -------------------------------------
+    elif layer_id.startswith("eccc_hydrometric"):
+        station = first("STATION_NAME", "station_name", "STATION_NUMBER")
+        level = first("LEVEL", "water_level", "WATER_LEVEL")
+        discharge = first("DISCHARGE", "DISCHARGE_VALUE", "discharge")
+        when = first("DATETIME", "datetime")
+        if station:
+            display["_display_title"] = str(station)
+        bits: list[str] = []
+        if level is not None:
+            bits.append(f"Level {level} m")
+        if discharge is not None:
+            bits.append(f"Discharge {discharge} m³/s")
+        if bits:
+            display["_display_subtitle"] = " · ".join(bits)
+        if when:
+            display["_display_body"] = f"Observed: {when}"
+        display["_display_event_kind"] = "hydrometric"
+
+    # --- SWOB-ML surface observations -------------------------------------
+    elif layer_id == "eccc_swob_realtime":
+        station = first("stn_nam-value", "stn_nam", "station_name")
+        air_temp = first("air_temp-value", "air_temp", "temperature")
+        wind_spd = first("wnd_spd-value", "wnd_spd", "wind_speed")
+        when = first("date_tm-value", "date_tm", "datetime")
+        if station:
+            display["_display_title"] = str(station)
+        bits = []
+        if air_temp is not None:
+            bits.append(f"Temp {air_temp} °C")
+        if wind_spd is not None:
+            bits.append(f"Wind {wind_spd} km/h")
+        if bits:
+            display["_display_subtitle"] = " · ".join(bits)
+        if when:
+            display["_display_body"] = f"Observed: {when}"
+        display["_display_event_kind"] = "surface_obs"
+
+    # --- Hurricane (CHC) variants -----------------------------------------
+    elif layer_id.startswith("eccc_hurricane"):
+        name = first("storm_name", "name", "stormname")
+        cat = first("category", "intensity_category")
+        wind = first("max_wind_kt", "max_wind", "windspeed", "windspeed_kt")
+        when = first("datetime", "valid_time", "forecast_time")
+        if name:
+            display["_display_title"] = str(name)
+        bits = []
+        if cat is not None:
+            bits.append(f"Cat {cat}")
+        if wind is not None:
+            bits.append(f"Max wind {wind} kt")
+        if bits:
+            display["_display_subtitle"] = " · ".join(bits)
+        if when:
+            display["_display_body"] = f"Time: {when}"
+        display["_display_event_kind"] = "tropical_system"
+
+    return display
+
+
+def _format_alert_headline(event: str, alert_type: str, alert_code: Any) -> str:
+    event_titled = event.strip()
+    # Many GeoMet names already end with "warning"/"watch" so don't double up.
+    if alert_type and alert_type not in event_titled.lower():
+        composed = f"{event_titled} {alert_type}".strip()
+    else:
+        composed = event_titled or "Weather alert"
+    if isinstance(alert_code, str) and alert_code:
+        return f"{composed} ({alert_code})"
+    return composed
 
 
 def _normalize_station_feature(
@@ -990,6 +1291,28 @@ def _curated_match_message(
     )
 
 
+def _curated_default_opacity(product: str) -> float:
+    if product == "radar":
+        return 0.82
+    if product == "satellite":
+        return 0.72
+    if product == "temperature":
+        return 0.58
+    return 0.68
+
+
+def _wms_bounds_lonlat(bounding_boxes: dict[str, list[float]]) -> list[float] | None:
+    for crs in ("CRS:84", "OGC:CRS84", "EPSG:4326"):
+        bbox = bounding_boxes.get(crs)
+        if not bbox or len(bbox) != 4:
+            continue
+        minx, miny, maxx, maxy = bbox
+        if crs == "EPSG:4326" and max(abs(minx), abs(maxx)) <= 90 and max(abs(miny), abs(maxy)) <= 180:
+            return [miny, minx, maxy, maxx]
+        return [minx, miny, maxx, maxy]
+    return None
+
+
 def _resolve_curated_layer(
     by_name_lower: dict[str, WmsCapabilityLayerSummary],
     candidate_layer_names: list[str],
@@ -1006,6 +1329,14 @@ def _resolve_curated_layer(
         if match is not None:
             return match
     return None
+
+
+def _collection_id_for_layer(layer_id: str, fallback: str | None = None) -> str | None:
+    for entry in load_verified_eccc_ogc_collections():
+        if entry.get("id") == layer_id:
+            value = entry.get("collection_id")
+            return value if isinstance(value, str) and value else fallback
+    return fallback
 
 
 _VERIFIED_WMS_CONFIG_PATH = (
