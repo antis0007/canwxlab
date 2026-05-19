@@ -232,6 +232,8 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
             ("eccc_climate_stations", "climate-stations"),
         ]
         last_error: Exception | None = None
+        merged: list[Observation] = []
+        seen_keys: set[tuple[str, str]] = set()
         for layer_id, fallback in collection_candidates:
             try:
                 result = await self._fetch_collection_items(
@@ -261,11 +263,17 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
                     )
                     continue
                 if normalized is not None:
+                    key = (normalized.station_id, normalized.observed_at.isoformat())
+                    if key in seen_keys:
+                        continue
+                    seen_keys.add(key)
                     observations.append(normalized)
 
             if observations:
-                return observations[: max(1, limit)]
+                merged.extend(observations)
 
+        if merged:
+            return merged[: max(1, limit)]
         if last_error is not None:
             raise last_error
         return []

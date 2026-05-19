@@ -16,8 +16,25 @@ import type {
   WmsCapabilitiesSummaryResponse,
   WmsCapabilityLayerSummary
 } from "../types/weather";
+import { cachedGetJson } from "./localCache";
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787";
+
+function cachePolicyForPath(path: string): { ttlMs: number; staleIfErrorMs: number } {
+  if (path.includes("/wms/capabilities") || path.includes("/wms/layers") || path.includes("/eccc/collections")) {
+    return { ttlMs: 6 * 60 * 60 * 1000, staleIfErrorMs: 7 * 24 * 60 * 60 * 1000 };
+  }
+  if (path.includes("/layers") || path.includes("/sources") || path.includes("/plugins")) {
+    return { ttlMs: 10 * 60 * 1000, staleIfErrorMs: 24 * 60 * 60 * 1000 };
+  }
+  if (path.includes("/observations") || path.includes("/alerts")) {
+    return { ttlMs: 60 * 1000, staleIfErrorMs: 30 * 60 * 1000 };
+  }
+  if (path.includes("/verification")) {
+    return { ttlMs: 30 * 60 * 1000, staleIfErrorMs: 24 * 60 * 60 * 1000 };
+  }
+  return { ttlMs: 2 * 60 * 1000, staleIfErrorMs: 30 * 60 * 1000 };
+}
 
 async function getJson<T>(path: string, query?: Record<string, string | number | boolean | undefined>): Promise<T> {
   const url = new URL(`${API_BASE_URL}${path}`);
@@ -28,11 +45,7 @@ async function getJson<T>(path: string, query?: Record<string, string | number |
     });
   }
 
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}: ${path}`);
-  }
-  return response.json() as Promise<T>;
+  return cachedGetJson<T>(url.toString(), cachePolicyForPath(path));
 }
 
 async function postJson<T>(path: string): Promise<T> {

@@ -13,7 +13,7 @@ import { RightInspector } from "./components/workbench/RightInspector";
 import { TopBar } from "./components/workbench/TopBar";
 import { useAnimationTimeline } from "./layers/animation";
 import { useLayerEngine } from "./layers/layerEngine";
-import type { LayerDefinition, LayerDiagnostics, RendererFeatureValue, ViewMode, CameraState } from "./layers/types";
+import type { LayerDiagnostics, RendererFeatureValue, ViewMode, CameraState } from "./layers/types";
 import { api } from "./lib/api";
 import { logManager } from "./lib/logging";
 import { useAppLogging } from "./hooks/useAppLogging";
@@ -59,7 +59,7 @@ function writeViewMode(mode: ViewMode) {
 
 const BASEMAP_STORAGE_KEY = "canwxlab.basemap.v3";
 const LOCAL_STATE_PREFIX = "canwxlab.";
-const INITIAL_OBSERVATION_LIMIT = 300;
+const INITIAL_OBSERVATION_LIMIT = 1000;
 
 function readBasemap(): BasemapId {
   if (typeof window === "undefined") return "blue_marble";
@@ -397,7 +397,6 @@ export default function App() {
         },
       });
 
-      const tz = timeZone || "UTC";
       const label = new Date(playbackState.selectedValidTime).toLocaleString("en-CA", {
         year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
       }).replace(/[^a-zA-Z0-9]/g, "-");
@@ -408,7 +407,7 @@ export default function App() {
       setGifExportProgress(null);
       setGifExportOpen(false);
     }
-  }, [playbackState.isPlaying, playbackState.frameCount, playbackState.selectedValidTime, timeZone, toggle, setFrame]);
+  }, [playbackState.isPlaying, playbackState.frameCount, playbackState.selectedValidTime, toggle, setFrame]);
 
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);
