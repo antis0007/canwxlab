@@ -253,19 +253,30 @@ vec4 sampleMorph(int idx, vec2 merc) {
 
   if (hasPrev && hasNext) {
     vec2 flow = vec2(0.0);
+    float flowConfidence = 0.0;
     if (uHasFlowTex[idx] > 0.5 && prevInside && nextInside) {
       vec4 packed = sampleFlowTex(idx, nextUv);
-      if (packed.b > 0.25) {
-        flow = (packed.rg - vec2(0.5)) * (uMaxFlowUv * 2.0);
-      }
+      flowConfidence = packed.b;
+      flow = (packed.rg - vec2(0.5)) * (uMaxFlowUv * 2.0);
     }
-    vec4 advected = prevInside
-      ? samplePrevTex(idx, clamp(prevUv + flow * uTimeProgress, vec2(0.0), vec2(1.0)))
-      : vec4(0.0);
+    vec4 prevSample = prevInside ? samplePrevTex(idx, prevUv) : vec4(0.0);
     vec4 nextSample = nextInside ? sampleNextTex(idx, nextUv) : vec4(0.0);
     if (!prevInside) return nextSample;
-    if (!nextInside) return advected;
-    return mix(advected, nextSample, uTimeProgress);
+    if (!nextInside) return prevSample;
+
+    vec4 dissolved = mix(prevSample, nextSample, uTimeProgress);
+    if (flowConfidence <= 0.25) return dissolved;
+
+    vec4 prevForward = samplePrevTex(
+      idx,
+      clamp(prevUv + flow * uTimeProgress, vec2(0.0), vec2(1.0))
+    );
+    vec4 nextBackward = sampleNextTex(
+      idx,
+      clamp(nextUv - flow * (1.0 - uTimeProgress), vec2(0.0), vec2(1.0))
+    );
+    vec4 advected = mix(prevForward, nextBackward, uTimeProgress);
+    return mix(dissolved, advected, smoothstep(0.25, 0.85, flowConfidence));
   }
   if (nextInside) return sampleNextTex(idx, nextUv);
   if (prevInside) return samplePrevTex(idx, prevUv);
