@@ -39,6 +39,12 @@ Live requests use `httpx` + file JSON cache:
 - cache entry includes `retrieved_at`, `expires_at`, `source_url`, `payload`
 - stale cache may be used when live fetch fails
 - hybrid fallback is explicit (`fallback`)
+- server-side requests send a configurable `CANWXLAB_HTTP_USER_AGENT`
+- concurrent cache misses for the same URL/params are coalesced
+- GeoMet catalog/capabilities requests use longer source-aware TTLs than
+  rapidly changing observation collections
+- ECCC WMS image tiles are proxied through `/api/eccc/wms/image` for headers,
+  disk cache, browser cache headers, and stale-on-error fallback
 
 ## Phase 2 Visual Layer Reality
 
@@ -63,6 +69,8 @@ These are intentionally labeled `MOCK/DEMO` and are for UI iteration, not operat
 - Do not present CanWxLab as official alert issuer.
 - Do not scrape websites when official APIs exist.
 - Keep experimental/simulation outputs clearly separated from observed/official feeds.
+- Follow [data access policies](data-access-policies.md) before adding a source
+  or raising request volume.
 
 ## Tile Infrastructure Note
 

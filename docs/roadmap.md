@@ -77,20 +77,30 @@
 - GPU acceleration where justified
 - Bridges to external model ecosystems where licensing permits
 
-## Phase 8: Cosmic Scope Extension (Parallel Track)
+## Phase 8: OSINT Earth + Cosmic Extension (Parallel Track)
 
 CanWxLab is being re-framed as an **OSINT planetary live-view suite** in which Canadian
-weather is one of many data layers. The scope expands to include real-time celestial-sphere
-rendering, solar-system orbital visualization, asteroid/comet/satellite tracking, and a
-ground-based stellarium mode. This is a parallel track; the weather phases above continue
-shipping independently.
+weather is one of many data layers. The scope expands to include live public-data mobility,
+cyberspace, infrastructure, humanitarian/disaster, public attention, satellite/orbital, and
+celestial layers. This is a parallel track; the weather phases above continue shipping
+independently.
 
 See **[`cosmic-scope-roadmap.md`](./cosmic-scope-roadmap.md)** for the full plan, data-source
 contract, coordinate-system pipeline, renderer architecture, phased delivery (A–F), and open
 questions.
 See **[`global-osint-data-sources.md`](./global-osint-data-sources.md)** for the global source
 inventory and adapter backlog.
+See **[`non-weather-osint-layers.md`](./non-weather-osint-layers.md)** for the public-data
+non-weather layer backlog, product modes, safety rules, and implementation order.
 
 Currently in-flight: **Cosmic-Phase A** — celestial sphere with real bright-star positions,
 GMST-rotated camera frame, click-for-OSINT info, exposure controls. The starfield is wired
 to the photorealistic globe and tracks the live timeline.
+
+Near-term OSINT Earth additions after Phase A provenance/event hardening:
+
+- non-weather source/provenance registry and privacy-class badges
+- mode switcher for Weather, Earth, Cyberspace, Hyperreality, Infrastructure, and Space
+- first public live layers: OpenSky aircraft, GTFS Realtime transit, USGS/Earthquakes Canada
+  seismic events, GDACS disasters, GDELT news events, Wikimedia EventStreams, Cloudflare Radar
+  outages, RIPE RIS Live BGP updates, and PeeringDB facilities/IXPs

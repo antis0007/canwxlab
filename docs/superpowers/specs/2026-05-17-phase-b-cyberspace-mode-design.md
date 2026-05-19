@@ -8,6 +8,12 @@
 
 Extend the canwxlab globe from pure meteorology into network topology visualization. Map ASNs, BGP routes, IP prefix ownership, data centers, IXPs, and internet health metrics as first-class spatiotemporal layers on the same globe that shows weather.
 
+Cyberspace mode is part of the larger non-weather OSINT backlog in
+`docs/non-weather-osint-layers.md`. Its scope is public internet measurement, routing
+topology, outages, registry provenance, aggregate exposure, and user-owned asset context.
+It is not an internet-wide scanning product and must not render arbitrary vulnerable hosts
+as a targeting layer.
+
 ## What Gets Built
 
 ### B1: ASN Registry + Prefix Ownership
@@ -34,6 +40,12 @@ Extend the canwxlab globe from pure meteorology into network topology visualizat
 - IXP outage detection (multiple peer drops)
 - DDoS/scan noise aggregate heatmaps (from public telescope data)
 
+### B5: Vulnerability Context (Aggregate/User-Owned Only)
+- Ingest CISA KEV, NVD CVE metadata, and FIRST EPSS scores
+- Join vulnerability data only to aggregate sectors/ASNs/countries or user-owned inventory
+- Store evidence as `SpatiotemporalEvent` with `event_kind = "network.vulnerability.context"`
+- Never render arbitrary public hosts with vulnerability details by default
+
 ## Data Sources
 
 | Source | What | License |
@@ -41,8 +53,10 @@ Extend the canwxlab globe from pure meteorology into network topology visualizat
 | RouteViews / RIPE RIS | BGP updates and RIB dumps | Public |
 | ARIN/RIPE/APNIC RDAP | ASN, prefix, org registration | Public |
 | PeeringDB | IXP, facility, network metadata | Public |
+| Cloudflare Radar / IHR | Outages, traffic context, BGP anomaly signals | Public/API terms |
 | Certificate Transparency | Domain/cert infrastructure | Public |
 | Censys/Shodan (licensed) | Exposure aggregates | Commercial |
+| CISA KEV / NVD / FIRST EPSS | Vulnerability context and exploit likelihood | Public/API terms |
 | RIPE Atlas | Latency probes | Public |
 
 ## Architecture Notes
@@ -66,6 +80,8 @@ Extend the canwxlab globe from pure meteorology into network topology visualizat
 
 ## Safety and Ethics
 
+- Shodan/Censys data may enrich aggregate views or user-entered/user-owned assets only
+- Vulnerability overlays are context layers, not target-selection workflows
 - IP geolocation outputs always include confidence radius — never precise coordinates for individual IPs
 - No raw vulnerable device exposure — only aggregates
 - No unauthorized scanning — only public/volunteered/licensed data

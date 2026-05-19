@@ -30,3 +30,10 @@ Thumbs.db
 services/api/.canwxlab/
 apps/web/tsconfig.tsbuildinfo
 .claude/settings.local.json
+.claude/
+.playwright-mcp/
+.superpowers/
+/app-state-after-fix.png
+/timeline-check.png
+/timeline-fixed.png
+/timeline-snapshot.md

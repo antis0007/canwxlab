@@ -14,6 +14,12 @@ safe before it becomes a default layer.
   products, legends, and alerts.
 - Label latency honestly: realtime, near-realtime, daily, archive, model forecast, or stale cache.
 - Never silently blend incompatible projections, time steps, or product levels.
+- For cyber, mobility, and identity-adjacent feeds, prefer public, licensed, aggregate, opt-in,
+  or user-owned data. Do not add private telemetry, private communications, or unauthorized
+  scanning workflows.
+
+The detailed non-weather layer backlog is tracked in
+[`non-weather-osint-layers.md`](./non-weather-osint-layers.md).
 
 ## Immediate Priority Sources
 
@@ -63,6 +69,29 @@ safe before it becomes a default layer.
 | OpenStreetMap / OpenMapTiles | Global | Human geography, roads, boundaries, place labels. |
 | Natural Earth | Global | Small-scale boundaries and coastlines for offline fallback. |
 
+## Non-Weather OSINT Sources
+
+| Source | Scope | Use |
+| --- | --- | --- |
+| OpenSky Network | Global aviation coverage where contributors are available | Live aircraft state vectors, altitude/speed tracks, replayable mobility layer. Respect rate limits and terms. |
+| GTFS Realtime | Agency-specific transit feeds | Live transit vehicle positions, service alerts, and trip updates. Start with one city/provider pilot. |
+| GBFS | Bikeshare/scooter systems | Station status and vehicle availability for micromobility context. |
+| AISHub / AISStream / licensed AIS | Maritime | Vessel position and track layer. Terms review required before redistribution or public demo defaults. |
+| USGS Earthquake Hazards | Global | Recent earthquake feeds and event details. Pair with Earthquakes Canada for Canadian view. |
+| GDACS | Global | Disaster alerts and humanitarian coordination context. |
+| ReliefWeb | Global | Humanitarian reports and disaster metadata. |
+| GDELT | Global | News event graph, themes, entities, and public attention signals. |
+| Wikimedia EventStreams | Global public wiki activity | Recent public edits and topic bursts. Use as attention signal, not identity tracking. |
+| GitHub Events API | Global public software activity | Public repo/activity pulses and software ecosystem signals. |
+| RIPE RIS Live / RouteViews | Internet routing | Live and historical BGP events for cyberspace mode. |
+| RIPEstat / RDAP | Internet registry metadata | ASN, prefix, org, and registration provenance. |
+| PeeringDB | Internet infrastructure | Networks, IXPs, facilities, and interconnection context. |
+| Cloudflare Radar / IHR | Internet health | Outages, traffic context, BGP anomalies, and aggregate internet-health signals. |
+| Certificate Transparency / Censys certificates | Public web PKI | Domain/certificate graph and infrastructure birth signals. Licensed enrichments are optional. |
+| CISA KEV / NVD / FIRST EPSS | Vulnerability context | Known exploited vulnerabilities, CVE metadata, and exploit probability. Render aggregates, not target maps. |
+| AESO / IESO / Hydro-Quebec / EIA | Energy systems | Load, generation mix, interties, prices, and grid status where public/API-supported. |
+| Overture Maps / OSM | Global civic base | Buildings, roads, transportation, places, admin divisions, and critical-facility context. |
+
 ## Space and Orbital Sources
 
 | Source | Scope | Use |
@@ -87,6 +116,17 @@ safe before it becomes a default layer.
 6. `nexrad_aws.py`: Level II inventory only at first; rendering requires a radar decode service.
 7. `ecmwf_open_data.py`: GRIB index reader and model-field tiler.
 8. `cosmic_horizons.py`, `cosmic_celestrak.py`, `cosmic_sbdb.py`: orbital cache sources.
+9. `opensky_aircraft.py`: aircraft state-vector event adapter with short-track replay.
+10. `gtfs_realtime.py`: provider-configured transit vehicle/service-alert adapter.
+11. `usgs_earthquakes.py` and `earthquakes_canada.py`: seismic event adapters.
+12. `gdacs.py`, `reliefweb.py`, `gdelt.py`: disaster/hyperreality event adapters.
+13. `ripe_ris_live.py`, `routeviews.py`, `ripestat.py`, `peeringdb.py`, `rdap.py`:
+    cyberspace topology and routing adapters.
+14. `cloudflare_radar.py` and `ihr.py`: outage and internet-health adapters.
+15. `cisa_kev.py`, `nvd_cve.py`, `first_epss.py`: vulnerability-context adapters for
+    aggregate or user-owned asset views.
+16. `aeso_grid.py`, `ieso_grid.py`, `hydroquebec_demand.py`, `eia_grid.py`: energy system
+    adapters.
 
 ## Sources Checked For This Inventory
 
@@ -104,3 +144,20 @@ safe before it becomes a default layer.
 - USGS Landsat STAC: https://www.usgs.gov/landsat-missions/spatiotemporal-asset-catalog-stac
 - NEXRAD on AWS: https://registry.opendata.aws/noaa-nexrad/
 - NOAA MRMS: https://vlab.noaa.gov/web/mrms
+- OpenSky Network REST API: https://openskynetwork.github.io/opensky-api/rest.html
+- GTFS Realtime reference: https://gtfs.org/documentation/realtime/reference/
+- GBFS specification: https://gbfs.org/specification/
+- RIPE RIS Live: https://ris-live.ripe.net/manual/
+- PeeringDB API docs: https://docs.peeringdb.com/api_specs/
+- Cloudflare Radar API: https://developers.cloudflare.com/api/resources/radar/
+- GDELT data: https://www.gdeltproject.org/data.html
+- ReliefWeb API: https://apidoc.reliefweb.int/
+- Wikimedia EventStreams: https://wikitech.wikimedia.org/wiki/Event_Platform/EventStreams
+- GitHub Events API: https://docs.github.com/en/rest/activity/events
+- USGS Earthquake GeoJSON feeds: https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php
+- CISA KEV catalog: https://www.cisa.gov/known-exploited-vulnerabilities-catalog
+- NVD API: https://nvd.nist.gov/developers
+- FIRST EPSS: https://www.first.org/epss/
+- EIA Open Data API: https://www.eia.gov/opendata/
+- IESO Power Data: https://www.ieso.ca/Power-Data
+- Overture Maps docs: https://docs.overturemaps.org/

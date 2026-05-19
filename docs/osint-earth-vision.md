@@ -32,6 +32,15 @@ The long-term system can combine:
 - Weather and climate products.
 - Satellite and Earth observation imagery.
 - Hydrology, fire, smoke, air quality, and infrastructure-adjacent public feeds.
+- Live mobility from public or licensed aircraft, vessel, transit, bikeshare, road, and border
+  feeds.
+- Cyberspace topology and health from public BGP collectors, ASN/prefix registries, RDAP,
+  PeeringDB, Cloudflare Radar/IHR-style outage feeds, certificate transparency, and aggregate
+  exposure intelligence.
+- Hyperreality/public-attention signals from news event graphs, humanitarian reports, disaster
+  feeds, public wiki edits, public software activity, and official public alerts.
+- Energy and infrastructure feeds for grid load, generation mix, interties, prices, assets,
+  public outages, transport hubs, and critical facilities.
 - Real star catalogs and ground stellarium mode.
 - Horizons/SBDB/MPC/CelesTrak ephemerides and orbital object markers.
 - Plugin-provided diagnostics and simulation modules.
@@ -39,9 +48,22 @@ The long-term system can combine:
 Every feed must expose provenance. Operators should know whether a visual is live, cached, stale,
 interpolated, seed/planning, simulated, or unavailable.
 
+## Public-Data Boundary
+
+The OSINT pivot is public-data planetary modelling, not surveillance. CanWxLab may ingest public,
+licensed, opt-in, aggregate, or user-owned streams. It must not collect private device telemetry,
+private communications, private social data, personal movement traces, or data obtained by
+bypassing access controls. Cyber layers must favor infrastructure topology, aggregate exposure,
+outages, BGP events, and user-owned assets over host-level targeting.
+
+The detailed non-weather layer backlog lives in
+[`non-weather-osint-layers.md`](./non-weather-osint-layers.md).
+
 ## Risks
 
 - Scope can drown the weather foundation. GeoMet remains first.
 - Dense public catalogs can hurt performance. Use assets/caches and caps, not embedded arrays.
 - Orbital accuracy is easy to overstate. Use public ephemeris services and label approximations.
 - Licensing varies. Catalogs and kernels require explicit license review before vendoring.
+- OSINT sources can drift into unsafe product territory. Enforce privacy class, provenance,
+  aggregation, and source-terms review before enabling default layers.
