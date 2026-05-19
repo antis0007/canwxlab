@@ -115,14 +115,21 @@ def test_hybrid_mode_falls_back_when_live_adapter_throws() -> None:
 
 def test_cache_returns_cached_payload(tmp_path: Path) -> None:
     calls = {"count": 0}
+    seen_user_agents: list[str | None] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls["count"] += 1
+        seen_user_agents.append(request.headers.get("user-agent"))
         return httpx.Response(200, json={"ok": True, "query": str(request.url)})
 
     async def run_test() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
-            cache = JsonFileCacheClient(cache_dir=tmp_path, timeout_seconds=2.0, client=http_client)
+            cache = JsonFileCacheClient(
+                cache_dir=tmp_path,
+                timeout_seconds=2.0,
+                client=http_client,
+                user_agent="CanWxLabTest/1.0 (+https://example.test)",
+            )
             first = await cache.fetch_json(
                 "https://example.test/data",
                 params={"a": 1},
@@ -140,6 +147,7 @@ def test_cache_returns_cached_payload(tmp_path: Path) -> None:
 
     asyncio.run(run_test())
     assert calls["count"] == 1
+    assert seen_user_agents == ["CanWxLabTest/1.0 (+https://example.test)"]
 
 
 

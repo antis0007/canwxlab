@@ -22,3 +22,20 @@ This module intentionally has no implementation yet. The route module will retur
 """
 
 from __future__ import annotations
+
+from pathlib import Path
+
+COSMIC_CACHE_ROOT = Path(".canwxlab") / "cache" / "cosmic"
+
+
+def ensure_cosmic_cache_dirs() -> dict[str, Path]:
+    """Create local cache directories used by planned cosmic adapters."""
+    paths = {
+        "root": COSMIC_CACHE_ROOT,
+        "horizons": COSMIC_CACHE_ROOT / "horizons",
+        "sbdb": COSMIC_CACHE_ROOT / "sbdb",
+        "celestrak": COSMIC_CACHE_ROOT / "celestrak",
+    }
+    for path in paths.values():
+        path.mkdir(parents=True, exist_ok=True)
+    return paths

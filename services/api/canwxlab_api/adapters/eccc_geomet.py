@@ -12,20 +12,39 @@ from canwxlab_api.adapters.base import BBox, WeatherSourceAdapter
 from canwxlab_api.http_cache import FetchResult, JsonFileCacheClient
 from canwxlab_api.models import (
     AlertFeature,
+    ConfidenceLevel,
     DataSource,
     LayerKind,
     LayerServiceType,
     Observation,
+    SourceAdapterRef,
     SourceStatus,
+    SpatiotemporalEvent,
+    TruthMode,
     WeatherLayer,
     WmsCapabilitiesSummaryResponse,
     WmsCapabilityLayerSummary,
 )
 
+try:
+    import h3
+
+    def _h3_cell(lat: float, lng: float, resolution: int = 5) -> str:
+        return h3.latlng_to_cell(lat, lng, resolution)
+except ImportError:
+    def _h3_cell(lat: float, lng: float, resolution: int = 5) -> str:
+        _ = lat, lng, resolution
+        return ""
+
 logger = logging.getLogger(__name__)
 
 ECCC_ATTRIBUTION = "Environment and Climate Change Canada / Meteorological Service of Canada."
 ECCC_LICENSE_URL = "https://eccc-msc.github.io/open-data/readme_en/"
+ECCC_CATALOG_TTL_SECONDS = 6 * 60 * 60
+ECCC_WMS_CAPABILITIES_TTL_SECONDS = 6 * 60 * 60
+ECCC_STATION_CATALOG_TTL_SECONDS = 24 * 60 * 60
+ECCC_OBSERVATION_TTL_SECONDS = 15 * 60
+ECCC_REALTIME_TTL_SECONDS = 5 * 60
 
 
 class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
@@ -45,6 +64,7 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
         timeout_seconds: float,
         cache_ttl_seconds: int,
         cache_dir: str,
+        user_agent: str | None = None,
     ) -> None:
         self.ogc_api_base = ogc_api_base.rstrip("/")
         self.wms_base = wms_base.rstrip("/")
@@ -53,7 +73,60 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
         self.cache = JsonFileCacheClient(
             cache_dir=Path(cache_dir) / "eccc_geomet",
             timeout_seconds=timeout_seconds,
+            user_agent=user_agent,
         )
+
+    async def emit_events(
+        self, bbox: BBox | None = None, limit: int = 500
+    ) -> list[SpatiotemporalEvent]:
+        if not self.live_enabled:
+            return []
+
+        observations = await self.fetch_station_observations(bbox=bbox, limit=limit)
+        events: list[SpatiotemporalEvent] = []
+        source_ref = SourceAdapterRef(
+            adapter_id="eccc_geomet",
+            adapter_version="0.1.0",
+        )
+
+        for obs in observations:
+            h3_cell = _h3_cell(obs.latitude, obs.longitude, 5)
+            confidence = 0.7 if obs.source_status == SourceStatus.live else 0.5
+            conf_level = (
+                ConfidenceLevel.confirmed
+                if confidence >= 0.7
+                else ConfidenceLevel.estimated
+            )
+
+            for var, val in obs.values.items():
+                unit = obs.units.get(var, "")
+                events.append(
+                    SpatiotemporalEvent(
+                        event_kind="meteorological.observation",
+                        valid_from=obs.observed_at,
+                        observed_at=obs.observed_at,
+                        longitude=obs.longitude,
+                        latitude=obs.latitude,
+                        elevation_m=obs.elevation_m,
+                        h3_cell=h3_cell,
+                        variable=var,
+                        value=val,
+                        unit=unit,
+                        source_id="eccc_geomet_ogc_api",
+                        source_adapter=source_ref,
+                        confidence=confidence,
+                        confidence_level=conf_level,
+                        truth_mode=TruthMode.observed,
+                        attribution=ECCC_ATTRIBUTION,
+                        license_url="https://eccc-msc.github.io/open-data/readme_en/",
+                        raw_properties={
+                            "station_id": obs.station_id,
+                            "station_name": obs.station_name,
+                            "quality_flags": obs.quality_flags,
+                        },
+                    )
+                )
+        return events
 
     async def get_source_status(self) -> DataSource:
         return await self._ogc_source_status()
@@ -75,7 +148,7 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
         result = await self.cache.fetch_json(
             self._ogc_url("/collections"),
             params={"lang": "en", "f": "json"},
-            ttl_seconds=self.cache_ttl_seconds,
+            ttl_seconds=self._catalog_ttl_seconds(),
             allow_stale_on_error=True,
         )
         return {
@@ -98,7 +171,7 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
         result = await self.cache.fetch_json(
             self._ogc_url(f"/collections/{collection_id}"),
             params={"lang": "en", "f": "json"},
-            ttl_seconds=self.cache_ttl_seconds,
+            ttl_seconds=self._catalog_ttl_seconds(),
             allow_stale_on_error=True,
         )
         return {
@@ -154,35 +227,48 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
         if not self.live_enabled:
             return []
 
-        result = await self._fetch_collection_items(
-            collection_id=_collection_id_for_layer(
-                "eccc_climate_stations",
-                fallback="climate-stations",
-            ),
-            bbox=bbox,
-            limit=limit,
-        )
-        source_status = SourceStatus.stale if result.stale else SourceStatus.live
-        features = result.payload.get("features", [])
-        observations: list[Observation] = []
-
-        for index, feature in enumerate(features):
+        collection_candidates = [
+            ("eccc_swob_realtime", "swob-realtime"),
+            ("eccc_climate_stations", "climate-stations"),
+        ]
+        last_error: Exception | None = None
+        for layer_id, fallback in collection_candidates:
             try:
-                normalized = _normalize_station_feature(feature, result, source_status, index)
-            except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "station_feature_skipped",
-                    extra={
-                        "event": "station_feature_skipped",
-                        "error_type": type(exc).__name__,
-                        "error_message": str(exc),
-                    },
+                result = await self._fetch_collection_items(
+                    collection_id=_collection_id_for_layer(layer_id, fallback=fallback),
+                    bbox=bbox,
+                    limit=limit,
                 )
+            except Exception as exc:  # noqa: BLE001
+                last_error = exc
                 continue
-            if normalized is not None:
-                observations.append(normalized)
 
-        return observations[: max(1, limit)]
+            source_status = SourceStatus.stale if result.stale else SourceStatus.live
+            features = result.payload.get("features", [])
+            observations: list[Observation] = []
+
+            for index, feature in enumerate(features):
+                try:
+                    normalized = _normalize_station_feature(feature, result, source_status, index)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "station_feature_skipped",
+                        extra={
+                            "event": "station_feature_skipped",
+                            "error_type": type(exc).__name__,
+                            "error_message": str(exc),
+                        },
+                    )
+                    continue
+                if normalized is not None:
+                    observations.append(normalized)
+
+            if observations:
+                return observations[: max(1, limit)]
+
+        if last_error is not None:
+            raise last_error
+        return []
 
     async def fetch_recent_hourly_observations(
         self, bbox: BBox | None = None, limit: int = 100
@@ -240,7 +326,7 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
             result = await self.cache.fetch_text(
                 self.wms_base,
                 params=params,
-                ttl_seconds=self.cache_ttl_seconds,
+                ttl_seconds=self._wms_capabilities_ttl_seconds(),
                 allow_stale_on_error=True,
             )
             layers = _parse_wms_layers(result.payload)
@@ -582,7 +668,7 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
         return await self.cache.fetch_json(
             self._ogc_url(f"/collections/{collection_id}/items"),
             params=params,
-            ttl_seconds=self.cache_ttl_seconds,
+            ttl_seconds=self._collection_items_ttl_seconds(collection_id),
             allow_stale_on_error=True,
         )
 
@@ -703,7 +789,7 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
             result = await self.cache.fetch_json(
                 self._ogc_url("/collections"),
                 params={"lang": "en", "f": "json"},
-                ttl_seconds=self.cache_ttl_seconds,
+                ttl_seconds=self._catalog_ttl_seconds(),
                 allow_stale_on_error=True,
             )
             status = SourceStatus.stale if result.stale else SourceStatus.live
@@ -746,6 +832,31 @@ class EcccGeoMetSourceAdapter(WeatherSourceAdapter):
 
     def _ogc_url(self, path: str) -> str:
         return f"{self.ogc_api_base}{path}"
+
+    def _catalog_ttl_seconds(self) -> int:
+        return max(self.cache_ttl_seconds, ECCC_CATALOG_TTL_SECONDS)
+
+    def _wms_capabilities_ttl_seconds(self) -> int:
+        return max(self.cache_ttl_seconds, ECCC_WMS_CAPABILITIES_TTL_SECONDS)
+
+    def _collection_items_ttl_seconds(self, collection_id: str) -> int:
+        lowered = collection_id.lower()
+        if "climate-stations" in lowered or lowered.endswith("-stations"):
+            return max(self.cache_ttl_seconds, ECCC_STATION_CATALOG_TTL_SECONDS)
+        if "climate-hourly" in lowered or "hourly" in lowered:
+            return max(self.cache_ttl_seconds, ECCC_OBSERVATION_TTL_SECONDS)
+        if any(
+            marker in lowered
+            for marker in (
+                "weather-alerts",
+                "swob-realtime",
+                "aqhi",
+                "hydrometric",
+                "hurricane",
+            )
+        ):
+            return max(self.cache_ttl_seconds, ECCC_REALTIME_TTL_SECONDS)
+        return max(self.cache_ttl_seconds, ECCC_OBSERVATION_TTL_SECONDS)
 
 
 def _normalize_alert_feature(
@@ -880,7 +991,9 @@ def _derive_display_properties(layer_id: str, properties: dict[str, Any]) -> dic
         text = first("alert_text_en", "description", "headline")
         if name:
             display["_display_title"] = (
-                f"{name} {atype}".strip() if atype and atype.lower() not in str(name).lower() else str(name)
+                f"{name} {atype}".strip()
+                if atype and atype.lower() not in str(name).lower()
+                else str(name)
             )
         if code:
             display["_display_subtitle"] = f"Code: {code}"
@@ -990,11 +1103,22 @@ def _normalize_station_feature(
 
     observed_at = _first_datetime(
         properties,
-        ["datetime", "date_tm", "date_time", "observed_at", "last_report"],
+        [
+            "datetime",
+            "date_tm",
+            "date_tm-value",
+            "date_time",
+            "observed_at",
+            "last_report",
+        ],
         fallback=result.retrieved_at,
     )
     station_id = str(
         properties.get("station_id")
+        or properties.get("stn_id-value")
+        or properties.get("msc_id-value")
+        or properties.get("wmo_id-value")
+        or properties.get("clim_id-value")
         or properties.get("id")
         or properties.get("CLIMATE_IDENTIFIER")
         or properties.get("wmo_identifier")
@@ -1003,6 +1127,8 @@ def _normalize_station_feature(
     )
     station_name = str(
         properties.get("station_name")
+        or properties.get("stn_nam-value")
+        or properties.get("stn_nam")
         or properties.get("name")
         or properties.get("STATION_NAME")
         or station_id
@@ -1055,29 +1181,69 @@ def _normalize_hourly_feature(
 def _extract_observation_values(
     properties: dict[str, Any],
 ) -> tuple[dict[str, float], dict[str, str]]:
-    # TODO: Expand field mapping with authoritative GeoMet property dictionaries per collection.
     values: dict[str, float] = {}
     units: dict[str, str] = {}
-    candidates = {
-        "temperature_2m": ["air_temp", "temperature", "temp", "temp_c"],
-        "wind_speed_10m": ["wind_speed", "wind_spd", "wind_speed_kmh"],
-        "pressure_msl": ["pressure", "pressure_msl", "station_pressure"],
+
+    # Build a case-insensitive lookup: the same property may appear as
+    # "TEMP", "Temp", or "temp" depending on the GeoMet collection.
+    lower_props: dict[str, Any] = {k.lower(): v for k, v in properties.items()}
+
+    def _get(key: str) -> Any:
+        return lower_props.get(key.lower())
+
+    candidates: dict[str, list[tuple[str, str | None]]] = {
+        "temperature_2m": [
+            ("air_temp-value", "degC"),
+            ("air_temp", "degC"),
+            ("temperature", "degC"),
+            ("temp", "degC"),
+            ("temp_c", "degC"),
+        ],
+        "wind_speed_10m": [
+            ("wnd_spd-value", "km/h"),
+            ("wind_speed", "km/h"),
+            ("wind_spd", "km/h"),
+            ("wind_speed_kmh", "km/h"),
+        ],
+        "wind_direction_10m": [
+            ("wnd_dir-value", "deg"),
+            ("wind_direction", "deg"),
+            ("wind_dir", "deg"),
+        ],
+        "pressure_msl": [
+            ("mslp-value", "hPa"),
+            ("sea_level_pressure-value", "hPa"),
+            ("pressure", "hPa"),
+            ("pressure_msl", "hPa"),
+            ("station_pressure", "kPa"),
+            ("stn_pres-value", "kPa"),
+        ],
+        "relative_humidity": [
+            ("rel_hum-value", "%"),
+            ("relative_humidity", "%"),
+            ("rel_hum", "%"),
+        ],
+        "dewpoint_2m": [
+            ("dew_point-value", "degC"),
+            ("dewpoint", "degC"),
+            ("dew_point", "degC"),
+        ],
     }
 
     for target, keys in candidates.items():
-        for key in keys:
-            value = _to_float(properties.get(key))
+        for key, raw_unit in keys:
+            value = _to_float(_get(key))
             if value is None:
                 continue
-            values[target] = value
-            if target == "temperature_2m":
-                units[target] = "degC"
-            elif target == "wind_speed_10m":
+            if target == "wind_speed_10m" and raw_unit == "km/h":
+                value = value / 3.6
                 units[target] = "m/s"
-                if key.endswith("kmh"):
-                    values[target] = value / 3.6
-            elif target == "pressure_msl":
+            elif target == "pressure_msl" and raw_unit == "kPa":
+                value = value * 10.0
                 units[target] = "hPa"
+            else:
+                units[target] = raw_unit or ""
+            values[target] = value
             break
 
     return values, units
@@ -1307,7 +1473,11 @@ def _wms_bounds_lonlat(bounding_boxes: dict[str, list[float]]) -> list[float] | 
         if not bbox or len(bbox) != 4:
             continue
         minx, miny, maxx, maxy = bbox
-        if crs == "EPSG:4326" and max(abs(minx), abs(maxx)) <= 90 and max(abs(miny), abs(maxy)) <= 180:
+        if (
+            crs == "EPSG:4326"
+            and max(abs(minx), abs(maxx)) <= 90
+            and max(abs(miny), abs(maxy)) <= 180
+        ):
             return [miny, minx, maxy, maxx]
         return [minx, miny, maxx, maxy]
     return None

@@ -1,6 +1,6 @@
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
-import shutil
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +9,9 @@ from canwxlab_api.config import get_settings
 from canwxlab_api.logging_config import configure_logging
 from canwxlab_api.routes import (
     alerts,
+    cosmic,
     eccc,
+    evidence,
     layers,
     observations,
     plugins,
@@ -18,8 +20,6 @@ from canwxlab_api.routes import (
     verification,
 )
 
-# PHASE-A-TODO: from canwxlab_api.routes import evidence
-# PHASE-A-TODO: app.include_router(evidence.router)
 # ── Phase A routes ────────────────────────────────────────────────────────
 # GET  /api/evidence/{object_id}/provenance  → EvidenceChain
 # GET  /api/evidence/{object_id}/history     → list[SpatiotemporalEvent]
@@ -81,6 +81,8 @@ app.include_router(layers.router)
 app.include_router(observations.router)
 app.include_router(alerts.router)
 app.include_router(eccc.router)
+app.include_router(cosmic.router)
 app.include_router(plugins.router)
 app.include_router(simulations.router)
 app.include_router(verification.router)
+app.include_router(evidence.router)

@@ -172,6 +172,7 @@ class LayerKind(StrEnum):
 class LayerServiceType(StrEnum):
     ogc_api = "ogc_api"
     wms = "wms"
+    wmts = "wmts"
     mock = "mock"
     generated = "generated"
 

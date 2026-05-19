@@ -9,13 +9,59 @@ from canwxlab_api.adapters.base import BBox, WeatherSourceAdapter
 from canwxlab_api.models import (
     AlertFeature,
     DataSource,
+    LayerKind,
+    LayerServiceType,
     Observation,
     SourceStatus,
+    SpatiotemporalEvent,
     WeatherLayer,
     WmsCapabilitiesSummaryResponse,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _canwxsim_source(now: datetime) -> DataSource:
+    return DataSource(
+        source_id="canwxsim",
+        name="CanWxSim",
+        status=SourceStatus.derived,
+        adapter="canwxsim",
+        last_updated=now,
+        last_successful_fetch=now,
+        last_attempted_fetch=now,
+        retrieved_at=now,
+        attribution="Experimental CanWxSim local simulation engine.",
+        description="Local generated simulation output layer for non-operational experimentation.",
+        message="Generated simulation layer available.",
+        is_live=False,
+        is_experimental=True,
+    )
+
+
+def _canwxsim_layer(now: datetime) -> WeatherLayer:
+    return WeatherLayer(
+        layer_id="canwxsim_output",
+        name="CanWxSim Output",
+        title="CanWxSim Output",
+        kind=LayerKind.simulation,
+        variable="simulation_fields",
+        unit="mixed",
+        source_id="canwxsim",
+        status=SourceStatus.derived,
+        adapter="canwxsim",
+        service_type=LayerServiceType.generated,
+        last_updated=now,
+        last_successful_fetch=now,
+        last_attempted_fetch=now,
+        retrieved_at=now,
+        attribution="Experimental CanWxSim local simulation engine.",
+        default_opacity=0.7,
+        color_ramps=["simulation", "thermal", "precipitation"],
+        description="Experimental 2D sandbox simulation output. Not an operational forecast.",
+        is_experimental=True,
+        message="Experimental generated simulation layer.",
+    )
 
 
 class CompositeWeatherSourceAdapter(WeatherSourceAdapter):
@@ -38,11 +84,13 @@ class CompositeWeatherSourceAdapter(WeatherSourceAdapter):
         live_enabled: bool,
         mock_adapter: WeatherSourceAdapter,
         live_adapter: WeatherSourceAdapter,
+        gibs_adapter: WeatherSourceAdapter | None = None,
     ) -> None:
         self.data_mode = data_mode
         self.live_enabled = live_enabled
         self.mock_adapter = mock_adapter
         self.live_adapter = live_adapter
+        self.gibs_adapter = gibs_adapter
         self._alerts_fallback_active = False
         self._stations_fallback_active = False
         self._hourly_fallback_active = False
@@ -52,6 +100,8 @@ class CompositeWeatherSourceAdapter(WeatherSourceAdapter):
     async def list_sources(self) -> list[DataSource]:
         mock_sources = await self.mock_adapter.list_sources()
         live_sources = await self.live_adapter.list_sources()
+        gibs_sources = await self.gibs_adapter.list_sources() if self.gibs_adapter else []
+        generated_sources = [_canwxsim_source(datetime.now(UTC))]
 
         if self._last_fallback_message:
             fallback_source = next(
@@ -73,39 +123,15 @@ class CompositeWeatherSourceAdapter(WeatherSourceAdapter):
                 ]
 
         if self.data_mode == "mock":
-            return [*mock_sources, *live_sources]
-        return [*live_sources, *mock_sources]
+            return [*mock_sources, *live_sources, *gibs_sources, *generated_sources]
+        return [*live_sources, *gibs_sources, *generated_sources]
 
     async def list_layers(self) -> list[WeatherLayer]:
-        mock_layers = await self.mock_adapter.list_layers()
         live_layers = await self.live_adapter.list_layers()
+        gibs_layers = await self.gibs_adapter.list_layers() if self.gibs_adapter else []
+        generated_layers = [_canwxsim_layer(datetime.now(UTC))]
 
-        if self._alerts_fallback_active:
-            mock_layers = [
-                layer.model_copy(
-                    update={
-                        "status": SourceStatus.fallback,
-                        "message": "Live alerts unavailable; showing mock fallback.",
-                    }
-                )
-                if layer.layer_id == "mock_alerts"
-                else layer
-                for layer in mock_layers
-            ]
-        if self._stations_fallback_active:
-            mock_layers = [
-                layer.model_copy(
-                    update={
-                        "status": SourceStatus.fallback,
-                        "message": "Live station source unavailable; showing mock fallback.",
-                    }
-                )
-                if layer.layer_id == "mock_stations"
-                else layer
-                for layer in mock_layers
-            ]
-
-        return [*mock_layers, *live_layers]
+        return [*live_layers, *gibs_layers, *generated_layers]
 
     async def get_layer_metadata(self, layer_id: str) -> WeatherLayer | None:
         for layer in await self.list_layers():
@@ -211,6 +237,13 @@ class CompositeWeatherSourceAdapter(WeatherSourceAdapter):
             for alert in alerts
         ]
 
+    async def emit_events(
+        self, bbox: BBox | None = None, limit: int = 500
+    ) -> list[SpatiotemporalEvent]:
+        if self.data_mode == "mock":
+            return await self.mock_adapter.emit_events(bbox=bbox, limit=limit)
+        return await self.live_adapter.emit_events(bbox=bbox, limit=limit)
+
     async def list_collections(self) -> dict:
         if self.data_mode == "mock":
             return {
@@ -300,7 +333,7 @@ class CompositeWeatherSourceAdapter(WeatherSourceAdapter):
                 "layer_id": layer_id,
                 "status": SourceStatus.fallback,
                 "features": [],
-                "message": "Live ECCC data disabled; no generic mock feature fallback exists.",
+                "message": "Live ECCC data disabled; no generic feature fallback exists.",
             }
 
         try:
@@ -338,13 +371,13 @@ class CompositeWeatherSourceAdapter(WeatherSourceAdapter):
                 logger.warning("Live request failed without fallback: %s", exc)
                 self._set_fallback_flag(fallback_flag, False)
                 self._last_fallback_message = (
-                    f"Live request failed ({type(exc).__name__}); no mock fallback in live mode."
+                    f"Live request failed ({type(exc).__name__}); no generated fallback in live mode."
                 )
                 self._last_fallback_at = datetime.now(UTC)
                 return []
 
         if self.data_mode == "hybrid" and not self.live_enabled:
-            message = "Live ECCC data disabled; using mock fallback in hybrid mode."
+            message = "Live ECCC data disabled; using local fallback in hybrid mode."
             self._mark_fallback(fallback_flag, message)
             return await fallback()
 
@@ -356,7 +389,7 @@ class CompositeWeatherSourceAdapter(WeatherSourceAdapter):
             if self.data_mode != "hybrid":
                 self._set_fallback_flag(fallback_flag, False)
                 raise
-            message = f"Live ECCC request failed ({type(exc).__name__}): using mock fallback."
+            message = f"Live ECCC request failed ({type(exc).__name__}): using local fallback."
             logger.warning(message)
             self._mark_fallback(fallback_flag, message)
             return await fallback()

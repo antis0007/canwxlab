@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -12,6 +13,11 @@ from typing import Any
 import httpx
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_HTTP_USER_AGENT = (
+    "CanWxLab/0.1 "
+    "(weather visualization; set CANWXLAB_HTTP_USER_AGENT for operator contact)"
+)
 
 
 @dataclass
@@ -34,10 +40,16 @@ class JsonFileCacheClient:
         cache_dir: Path,
         timeout_seconds: float,
         client: httpx.AsyncClient | None = None,
+        user_agent: str | None = None,
     ) -> None:
         self._cache_dir = cache_dir
         self._timeout_seconds = timeout_seconds
         self._client = client
+        self._headers = {
+            "User-Agent": (user_agent or DEFAULT_HTTP_USER_AGENT).strip()
+            or DEFAULT_HTTP_USER_AGENT,
+        }
+        self._locks: dict[str, asyncio.Lock] = {}
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
     async def fetch_json(
@@ -103,64 +115,15 @@ class JsonFileCacheClient:
                 live_fetch_succeeded=False,
             )
 
-        logger.info(
-            "cache_miss",
-            extra={
-                "event": "cache_miss",
-                "source_url": url,
-                "cache_key": cache_path.stem,
-            },
-        )
-
-        attempted_at = datetime.now(UTC)
-        try:
-            payload = await self._request(url, normalized_params, parser)
-            retrieved_at = datetime.now(UTC)
-            expires_at = retrieved_at + timedelta(seconds=ttl_seconds)
-            source_url = _build_source_url(url, normalized_params)
-            _write_cache_entry(
-                cache_path,
-                {
-                    "retrieved_at": retrieved_at,
-                    "expires_at": expires_at,
-                    "source_url": source_url,
-                    "payload": payload,
-                },
-            )
-            logger.info(
-                "live_fetch_success",
-                extra={
-                    "event": "live_fetch_success",
-                    "source_url": url,
-                    "cache_key": cache_path.stem,
-                },
-            )
-            return FetchResult(
-                payload=payload,
-                retrieved_at=retrieved_at,
-                expires_at=expires_at,
-                source_url=source_url,
-                attempted_at=attempted_at,
-                from_cache=False,
-                stale=False,
-                live_fetch_succeeded=True,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "live_fetch_failed",
-                extra={
-                    "event": "live_fetch_failed",
-                    "source_url": url,
-                    "cache_key": cache_path.stem,
-                    "error_type": type(exc).__name__,
-                    "error_message": str(exc),
-                },
-            )
-            if cached_entry and allow_stale_on_error:
+        lock = self._locks.setdefault(str(cache_path), asyncio.Lock())
+        async with lock:
+            now = datetime.now(UTC)
+            cached_entry = _read_cache_entry(cache_path)
+            if cached_entry and cached_entry["expires_at"] > now:
                 logger.info(
-                    "stale_cache_used",
+                    "cache_hit_after_wait",
                     extra={
-                        "event": "stale_cache_used",
+                        "event": "cache_hit_after_wait",
                         "source_url": url,
                         "cache_key": cache_path.stem,
                     },
@@ -170,14 +133,87 @@ class JsonFileCacheClient:
                     retrieved_at=cached_entry["retrieved_at"],
                     expires_at=cached_entry["expires_at"],
                     source_url=cached_entry["source_url"],
-                    attempted_at=attempted_at,
+                    attempted_at=now,
                     from_cache=True,
-                    stale=True,
+                    stale=False,
                     live_fetch_succeeded=False,
-                    error_type=type(exc).__name__,
-                    error_message=str(exc),
                 )
-            raise
+
+            logger.info(
+                "cache_miss",
+                extra={
+                    "event": "cache_miss",
+                    "source_url": url,
+                    "cache_key": cache_path.stem,
+                },
+            )
+
+            attempted_at = datetime.now(UTC)
+            try:
+                payload = await self._request(url, normalized_params, parser)
+                retrieved_at = datetime.now(UTC)
+                expires_at = retrieved_at + timedelta(seconds=ttl_seconds)
+                source_url = _build_source_url(url, normalized_params)
+                _write_cache_entry(
+                    cache_path,
+                    {
+                        "retrieved_at": retrieved_at,
+                        "expires_at": expires_at,
+                        "source_url": source_url,
+                        "payload": payload,
+                    },
+                )
+                logger.info(
+                    "live_fetch_success",
+                    extra={
+                        "event": "live_fetch_success",
+                        "source_url": url,
+                        "cache_key": cache_path.stem,
+                    },
+                )
+                return FetchResult(
+                    payload=payload,
+                    retrieved_at=retrieved_at,
+                    expires_at=expires_at,
+                    source_url=source_url,
+                    attempted_at=attempted_at,
+                    from_cache=False,
+                    stale=False,
+                    live_fetch_succeeded=True,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "live_fetch_failed",
+                    extra={
+                        "event": "live_fetch_failed",
+                        "source_url": url,
+                        "cache_key": cache_path.stem,
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc),
+                    },
+                )
+                if cached_entry and allow_stale_on_error:
+                    logger.info(
+                        "stale_cache_used",
+                        extra={
+                            "event": "stale_cache_used",
+                            "source_url": url,
+                            "cache_key": cache_path.stem,
+                        },
+                    )
+                    return FetchResult(
+                        payload=cached_entry["payload"],
+                        retrieved_at=cached_entry["retrieved_at"],
+                        expires_at=cached_entry["expires_at"],
+                        source_url=cached_entry["source_url"],
+                        attempted_at=attempted_at,
+                        from_cache=True,
+                        stale=True,
+                        live_fetch_succeeded=False,
+                        error_type=type(exc).__name__,
+                        error_message=str(exc),
+                    )
+                raise
 
     async def _request(
         self,
@@ -186,11 +222,14 @@ class JsonFileCacheClient:
         parser: Callable[[httpx.Response], Any],
     ) -> Any:
         if self._client is not None:
-            response = await self._client.get(url, params=params)
+            response = await self._client.get(url, params=params, headers=self._headers)
             response.raise_for_status()
             return parser(response)
 
-        async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
+        async with httpx.AsyncClient(
+            timeout=self._timeout_seconds,
+            headers=self._headers,
+        ) as client:
             response = await client.get(url, params=params)
             response.raise_for_status()
             return parser(response)
