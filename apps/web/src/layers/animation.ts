@@ -7,6 +7,13 @@ const FRAME_COUNT = 24 * 12 + 1;
 const FRAME_INTERVAL_MS = 5 * 60 * 1000;
 const WINDOW_SPAN_MS = (FRAME_COUNT - 1) * FRAME_INTERVAL_MS;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MIN_SPEED = 0.25;
+const MAX_SPEED = 4;
+
+function clampSpeed(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.max(MIN_SPEED, Math.min(MAX_SPEED, value));
+}
 
 export function useAnimationTimeline() {
   // The workstation opens paused at the latest frame ("now"). The operator
@@ -14,7 +21,7 @@ export function useAnimationTimeline() {
   // a fresh tab burning fetches and animation cycles is much higher than
   // the convenience of an autoplay.
   const [isPlaying, setIsPlaying] = useState(false);
-  const [speedMultiplier, setSpeedMultiplier] = useState(1);
+  const [speedMultiplier, setSpeedMultiplierState] = useState(1);
   const [frame, setFrame] = useState(FRAME_COUNT - 1);
   const [loopStart, setLoopStart] = useState(0);
   const [loopEnd, setLoopEnd] = useState(FRAME_COUNT - 1);
@@ -24,6 +31,7 @@ export function useAnimationTimeline() {
   const [windowStartMs, setWindowStartMs] = useState(() => Date.now() - WINDOW_SPAN_MS);
   const rafRef = useRef<number | null>(null);
   const lastFrameAtRef = useRef<number>(performance.now());
+  const [subFrameProgress, setSubFrameProgress] = useState(0);
 
   const advanceFrame = useCallback(() => {
     setFrame((current) => {
@@ -39,14 +47,19 @@ export function useAnimationTimeline() {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
+      setSubFrameProgress(0);
       return;
     }
 
     const tick = (timestamp: number) => {
-      const intervalMs = 1000 / Math.max(0.25, speedMultiplier);
-      if (timestamp - lastFrameAtRef.current >= intervalMs) {
+      const intervalMs = 1000 / Math.max(MIN_SPEED, speedMultiplier);
+      const elapsed = timestamp - lastFrameAtRef.current;
+      if (elapsed >= intervalMs) {
         advanceFrame();
         lastFrameAtRef.current = timestamp;
+        setSubFrameProgress(0);
+      } else {
+        setSubFrameProgress(Math.min(1, elapsed / intervalMs));
       }
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -60,6 +73,10 @@ export function useAnimationTimeline() {
     };
   }, [advanceFrame, isPlaying, speedMultiplier]);
 
+  const setSpeedMultiplier = useCallback((value: number) => {
+    setSpeedMultiplierState(clampSpeed(value));
+  }, []);
+
   const selectedValidTime = useMemo(() => {
     return new Date(windowStartMs + frame * FRAME_INTERVAL_MS).toISOString();
   }, [frame, windowStartMs]);
@@ -72,6 +89,7 @@ export function useAnimationTimeline() {
     selectedValidTime,
     loopStart,
     loopEnd,
+    subFrameProgress,
   };
 
   const setLoopWindow = useCallback((startFrame: number, endFrame: number) => {

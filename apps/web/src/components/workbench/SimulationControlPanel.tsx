@@ -12,7 +12,7 @@ export function SimulationControlPanel({ simulationRun, isRunning, onRun }: Simu
   const [resolution, setResolution] = useState("standard");
   const [duration, setDuration] = useState("6");
   const [physics, setPhysics] = useState("2d_pressure_wind");
-  const [initialConditions, setInitialConditions] = useState("mock");
+  const [initialConditions, setInitialConditions] = useState("synthetic");
 
   return (
     <div className="wb-scroll-panel">
@@ -69,7 +69,7 @@ export function SimulationControlPanel({ simulationRun, isRunning, onRun }: Simu
         <label style={{ display: "block", marginTop: "8px" }}>
           Initial Conditions
           <select value={initialConditions} onChange={e => setInitialConditions(e.target.value)} style={{ width: "100%" }}>
-            <option value="mock">Mock/Generated</option>
+            <option value="synthetic">Synthetic/Generated</option>
             <option value="eccc_forecast" disabled>ECCC Forecast-Derived</option>
             <option value="station_radar" disabled>Station/Radar Nudged</option>
           </select>

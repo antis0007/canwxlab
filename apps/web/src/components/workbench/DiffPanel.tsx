@@ -106,7 +106,7 @@ export function DiffPanel({ metrics, onDiffOverlay }: DiffPanelProps) {
           <p className="wb-warning" style={{ marginTop: 3 }}>{fetchError}</p>
         )}
         <p className="wb-muted" style={{ marginTop: 3 }}>
-          MOCK/GENERATED — overlay is a deterministic synthetic field until real
+          GENERATED — overlay is a deterministic synthetic field until real
           observed/forecast archives back the case.
         </p>
 

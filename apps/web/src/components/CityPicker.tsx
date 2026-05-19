@@ -3,7 +3,7 @@
 //   - flies the map camera to the city coordinates
 //   - sets the active time zone to the city's IANA zone (optional)
 //   - surfaces a "quick weather" readout from the nearest station
-//     observation (live or mock — flagged accordingly).
+//     observation with source provenance flagged accordingly.
 //
 // The power-user view: small surface, tabular numbers, no animation,
 // keyboard-first (Enter picks first match).
@@ -11,7 +11,7 @@
 import { useMemo, useState } from "react";
 import { DraggablePanel } from "./DraggablePanel";
 import { searchCities, type CityEntry } from "../lib/cityCatalog";
-import { nearestObservation } from "../layers/inspection";
+import { isMeasuredObservation, nearestObservation } from "../layers/inspection";
 import type { Observation } from "../types/weather";
 import type { CameraState } from "../layers/types";
 
@@ -34,7 +34,8 @@ function fmtNum(value: number | undefined, digits = 1): string {
 }
 
 function buildQuickWeather(city: CityEntry, observations: Observation[]) {
-  const nearest = nearestObservation(observations, city.longitude, city.latitude);
+  const pool = observations.filter(isMeasuredObservation);
+  const nearest = nearestObservation(pool, city.longitude, city.latitude);
   if (!nearest) return null;
   return {
     station: `${nearest.station_name} (${nearest.station_id})`,
@@ -56,7 +57,6 @@ export function CityPicker({
   selectedCity,
   onPickCity,
   onAdoptTimeZone,
-  cameraState: _camera,
 }: CityPickerProps) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState<CityEntry | null>(selectedCity);
@@ -101,8 +101,7 @@ export function CityPicker({
               key={city.id}
               type="button"
               className={`wb-city-row${isActive ? " is-active" : ""}`}
-              onClick={() => setFocused(city)}
-              onDoubleClick={() => onPickCity(city)}
+              onClick={() => { setFocused(city); onPickCity(city); }}
               title={`${city.timezone} · ${city.latitude.toFixed(2)}, ${city.longitude.toFixed(2)}`}
             >
               <span className="wb-city-row-name">{city.name}</span>
@@ -137,7 +136,7 @@ export function CityPicker({
             </dl>
           ) : (
             <div className="wb-city-weather-empty">
-              No nearby station observation. Try Inspect-here on the map after jumping.
+              No live station observation near this city.
             </div>
           )}
           <div className="wb-city-actions">

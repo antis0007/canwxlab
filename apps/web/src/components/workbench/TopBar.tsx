@@ -6,7 +6,6 @@ import type { SourceStatus } from "../../types/weather";
 import { formatInZone } from "../../lib/timezone";
 
 interface TopBarProps {
-  dataMode: "mock" | "live" | "hybrid";
   timelineTime: string;
   viewMode: ViewMode;
   globeSupported: boolean;
@@ -51,7 +50,6 @@ function fmtTime(iso: string, timeZone: string): string {
 }
 
 export function TopBar({
-  dataMode,
   timelineTime,
   viewMode,
   globeSupported,
@@ -77,7 +75,6 @@ export function TopBar({
 }: TopBarProps) {
   const nowStr = fmtTime(new Date().toISOString(), timeZone);
   const validStr = fmtTime(timelineTime, timeZone);
-  const dataBadgeStatus = dataMode === "live" ? "live" : dataMode === "hybrid" ? "fallback" : "mock";
 
   return (
     <header className="wb-topbar">
@@ -92,7 +89,6 @@ export function TopBar({
           ☰ LAYERS
         </button>
         <span className="wb-title">CanWxLab</span>
-        <StatusBadge status={dataBadgeStatus} label={dataMode.toUpperCase()} />
       </div>
 
       {/* Playback controls */}

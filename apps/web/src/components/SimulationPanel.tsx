@@ -13,7 +13,7 @@ export function SimulationPanel({ run, isRunning, onRun }: SimulationPanelProps)
         <span>Simulation</span>
         <small>CanWxSim</small>
       </div>
-      <p className="muted">Runs a mock API-backed demo now; Rust engine integration is intentionally a worker boundary.</p>
+      <p className="muted">Runs the API-backed simulation workflow; Rust engine integration is intentionally a worker boundary.</p>
       <button className="primary-button" disabled={isRunning} onClick={onRun}>
         {isRunning ? "Starting run..." : "Run sample simulation"}
       </button>

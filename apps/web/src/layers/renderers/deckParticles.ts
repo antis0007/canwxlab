@@ -1,7 +1,28 @@
 import { PathLayer } from "@deck.gl/layers";
 
-import type { WindParticle } from "./mockWeatherFields";
 import type { LayerRuntimeState } from "../types";
+
+export interface WindParticle {
+  path: [number, number][];
+  speed: number;
+}
+
+// Shared with deckGrid.ts — keep in sync.
+function blendParams(blendMode: string): Record<string, unknown> {
+  if (blendMode === "additive" || blendMode === "add") {
+    return { depthTest: false, blendFunc: [1, 1] as [number, number], blendEquation: 0x8006 };
+  }
+  if (blendMode === "screen") {
+    return { depthTest: false, blendFunc: [1, 0x0301] as [number, number], blendEquation: 0x8006 };
+  }
+  if (blendMode === "multiply") {
+    return { depthTest: false, blendFunc: [0x0306, 0x0303] as [number, number], blendEquation: 0x8006 };
+  }
+  if (blendMode === "max") {
+    return { depthTest: false, blendFunc: [1, 1] as [number, number], blendEquation: 0x8008 };
+  }
+  return { depthTest: false };
+}
 
 export function createDeckParticleLayer(options: {
   id: string;
@@ -12,6 +33,7 @@ export function createDeckParticleLayer(options: {
     id: options.id,
     data: options.particles,
     wrapLongitude: false,
+    transitions: {},
     getPath: (item: WindParticle) => item.path,
     getColor: (item: WindParticle) => {
       const alpha = Math.round(220 * options.runtime.opacity);
@@ -26,6 +48,9 @@ export function createDeckParticleLayer(options: {
     widthUnits: "pixels",
     rounded: true,
     pickable: true,
-    parameters: { depthTest: false },
+    updateTriggers: {
+      getColor: [options.runtime.opacity],
+    },
+    parameters: blendParams(options.runtime.controls.blendMode),
   });
 }

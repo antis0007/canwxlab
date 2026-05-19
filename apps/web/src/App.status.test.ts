@@ -25,7 +25,7 @@ describe("app status messaging", () => {
 
   it("shows fallback notice when source is unavailable", () => {
     const notices = statusMessage(sourceReportEnabled, false, true);
-    expect(notices).toContain("Live source unavailable — showing mock data");
+    expect(notices).toContain("Live source unavailable - showing fallback sources only");
   });
 
   it("shows globe notice when globe is checked but not supported", () => {

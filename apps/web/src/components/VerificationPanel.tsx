@@ -9,7 +9,7 @@ export function VerificationPanel({ metrics }: VerificationPanelProps) {
     <section className="panel-section compact-section">
       <div className="section-heading">
         <span>Verification</span>
-        <small>mock</small>
+        <small>simulation</small>
       </div>
       {metrics.length === 0 ? (
         <p className="muted">No verification metrics loaded yet.</p>

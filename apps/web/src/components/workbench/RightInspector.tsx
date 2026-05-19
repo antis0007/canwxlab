@@ -18,18 +18,11 @@ import type {
   RendererFeatureValue,
   LayerRuntimeState,
 } from "../../layers/types";
-import type { HeroMetric } from "../../layers/inspection";
+import type { HeroMetric, InspectorWmsRow } from "../../layers/inspection";
 import type { PressureSystem } from "../../layers/pressureSystems";
 import type { DataSource } from "../../types/weather";
 import { parseWmsTimeDimension, resolveWmsTimeForTimeline } from "../../time/wmsTime";
 import { formatInZone } from "../../lib/timezone";
-
-interface InspectorWmsRow {
-  title: string;
-  resolvedTime: string | null;
-  timePolicy: string;
-  status: import("../../types/weather").SourceStatus;
-}
 
 interface RightInspectorProps {
   longitude: number | null;
@@ -58,9 +51,23 @@ function SectionHeader({ label, hint }: { label: string; hint?: string }) {
     <summary className="wb-section-header">
       <span>{label}</span>
       {hint ? <span className="wb-section-hint">{hint}</span> : null}
-      <span className="wb-section-chevron">▶</span>
+      <span className="wb-section-chevron" aria-hidden="true" />
     </summary>
   );
+}
+
+function wmsAvailabilityText(row: InspectorWmsRow): string | null {
+  if (row.availability === "before-range") {
+    return row.rangeStart
+      ? `Requested ${row.requestedTime ?? "historical time"}; earliest available ${row.rangeStart}.`
+      : "Requested time is before this layer's available archive.";
+  }
+  if (row.availability === "after-range") {
+    return row.rangeEnd
+      ? `Requested ${row.requestedTime ?? "future time"}; latest available ${row.rangeEnd}.`
+      : "Requested time is newer than this layer's available data.";
+  }
+  return null;
 }
 
 function HeroMetricCard({ metric }: { metric: HeroMetric }) {
@@ -122,13 +129,13 @@ export function RightInspector({
         {hasCursor ? (
           <div className="wb-hero-location">
             <div className="wb-hero-coords">
-              {latitude!.toFixed(4)}°, {longitude!.toFixed(4)}°
+              {latitude!.toFixed(4)} deg, {longitude!.toFixed(4)} deg
             </div>
             {nearestStation && (
               <div className="wb-hero-station">
                 Nearest: {nearestStation}
                 {nearestStationKm != null && (
-                  <span className="wb-hero-station-distance"> · {nearestStationKm.toFixed(0)} km</span>
+                  <span className="wb-hero-station-distance"> - {nearestStationKm.toFixed(0)} km</span>
                 )}
               </div>
             )}
@@ -139,7 +146,7 @@ export function RightInspector({
 
         {activeAlert && (
           <div className="wb-hero-alert" role="alert">
-            <span className="wb-hero-alert-icon">⚠</span>
+            <span className="wb-hero-alert-icon">!</span>
             <span className="wb-hero-alert-text">{activeAlert}</span>
           </div>
         )}
@@ -152,15 +159,15 @@ export function RightInspector({
           </div>
         ) : hasCursor ? (
           <div className="wb-hero-empty wb-hero-empty-noobs">
-            No station observation near this point and no mock field is enabled.
-            Enable a station/observation layer or a mock field to see numbers here.
+            No live station observation near this point. Enable live observations
+            or inspect closer to a station.
           </div>
         ) : null}
       </section>
 
       {/* Pressure systems */}
       {pressureSystems.length > 0 && (
-        <details className="wb-section" open>
+        <details className="wb-section">
           <SectionHeader
             label="Pressure systems"
             hint={`${pressureSystems.length} detected`}
@@ -199,7 +206,7 @@ export function RightInspector({
 
       {/* Analysis rows (microphysics, layer stack, …) */}
       {values.length > 0 && (
-        <details className="wb-section" open>
+        <details className="wb-section">
           <SectionHeader label="Analysis" hint={`${values.length} row${values.length === 1 ? "" : "s"}`} />
           <div className="wb-section-body">
             <ul className="wb-analysis-list">
@@ -224,17 +231,21 @@ export function RightInspector({
           <SectionHeader label="WMS in view" hint={`top ${wmsLayerRows.length}`} />
           <div className="wb-section-body">
             <ul className="wb-wms-list">
-              {wmsLayerRows.map((row) => (
-                <li key={row.title}>
-                  <div className="wb-wms-title">{row.title}</div>
-                  <div className="wb-wms-meta">
-                    <span>{row.timePolicy}</span>
-                    <span>·</span>
-                    <span>{row.resolvedTime ?? "latest"}</span>
-                    <StatusBadge status={row.status} />
-                  </div>
-                </li>
-              ))}
+              {wmsLayerRows.map((row) => {
+                const availability = wmsAvailabilityText(row);
+                return (
+                  <li key={row.title}>
+                    <div className="wb-wms-title">{row.title}</div>
+                    <div className="wb-wms-meta">
+                      <span>{row.timePolicy}</span>
+                      <span>-</span>
+                      <span>{row.resolvedTime ?? "latest"}</span>
+                      <StatusBadge status={row.status} />
+                    </div>
+                    {availability && <div className="wb-wms-warning">{availability}</div>}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </details>
@@ -260,7 +271,7 @@ export function RightInspector({
             <p className="wb-muted" style={{ margin: "0 0 6px" }}>
               Active: {activeSource?.name ?? activeLayer.sourceId}
               {activeSource?.retrieved_at
-                ? ` · ${fmtClock(new Date(activeSource.retrieved_at).getTime())}`
+                ? ` - ${fmtClock(new Date(activeSource.retrieved_at).getTime())}`
                 : ""}
             </p>
           )}
@@ -284,7 +295,7 @@ export function RightInspector({
                       ? "timeline"
                       : runtimeState[activeLayer.id]?.wmsTimePolicy ?? "timeline",
                     runtimeState[activeLayer.id]?.wmsFixedTime,
-                  ) || "—"}
+                  ) || "--"}
                 </p>
               )}
             </div>
@@ -307,7 +318,7 @@ export function RightInspector({
             <li><span>WMS Failed</span><strong>{diagnostics.failedRasterFrames ?? 0}</strong></li>
             <li>
               <span>Refresh</span>
-              <strong>{diagnostics.lastDataRefreshAt ? fmtClock(new Date(diagnostics.lastDataRefreshAt).getTime()) : "—"}</strong>
+              <strong>{diagnostics.lastDataRefreshAt ? fmtClock(new Date(diagnostics.lastDataRefreshAt).getTime()) : "--"}</strong>
             </li>
           </ul>
           {diagnostics.lastSourceError && (

@@ -16,7 +16,7 @@ describe("status components", () => {
   it("renders layer badges for all statuses", () => {
     const layers = [
       { ...fallbackLayers[0], layer_id: "layer-live", status: "live" as const, name: "Live layer" },
-      { ...fallbackLayers[1], layer_id: "layer-mock", status: "mock" as const, name: "Mock layer" },
+      { ...fallbackLayers[1], layer_id: "layer-derived", status: "derived" as const, name: "Derived layer" },
       { ...fallbackLayers[2], layer_id: "layer-stale", status: "stale" as const, name: "Stale layer" },
       { ...fallbackLayers[3], layer_id: "layer-fallback", status: "fallback" as const, name: "Fallback layer" },
       { ...fallbackLayers[4], layer_id: "layer-unavailable", status: "unavailable" as const, name: "Unavailable layer" }
@@ -31,7 +31,7 @@ describe("status components", () => {
     );
 
     expect(html).toContain("status-live");
-    expect(html).toContain("status-mock");
+    expect(html).toContain("status-derived");
     expect(html).toContain("status-stale");
     expect(html).toContain("status-fallback");
     expect(html).toContain("status-unavailable");
@@ -40,7 +40,7 @@ describe("status components", () => {
   it("renders source health statuses", () => {
     const sources = [
       { ...fallbackSources[0], source_id: "source-live", status: "live" as const, name: "Live source" },
-      { ...fallbackSources[0], source_id: "source-mock", status: "mock" as const, name: "Mock source" },
+      { ...fallbackSources[0], source_id: "source-derived", status: "derived" as const, name: "Derived source" },
       {
         ...fallbackSources[0],
         source_id: "source-stale",
@@ -68,7 +68,7 @@ describe("status components", () => {
 
     expect(html).toContain("Source Health");
     expect(html).toContain("status-live");
-    expect(html).toContain("status-mock");
+    expect(html).toContain("status-derived");
     expect(html).toContain("status-stale");
     expect(html).toContain("status-unavailable");
     expect(html).toContain("Refresh");

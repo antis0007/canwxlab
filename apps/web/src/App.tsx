@@ -1,18 +1,19 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./workbench.css";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { MapView } from "./components/MapView";
 import { LayersPicker, type BasemapId, BASEMAP_OPTIONS } from "./components/LayersPicker";
 import { CityPicker } from "./components/CityPicker";
+import { GifExportPanel } from "./components/workbench/GifExportPanel";
 import { BottomTimeline } from "./components/workbench/BottomTimeline";
 import { LeftSidebar } from "./components/workbench/LeftSidebar";
 import { RightInspector } from "./components/workbench/RightInspector";
 import { TopBar } from "./components/workbench/TopBar";
 import { useAnimationTimeline } from "./layers/animation";
 import { useLayerEngine } from "./layers/layerEngine";
-import type { LayerDiagnostics, RendererFeatureValue, ViewMode, CameraState } from "./layers/types";
+import type { LayerDefinition, LayerDiagnostics, RendererFeatureValue, ViewMode, CameraState } from "./layers/types";
 import { api } from "./lib/api";
 import { logManager } from "./lib/logging";
 import { useAppLogging } from "./hooks/useAppLogging";
@@ -30,8 +31,9 @@ import {
   setStoredTimeZone,
 } from "./lib/timezone";
 import type { CityEntry } from "./lib/cityCatalog";
-import { buildInspectorPayload } from "./layers/inspection";
+import { buildInspectorPayload, type InspectorWmsRow } from "./layers/inspection";
 import { buildRenderPlan } from "./layers/renderPlan";
+import { exportGif, downloadGif } from "./lib/gifExport";
 import type {
   AlertFeature,
   DataSource,
@@ -45,9 +47,9 @@ import type {
 } from "./types/weather";
 
 function readViewMode(): ViewMode {
-  if (typeof window === "undefined") return "globe";
+  if (typeof window === "undefined") return "map";
   const raw = window.localStorage.getItem("canwxlab.viewMode.v2");
-  return raw === "map" ? "map" : "globe";
+  return raw === "globe" ? "globe" : "map";
 }
 
 function writeViewMode(mode: ViewMode) {
@@ -57,12 +59,13 @@ function writeViewMode(mode: ViewMode) {
 
 const BASEMAP_STORAGE_KEY = "canwxlab.basemap.v3";
 const LOCAL_STATE_PREFIX = "canwxlab.";
+const INITIAL_OBSERVATION_LIMIT = 300;
 
 function readBasemap(): BasemapId {
-  if (typeof window === "undefined") return "satellite";
+  if (typeof window === "undefined") return "blue_marble";
   const raw = window.localStorage.getItem(BASEMAP_STORAGE_KEY);
   if (raw && BASEMAP_OPTIONS.some((o) => o.id === raw)) return raw as BasemapId;
-  return "satellite";
+  return "blue_marble";
 }
 
 function sourceStatusSummary(sources: DataSource[]): SourceStatus {
@@ -109,7 +112,7 @@ export function statusMessage(
 
   const ogcSource = sourceReport.sources.find((source) => source.source_id === "eccc_geomet_ogc_api");
   if (ogcSource?.status === "fallback" || ogcSource?.status === "unavailable") {
-    notices.push("Live source unavailable — showing mock data");
+    notices.push("Live source unavailable - showing fallback sources only");
   }
 
   if (globeCapabilityChecked && !globeSupported) {
@@ -138,6 +141,8 @@ export default function App() {
   const [isResettingExperience, setIsResettingExperience] = useState(false);
   const [activeTab, setActiveTab] = useState("layers");
   const [cameraState, setCameraState] = useState<CameraState>({ longitude: -35, latitude: 20, zoom: 1.6, bearing: 0, pitch: 0 });
+  const cameraStateRef = useRef(cameraState);
+  cameraStateRef.current = cameraState;
   const [cameraTarget, setCameraTarget] = useState<CameraState | null>(null);
   const [dynamicLayers, setDynamicLayers] = useState<WeatherLayer[]>([]);
   const [timelineMode, setTimelineMode] = useState("live");
@@ -151,7 +156,7 @@ export default function App() {
     values: RendererFeatureValue[];
     heroMetrics: import("./layers/inspection").HeroMetric[];
     pressureSystems: import("./layers/pressureSystems").PressureSystem[];
-    wmsLayerRows: Array<{ title: string; resolvedTime: string | null; timePolicy: string; status: import("./types/weather").SourceStatus }>;
+    wmsLayerRows: InspectorWmsRow[];
     nearestStation: string | null;
     nearestStationKm: number | null;
     activeAlert: string | null;
@@ -193,6 +198,9 @@ export default function App() {
   const [layersOpen, setLayersOpen] = useState(false);
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
   const [selectedCity, setSelectedCity] = useState<CityEntry | null>(null);
+  const [gifExportOpen, setGifExportOpen] = useState(false);
+  const [gifExportProgress, setGifExportProgress] = useState<[number, number] | null>(null);
+  const mapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [timeZone, setTimeZone] = useState<string>(() => getStoredTimeZone());
 
   const leftSidebar = useResizableWidth({
@@ -214,16 +222,14 @@ export default function App() {
     setStoredTimeZone(timeZone);
   }, [timeZone]);
 
+  const combinedLayers = useMemo(
+    () => [...backendLayers, ...dynamicLayers],
+    [backendLayers, dynamicLayers],
+  );
+
   const layerEngine = useLayerEngine({
-    backendLayers: [...backendLayers, ...dynamicLayers],
+    backendLayers: combinedLayers,
     plugins,
-    // Default to the backend's actual default mode ("hybrid") during the brief
-    // window before /api/sources/status returns. If we used "mock" here, the
-    // initial runtimeState would be built with live-layer enabled=false, and
-    // the existing-entry guard in useLayerEngine would then preserve that
-    // false state even after the real data_mode arrives — so the live OSINT
-    // stack would never auto-enable on first load.
-    dataMode: sourceReport?.data_mode ?? "hybrid",
   });
 
   useEffect(() => {
@@ -281,7 +287,7 @@ export default function App() {
           break;
         case "]":
           event.preventDefault();
-          setSpeedMultiplier(Math.min(8, playbackState.speedMultiplier * 2));
+          setSpeedMultiplier(Math.min(4, playbackState.speedMultiplier * 2));
           break;
         case "l":
         case "L":
@@ -312,10 +318,12 @@ export default function App() {
   const handleGlobeSupport = useCallback((supported: boolean) => {
     setGlobeCapabilityChecked(true);
     setGlobeSupported(supported);
-    if (!supported && viewMode === "globe") {
-      setViewMode("map");
+    if (supported) {
+      // Restore user preference once globe is confirmed available
+      const stored = window.localStorage.getItem("canwxlab.viewMode.v2");
+      if (stored === "globe") setViewMode("globe");
     }
-  }, [viewMode]);
+  }, []);
 
   const applyPreset = useCallback((presetId: string) => {
     const preset = builtInPresets.find((p) => p.id === presetId);
@@ -323,14 +331,84 @@ export default function App() {
 
     logManager.info("app", "Applying layer preset", { preset: presetId });
 
-    layerEngine.orderedLayers.forEach((layer) => {
-      const shouldEnable = preset.layers.includes(layer.id);
-      const isEnabled = layerEngine.runtimeState[layer.id]?.enabled;
-      if (shouldEnable !== isEnabled) {
+    const target = new Set(preset.categories);
+    const categoryOpacity = preset.categoryOpacity ?? {};
+    const maxPerCategory = preset.maxPerCategory;
+
+    // Sort layers by zIndex descending so higher-on-top layers are enabled first
+    // when a per-category cap is in effect.
+    const sorted = [...layerEngine.orderedLayers].sort((a, b) => b.zIndex - a.zIndex);
+    const catCounts = new Map<string, number>();
+
+    sorted.forEach((layer) => {
+      const shouldEnable = target.has(layer.category);
+      if (!shouldEnable) {
+        if (layerEngine.runtimeState[layer.id]?.enabled) {
+          layerEngine.toggleLayer(layer.id);
+        }
+        return;
+      }
+      // Enforce maxPerCategory cap (sorted = highest zIndex layers first)
+      if (typeof maxPerCategory === "number") {
+        const catCount = catCounts.get(layer.category) ?? 0;
+        if (catCount >= maxPerCategory) {
+          if (layerEngine.runtimeState[layer.id]?.enabled) {
+            layerEngine.toggleLayer(layer.id);
+          }
+          return;
+        }
+        catCounts.set(layer.category, catCount + 1);
+      }
+      if (!layerEngine.runtimeState[layer.id]?.enabled) {
         layerEngine.toggleLayer(layer.id);
+      }
+      const presetOpacity = categoryOpacity[layer.category];
+      if (typeof presetOpacity === "number") {
+        layerEngine.setLayerOpacity(layer.id, presetOpacity);
       }
     });
   }, [layerEngine]);
+
+  const handleGifExport = useCallback(async (range: { startFrame: number; endFrame: number; frameDelay: number }) => {
+    const canvas = mapCanvasRef.current;
+    if (!canvas) return;
+
+    setGifExportProgress([0, range.endFrame - range.startFrame + 1]);
+
+    // Pause playback during export so WMS layers don't fight the frame-stepping
+    const wasPlaying = playbackState.isPlaying;
+    if (wasPlaying) toggle();
+
+    try {
+      const result = await exportGif({
+        canvas,
+        totalFrames: playbackState.frameCount,
+        startFrame: range.startFrame,
+        endFrame: range.endFrame,
+        frameDelay: range.frameDelay,
+        onRequestFrame: async (frame) => {
+          setFrame(frame);
+          // Wait for render: rAF × 2 gives WMS double-buffer time to promote
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        },
+        onProgress: (current, total) => {
+          setGifExportProgress([current, total]);
+        },
+      });
+
+      const tz = timeZone || "UTC";
+      const label = new Date(playbackState.selectedValidTime).toLocaleString("en-CA", {
+        year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+      }).replace(/[^a-zA-Z0-9]/g, "-");
+      downloadGif(result.blob, `canwxlab-f${range.startFrame}-f${range.endFrame}-${label}.gif`);
+    } catch (err) {
+      logManager.error("app", "GIF export failed", { error: String(err) });
+    } finally {
+      setGifExportProgress(null);
+      setGifExportOpen(false);
+    }
+  }, [playbackState.isPlaying, playbackState.frameCount, playbackState.selectedValidTime, timeZone, toggle, setFrame]);
 
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);
@@ -338,8 +416,8 @@ export default function App() {
       const [status, layers, stations, hourly, activeAlerts, verification, pluginCatalog] = await Promise.all([
         api.sourceStatus(),
         api.layers(),
-        api.observations(),
-        api.hourlyObservations(),
+        api.observations({ limit: INITIAL_OBSERVATION_LIMIT }),
+        api.hourlyObservations({ limit: INITIAL_OBSERVATION_LIMIT }),
         api.alerts(),
         api.verification(),
         api.plugins(),
@@ -469,7 +547,7 @@ export default function App() {
     values: RendererFeatureValue[];
     heroMetrics: import("./layers/inspection").HeroMetric[];
     pressureSystems: import("./layers/pressureSystems").PressureSystem[];
-    wmsLayerRows: Array<{ title: string; resolvedTime: string | null; timePolicy: string; status: import("./types/weather").SourceStatus }>;
+    wmsLayerRows: InspectorWmsRow[];
     nearestStation: string | null;
     nearestStationKm: number | null;
     activeAlert: string | null;
@@ -491,7 +569,6 @@ export default function App() {
   return (
     <main className="wb-app">
       <TopBar
-        dataMode={sourceReport?.data_mode ?? "mock"}
         timelineTime={playbackState.selectedValidTime}
         viewMode={viewMode}
         globeSupported={globeSupported}
@@ -534,6 +611,7 @@ export default function App() {
           onSetLayerRamp={layerEngine.setLayerRamp}
           onSetLayerControl={layerEngine.setLayerControl}
           onMoveLayer={layerEngine.moveLayer}
+          onReorderLayer={layerEngine.reorderLayer}
           onResetLayer={layerEngine.resetLayer}
           plugins={plugins}
           pluginEnabled={layerEngine.pluginEnabled}
@@ -598,6 +676,7 @@ export default function App() {
             starMaxDistanceLy={layerEngine.uiPreferences.starMaxDistanceLy}
             timelinePlaying={playbackState.isPlaying}
             timelineSpeedMultiplier={playbackState.speedMultiplier}
+            onCanvasReady={(canvas) => { mapCanvasRef.current = canvas; }}
           />
 
           <LayersPicker
@@ -621,6 +700,7 @@ export default function App() {
             onSetSpeed={setSpeedMultiplier}
             onShiftWindowDays={shiftWindowDays}
             timeZone={timeZone}
+            onOpenGifExport={() => setGifExportOpen(true)}
           />
         </section>
 
@@ -664,13 +744,22 @@ export default function App() {
               setCameraTarget({
                 longitude: city.longitude,
                 latitude: city.latitude,
-                zoom: Math.max(cameraState.zoom, 6.5),
+                zoom: Math.max(cameraStateRef.current.zoom, 6.5),
                 bearing: 0,
                 pitch: 0,
               });
             }}
             onAdoptTimeZone={(tz) => setTimeZone(tz)}
             cameraState={cameraState}
+          />
+        )}
+
+        {gifExportOpen && (
+          <GifExportPanel
+            onClose={() => { if (!gifExportProgress) setGifExportOpen(false); }}
+            totalFrames={playbackState.frameCount}
+            onExport={handleGifExport}
+            progress={gifExportProgress}
           />
         )}
       </section>

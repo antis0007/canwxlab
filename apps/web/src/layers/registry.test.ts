@@ -26,7 +26,7 @@ describe("buildLayerDefinitions decontamination", () => {
     expect(demos).toHaveLength(0);
   });
 
-  it("shows demo layers by default in mock mode", () => {
+  it("omits demo layers in mock mode", () => {
     const defs = buildLayerDefinitions({
       backendLayers: [],
       plugins: [],
@@ -34,7 +34,7 @@ describe("buildLayerDefinitions decontamination", () => {
       dataMode: "mock",
     });
     const demos = defs.filter((d) => d.id.startsWith("demo_"));
-    expect(demos.some((d) => d.defaultVisible === true)).toBe(true);
+    expect(demos).toHaveLength(0);
   });
 
   it("keeps documented ECCC WMS radar and cloud overlays renderable in fallback mode", () => {
@@ -55,26 +55,45 @@ describe("buildLayerDefinitions decontamination", () => {
     expect(cloud?.defaultVisible).toBe(true);
   });
 
-  it("demo layers are tagged [MOCK] in title", () => {
+  it("filters backend layers marked as mock", () => {
     const defs = buildLayerDefinitions({
-      backendLayers: [],
+      backendLayers: [
+        {
+          ...fallbackLayers[0],
+          layer_id: "mock_backend_layer",
+          status: "mock",
+        },
+        {
+          ...fallbackLayers[2],
+          layer_id: "eccc_radar_live",
+          status: "live",
+        },
+      ],
       plugins: [],
       pluginEnabled: {},
       dataMode: "mock",
     });
-    const demos = defs.filter((d) => d.id.startsWith("demo_"));
-    expect(demos.every((d) => /^\[MOCK\]/.test(d.title))).toBe(true);
+    expect(defs.some((d) => d.id === "mock_backend_layer")).toBe(false);
+    expect(defs.some((d) => d.id === "eccc_radar_live")).toBe(true);
   });
 
   it("marks flat animated deck layers as map-only", () => {
     const defs = buildLayerDefinitions({
-      backendLayers: [],
+      backendLayers: [
+        {
+          ...fallbackLayers[2],
+          layer_id: "eccc_point_field",
+          service_type: "ogc_api",
+          variable: "temperature_2m",
+          status: "live",
+        },
+      ],
       plugins: [],
       pluginEnabled: {},
-      dataMode: "mock",
+      dataMode: "live",
     });
-    const flatDemoLayers = defs.filter((d) => d.rendererType === "deck-grid" || d.rendererType === "deck-particles");
-    expect(flatDemoLayers.length).toBeGreaterThan(0);
-    expect(flatDemoLayers.every((d) => d.capabilities.supportsGlobe === false)).toBe(true);
+    const flatLayers = defs.filter((d) => d.rendererType === "deck-grid" || d.rendererType === "deck-particles");
+    expect(flatLayers.length).toBeGreaterThan(0);
+    expect(flatLayers.every((d) => d.capabilities.supportsGlobe === false)).toBe(true);
   });
 });

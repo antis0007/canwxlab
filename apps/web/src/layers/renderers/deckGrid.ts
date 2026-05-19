@@ -18,6 +18,37 @@ function colorFromStops(value: number, min: number, max: number, colors: string[
   return [(parsed >> 16) & 0xff, (parsed >> 8) & 0xff, parsed & 0xff];
 }
 
+// WebGL blend constants.
+//   GL.SRC_ALPHA           = 0x0302 (770)
+//   GL.ONE_MINUS_SRC_ALPHA = 0x0303 (771)
+//   GL.ONE                 = 1
+//   GL.DST_COLOR           = 0x0306 (774)
+//   GL.ONE_MINUS_SRC_COLOR = 0x0301 (769)
+//   GL.FUNC_ADD            = 0x8006 (32774)
+//   GL.MAX                 = 0x8008 (32776)
+function blendParams(blendMode: string): Record<string, unknown> {
+  // additive / add — fragments accumulate without alpha penalty.
+  // Radar, precipitation, and cloud overlays.
+  if (blendMode === "additive" || blendMode === "add") {
+    return { depthTest: false, blendFunc: [1, 1] as [number, number], blendEquation: 0x8006 };
+  }
+  // screen — 1 - (1-src)*(1-dst). Softer brightening, good for cloud composites.
+  if (blendMode === "screen") {
+    return { depthTest: false, blendFunc: [1, 0x0301] as [number, number], blendEquation: 0x8006 };
+  }
+  // multiply — dst * src. Darkens, useful for satellite overlays on bright basemaps.
+  if (blendMode === "multiply") {
+    return { depthTest: false, blendFunc: [0x0306, 0x0303] as [number, number], blendEquation: 0x8006 };
+  }
+  // max — picks the lighter fragment. Good for compositing forecast max-fields.
+  if (blendMode === "max") {
+    return { depthTest: false, blendFunc: [1, 1] as [number, number], blendEquation: 0x8008 };
+  }
+  // alpha — explicit alpha compositing (same pipeline as normal, semantically distinct).
+  // normal — standard src-alpha / 1-src-alpha.
+  return { depthTest: false };
+}
+
 export function createDeckGridLayer(options: {
   id: string;
   data: GeoJSON.FeatureCollection;
@@ -37,6 +68,7 @@ export function createDeckGridLayer(options: {
     opacity: options.runtime.opacity,
     pickable: true,
     wrapLongitude: true,
+    transitions: {},
     _subLayerProps: {
       "polygons-fill": { _normalize: false },
     },
@@ -46,7 +78,10 @@ export function createDeckGridLayer(options: {
       const [r, g, b] = colorFromStops(numeric, options.min, options.max, colors);
       return [r, g, b, 170];
     },
-    parameters: { depthTest: false },
+    updateTriggers: {
+      getFillColor: [options.runtime.controls.min, options.runtime.controls.max, options.runtime.colourRamp, options.runtime.opacity],
+    },
+    parameters: blendParams(options.runtime.controls.blendMode),
   });
 }
 
@@ -88,10 +123,14 @@ export function createDeckPointFieldLayer(options: {
     filled: true,
     opacity: options.runtime.opacity,
     pickable: true,
+    transitions: {},
     getFillColor: (point: PointFieldDatum) => {
       const [r, g, b] = colorFromStops(point.value, options.min, options.max, colors);
       return [r, g, b, 150];
     },
-    parameters: { depthTest: false },
+    updateTriggers: {
+      getFillColor: [options.min, options.max, options.runtime.colourRamp, options.runtime.opacity],
+    },
+    parameters: blendParams(options.runtime.controls.blendMode),
   });
 }

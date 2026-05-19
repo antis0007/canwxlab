@@ -22,15 +22,16 @@ const playback: AnimationPlaybackState = {
   selectedValidTime: new Date().toISOString(),
   loopStart: 0,
   loopEnd: 239,
+  subFrameProgress: 0,
 };
 
 const layer: LayerDefinition = {
-  id: "demo_temperature_field",
-  title: "Demo Temperature Field",
-  description: "Demo",
-  category: "forecast",
-  sourceId: "mock_canwxlab",
-  status: "mock",
+  id: "eccc_climate_stations",
+  title: "ECCC Climate Stations",
+  description: "Official ECCC station observations.",
+  category: "observation",
+  sourceId: "eccc_geomet_ogc_api",
+  status: "live",
   isExperimental: false,
   defaultVisible: true,
   defaultOpacity: 0.7,
@@ -64,13 +65,14 @@ const layer: LayerDefinition = {
     cloudOpacity: 0.7,
     contourInterval: 4,
     blendMode: "normal",
+    edgeBlur: 0,
   },
   variable: "temperature_2m",
   unit: "degC",
 };
 
 const runtimeState: Record<string, LayerRuntimeState> = {
-  demo_temperature_field: {
+  eccc_climate_stations: {
     enabled: true,
     opacity: 0.7,
     colourRamp: "temperature-blue-red",
@@ -101,19 +103,19 @@ const plugin: PluginCatalogItem = {
 };
 
 const source: DataSource = {
-  source_id: "mock_canwxlab",
-  name: "Mock Source",
-  status: "mock",
-  adapter: "mock",
+  source_id: "eccc_geomet_ogc_api",
+  name: "ECCC GeoMet OGC API",
+  status: "live",
+  adapter: "eccc_geomet",
   last_updated: new Date().toISOString(),
   last_successful_fetch: null,
   last_attempted_fetch: null,
   retrieved_at: null,
   expires_at: null,
-  attribution: "Synthetic",
-  description: "Mock",
-  message: "Mock mode",
-  is_live: false,
+  attribution: "Environment and Climate Change Canada / Meteorological Service of Canada.",
+  description: "Official ECCC GeoMet source.",
+  message: "Live source available.",
+  is_live: true,
   is_experimental: false,
   metadata: {},
 };
@@ -124,7 +126,6 @@ describe("workbench components", () => {
   it("renders map/globe toggle and animation controls", () => {
     const html = renderToStaticMarkup(
       <TopBar
-        dataMode="hybrid"
         timelineTime={playback.selectedValidTime}
         viewMode="map"
         globeSupported={false}
@@ -134,7 +135,7 @@ describe("workbench components", () => {
         onTogglePlay={() => undefined}
         onSpeedChange={() => undefined}
         onResetAnimation={() => undefined}
-        sourceHealthStatus="mock"
+        sourceHealthStatus="live"
         isRefreshing={false}
         onRefresh={() => undefined}
         onFreshStart={() => undefined}
@@ -167,6 +168,7 @@ describe("workbench components", () => {
         onSetLayerRamp={() => undefined}
         onSetLayerControl={() => undefined}
         onMoveLayer={() => undefined}
+        onReorderLayer={() => undefined}
         onResetLayer={() => undefined}
         plugins={[plugin]}
         pluginEnabled={{ core_radar_layer: true }}
@@ -195,8 +197,7 @@ describe("workbench components", () => {
       />
     );
 
-    expect(html).toContain("Demo Temperature Field");
-    expect(html).toContain("MOCK");
+    expect(html).toContain("ECCC Climate Stations");
     expect(html).toContain("checked");
 
     const pluginHtml = renderToStaticMarkup(
@@ -210,6 +211,7 @@ describe("workbench components", () => {
         onSetLayerRamp={() => undefined}
         onSetLayerControl={() => undefined}
         onMoveLayer={() => undefined}
+        onReorderLayer={() => undefined}
         onResetLayer={() => undefined}
         plugins={[plugin]}
         pluginEnabled={{ core_radar_layer: true }}

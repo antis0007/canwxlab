@@ -11,6 +11,8 @@ interface BottomTimelineProps {
   onShiftWindowDays: (days: number) => void;
   /** Operator-selected IANA time zone for the strip readouts. Defaults to UTC. */
   timeZone?: string;
+  /** Open the GIF export panel. */
+  onOpenGifExport?: () => void;
 }
 
 /** Pin "A" or "B" comparison times on the timeline. Stored in localStorage so
@@ -85,62 +87,78 @@ function buildTicks(startMs: number, frameCount: number): Tick[] {
   return out;
 }
 
-// Smooth daylight curve: 0 = deep night, 1 = noon. Cosine-based, no banding.
-function daylight(hour: number): number {
-  // hour: 0..24, peak at 13 (slightly offset to feel right)
-  const x = ((hour - 13) / 24) * Math.PI * 2;
-  return Math.max(0, 0.5 + 0.5 * Math.cos(x));
+// Blend two RGB colours by a factor k (0..1).
+function lerpRgb(a: [number, number, number], b: [number, number, number], k: number): string {
+  const r = Math.round(a[0] + (b[0] - a[0]) * k);
+  const g = Math.round(a[1] + (b[1] - a[1]) * k);
+  const bl = Math.round(a[2] + (b[2] - a[2]) * k);
+  return `rgb(${r}, ${g}, ${bl})`;
 }
+
+// Key palette anchors (R, G, B) for each time-of-day phase.
+// Phases are chosen so the gradient reads like a sky-colour strip: night → dawn → day → dusk → night.
+const NIGHT_ANCHOR:   [number, number, number] = [18, 24, 56];   // visible navy
+const TWILIGHT_ANCHOR: [number, number, number] = [130, 60, 140]; // vivid purple
+const SUNRISE_ANCHOR: [number, number, number] = [245, 155, 65]; // bright amber
+const MORNING_ANCHOR: [number, number, number] = [110, 170, 230]; // sky blue
+const MIDDAY_ANCHOR:  [number, number, number] = [140, 200, 248]; // bright midday
+const AFTERNOON_ANCHOR:[number, number, number]= [130, 180, 235]; // soft blue
+const SUNSET_ANCHOR:  [number, number, number] = [240, 135, 55]; // vivid orange
+const DUSK_ANCHOR:    [number, number, number] = [95, 38, 95];   // deep violet
 
 function dayNightStops(startMs: number, frameCount: number): string {
   const totalMs = (frameCount - 1) * FRAME_INTERVAL_MS;
   const samples = 48;
   const stops: string[] = [];
-  // Palette: deep midnight indigo -> twilight magenta -> dawn amber -> day blue -> sunset orange -> dusk -> night
+
   for (let i = 0; i <= samples; i += 1) {
     const t = startMs + (i / samples) * totalMs;
     const d = new Date(t);
     const hour = d.getUTCHours() + d.getUTCMinutes() / 60;
-    const lum = daylight(hour);
-    let r: number, g: number, b: number;
-    if (hour < 5 || hour >= 21) {
-      // Deep night — desaturated indigo
-      r = 14;  g = 18;  b = 38;
-    } else if (hour < 7) {
-      // Astronomical -> civil twilight: indigo to magenta
-      const k = (hour - 5) / 2;
-      r = 14 + k * (124 - 14);
-      g = 18 + k * (64 - 18);
-      b = 38 + k * (110 - 38);
-    } else if (hour < 9) {
-      // Sunrise: magenta -> amber -> pale blue
-      const k = (hour - 7) / 2;
-      r = 124 + k * (255 - 124);
-      g = 64  + k * (170 - 64);
-      b = 110 + k * (110 - 110);
+    let color: string;
+
+    if (hour < 4.5) {
+      // Late night — steady deep navy
+      color = lerpRgb(NIGHT_ANCHOR, NIGHT_ANCHOR, 0);
+    } else if (hour < 5.5) {
+      // Astronomical twilight — navy → purple
+      color = lerpRgb(NIGHT_ANCHOR, TWILIGHT_ANCHOR, (hour - 4.5));
+    } else if (hour < 6.5) {
+      // Nautical twilight — purple → amber
+      color = lerpRgb(TWILIGHT_ANCHOR, SUNRISE_ANCHOR, (hour - 5.5));
+    } else if (hour < 8) {
+      // Sunrise — amber glow
+      color = lerpRgb(SUNRISE_ANCHOR, MORNING_ANCHOR, (hour - 6.5) / 1.5);
+    } else if (hour < 11) {
+      // Morning — steel blue → bright sky
+      color = lerpRgb(MORNING_ANCHOR, MIDDAY_ANCHOR, (hour - 8) / 3);
+    } else if (hour < 15) {
+      // Midday peak — bright sky (subtle warm shift at solar noon)
+      const noonBoost = Math.sin(((hour - 11) / 4) * Math.PI); // 0→1→0
+      const peak: [number, number, number] = [
+        MIDDAY_ANCHOR[0] + 15 * noonBoost,
+        MIDDAY_ANCHOR[1] + 10 * noonBoost,
+        MIDDAY_ANCHOR[2] - 15 * noonBoost,
+      ];
+      color = lerpRgb(MIDDAY_ANCHOR, peak, noonBoost * 0.5);
     } else if (hour < 17) {
-      // Daylight: midday saturated blue
-      const k = Math.min(1, Math.max(0, (hour - 9) / 4));
-      const dayR = 110 + (lum * 30);
-      const dayG = 180 + (lum * 20);
-      const dayB = 240;
-      r = 255 - k * (255 - dayR);
-      g = 170 + k * (dayG - 170);
-      b = 110 + k * (dayB - 110);
-    } else if (hour < 19) {
-      // Sunset: blue -> deep orange
-      const k = (hour - 17) / 2;
-      r = 140 + k * (240 - 140);
-      g = 200 - k * (200 - 110);
-      b = 240 - k * (240 - 70);
+      // Afternoon — sky → softer blue
+      color = lerpRgb(MIDDAY_ANCHOR, AFTERNOON_ANCHOR, (hour - 15) / 2);
+    } else if (hour < 18.5) {
+      // Late afternoon → golden hour
+      color = lerpRgb(AFTERNOON_ANCHOR, SUNSET_ANCHOR, (hour - 17) / 1.5);
+    } else if (hour < 19.5) {
+      // Sunset — burnt orange peak
+      color = lerpRgb(SUNSET_ANCHOR, DUSK_ANCHOR, (hour - 18.5));
+    } else if (hour < 21) {
+      // Dusk — violet → navy
+      color = lerpRgb(DUSK_ANCHOR, NIGHT_ANCHOR, (hour - 19.5) / 1.5);
     } else {
-      // Dusk: orange -> deep indigo
-      const k = (hour - 19) / 2;
-      r = 240 - k * (240 - 14);
-      g = 110 - k * (110 - 18);
-      b = 70  + k * (38 - 70);
+      // Early night — back to deep navy
+      color = lerpRgb(NIGHT_ANCHOR, NIGHT_ANCHOR, 0);
     }
-    stops.push(`rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}) ${((i / samples) * 100).toFixed(2)}%`);
+
+    stops.push(`${color} ${((i / samples) * 100).toFixed(2)}%`);
   }
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
@@ -153,6 +171,7 @@ export function BottomTimeline({
   onSetSpeed,
   onShiftWindowDays,
   timeZone = "UTC",
+  onOpenGifExport,
 }: BottomTimelineProps) {
   const stripRef = useRef<HTMLDivElement | null>(null);
   const [hoverPct, setHoverPct] = useState<number | null>(null);
@@ -345,7 +364,14 @@ export function BottomTimeline({
         className="wb-tl-strip"
         onPointerMove={handlePointerMove}
         onPointerLeave={() => setHoverPct(null)}
+        onContextMenu={(e) => {
+          if (onOpenGifExport) {
+            e.preventDefault();
+            onOpenGifExport();
+          }
+        }}
       >
+        <div className="wb-tl-daynight" style={{ background: gradient }} aria-hidden="true" />
         <div className="wb-tl-ticks" aria-hidden="true">
           {ticks.map((tick, i) => (
             <div
@@ -365,9 +391,6 @@ export function BottomTimeline({
             aria-hidden="true"
           />
           <div className="wb-tl-progress" style={{ width: `${progressPct}%` }} aria-hidden="true" />
-
-          {/* Thin day/night band — smaller than the main track */}
-          <div className="wb-tl-daynight" style={{ background: gradient }} aria-hidden="true" />
 
           {hoverPct !== null && (
             <>

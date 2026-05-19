@@ -1,4 +1,4 @@
-import { Fragment, useState, useMemo } from "react";
+import { Fragment, useState, useMemo, useRef, useCallback } from "react";
 import { StatusBadge } from "./StatusBadge";
 
 import { colorRamps } from "../../layers/colorRamps";
@@ -27,6 +27,7 @@ interface LeftSidebarProps {
     value: number | string,
   ) => void;
   onMoveLayer: (layerId: string, direction: "up" | "down") => void;
+  onReorderLayer: (layerId: string, targetIndex: number) => void;
   onResetLayer: (layerId: string) => void;
   plugins: PluginCatalogItem[];
   pluginEnabled: Record<string, boolean>;
@@ -307,11 +308,26 @@ function LayerRow({
                 Blend
                 <select value={state.controls.blendMode} onChange={(e) => onSetControl("blendMode", e.target.value)}>
                   <option value="normal">normal</option>
-                  <option value="additive">additive</option>
-                  <option value="multiply">multiply</option>
+                  <option value="add">add</option>
                   <option value="screen">screen</option>
+                  <option value="multiply">multiply</option>
+                  <option value="max">max</option>
+                  <option value="alpha">alpha</option>
                 </select>
               </label>
+              {layer.category === "satellite" && (
+                <label style={{ gridColumn: "1 / -1" }}>
+                  Edge Blur {(state.controls.edgeBlur ?? 0).toFixed(1)}px
+                  <input
+                    type="range"
+                    min={0}
+                    max={10}
+                    step={0.5}
+                    value={state.controls.edgeBlur ?? 0}
+                    onChange={(e) => onSetControl("edgeBlur", Number(e.target.value))}
+                  />
+                </label>
+              )}
             </div>
           </details>
 
@@ -357,6 +373,122 @@ function LayerRow({
   );
 }
 
+// ── Active stack (drag-and-drop reorder, in-stack toggle) ──────────────────────
+
+const CAT_COLORS: Record<string, string> = {
+  radar: "#ff6b6b", forecast: "#4ecdc4", satellite: "#45b7d1",
+  observation: "#96ceb4", alert: "#ffd93d", simulation: "#a855f7",
+  diagnostic: "#6b7280", base: "#374151", plugin: "#ec4899",
+  experimental: "#f97316",
+};
+
+interface ActiveStackProps {
+  layers: LayerDefinition[];
+  runtimeState: Record<string, LayerRuntimeState>;
+  onToggleLayer: (id: string) => void;
+  onMoveLayer: (id: string, direction: "up" | "down") => void;
+  onReorderLayer: (id: string, targetIndex: number) => void;
+}
+
+function ActiveStack({ layers, runtimeState, onToggleLayer, onMoveLayer, onReorderLayer }: ActiveStackProps) {
+  const dragIdRef = useRef<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const activeStack = useMemo(
+    () => layers.filter((layer) => runtimeState[layer.id]?.enabled).slice().reverse(),
+    [layers, runtimeState],
+  );
+
+  const onDragStart = useCallback((e: React.DragEvent, layerId: string) => {
+    dragIdRef.current = layerId;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", layerId);
+    (e.currentTarget as HTMLElement).classList.add("wb-dragging");
+  }, []);
+
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const onDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).classList.add("wb-drag-over");
+  }, []);
+
+  const onDragLeave = useCallback((e: React.DragEvent) => {
+    (e.currentTarget as HTMLElement).classList.remove("wb-drag-over");
+  }, []);
+
+  const onDrop = useCallback((e: React.DragEvent, visualIndex: number) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).classList.remove("wb-drag-over");
+    const draggedId = dragIdRef.current;
+    if (!draggedId) return;
+    // visualIndex is top-first; layerOrder is bottom-first
+    const orderIndex = activeStack.length - 1 - visualIndex;
+    onReorderLayer(draggedId, orderIndex);
+  }, [activeStack.length, onReorderLayer]);
+
+  const onDragEnd = useCallback((e: React.DragEvent) => {
+    dragIdRef.current = null;
+    (e.currentTarget as HTMLElement).classList.remove("wb-dragging");
+    containerRef.current?.querySelectorAll(".wb-drag-over").forEach((el) => el.classList.remove("wb-drag-over"));
+  }, []);
+
+  const catColor = (cat: string): string => CAT_COLORS[cat] ?? "var(--wb-muted)";
+
+  if (activeStack.length === 0) return null;
+
+  return (
+    <div className="wb-layer-stack" aria-label="Active layer stack" ref={containerRef}>
+      <div className="wb-layer-stack-head">
+        <span>Active stack</span>
+        <small>drag to reorder · top first</small>
+      </div>
+      <div className="wb-layer-stack-scroll">
+        {activeStack.map((layer, visualIndex) => {
+          const state = runtimeState[layer.id];
+          if (!state) return null;
+          const isTop = visualIndex === 0;
+          const isBottom = visualIndex === activeStack.length - 1;
+          return (
+            <div
+              key={`stack-${layer.id}`}
+              className="wb-layer-stack-row"
+              draggable
+              onDragStart={(e) => onDragStart(e, layer.id)}
+              onDragOver={onDragOver}
+              onDragEnter={onDragEnter}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, visualIndex)}
+              onDragEnd={onDragEnd}
+            >
+              <span className="wb-stack-grip" aria-hidden="true" />
+              <input
+                type="checkbox"
+                className="wb-stack-toggle"
+                checked={state.enabled}
+                onChange={() => onToggleLayer(layer.id)}
+                title={`Toggle ${layer.title}`}
+              />
+              <span className="wb-stack-dot" style={{ backgroundColor: catColor(layer.category) }} />
+              <span className="wb-layer-stack-index">{activeStack.length - visualIndex}</span>
+              <span className="wb-layer-stack-name" title={layer.title}>{layer.title}</span>
+              <button type="button" className="wb-stack-btn" onClick={() => onMoveLayer(layer.id, "up")} title="Move toward top" disabled={isTop}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 2v6M2 5l3-3 3 3"/></svg>
+              </button>
+              <button type="button" className="wb-stack-btn" onClick={() => onMoveLayer(layer.id, "down")} title="Move toward basemap" disabled={isBottom}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 8v-6M2 5l3 3 3-3"/></svg>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Layer tab ─────────────────────────────────────────────────────────────────
 
 interface LayerTabProps {
@@ -367,6 +499,7 @@ interface LayerTabProps {
   onSetLayerRamp: (id: string, r: string) => void;
   onSetLayerControl: (id: string, c: keyof LayerRuntimeState["controls"], v: number | string) => void;
   onMoveLayer: (id: string, d: "up" | "down") => void;
+  onReorderLayer: (id: string, targetIndex: number) => void;
   onResetLayer: (id: string) => void;
   onApplyPreset?: (id: string) => void;
   onSetWmsTimePolicy?: (layerId: string, policy: "timeline" | "latest" | "fixed", fixedTime?: number) => void;
@@ -380,6 +513,7 @@ function LayerTab({
   onSetLayerRamp,
   onSetLayerControl,
   onMoveLayer,
+  onReorderLayer,
   onResetLayer,
   onApplyPreset,
   onSetWmsTimePolicy,
@@ -426,11 +560,6 @@ function LayerTab({
     );
   }, [filteredLayers]);
 
-  const activeStack = useMemo(
-    () => layers.filter((layer) => runtimeState[layer.id]?.enabled).slice().reverse(),
-    [layers, runtimeState],
-  );
-
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
       {/* Search */}
@@ -461,22 +590,13 @@ function LayerTab({
         </div>
       )}
 
-      {activeStack.length > 0 && (
-        <div className="wb-layer-stack" aria-label="Active layer stack">
-          <div className="wb-layer-stack-head">
-            <span>Active stack</span>
-            <small>top first</small>
-          </div>
-          {activeStack.map((layer, index) => (
-            <div key={`stack-${layer.id}`} className="wb-layer-stack-row">
-              <span className="wb-layer-stack-index">{index + 1}</span>
-              <span className="wb-layer-stack-name" title={layer.title}>{layer.title}</span>
-              <button type="button" onClick={() => onMoveLayer(layer.id, "up")} title="Move toward top">Up</button>
-              <button type="button" onClick={() => onMoveLayer(layer.id, "down")} title="Move toward basemap">Down</button>
-            </div>
-          ))}
-        </div>
-      )}
+      <ActiveStack
+        layers={layers}
+        runtimeState={runtimeState}
+        onToggleLayer={onToggleLayer}
+        onMoveLayer={onMoveLayer}
+        onReorderLayer={onReorderLayer}
+      />
 
       {/* Layer groups */}
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
@@ -721,6 +841,7 @@ export function LeftSidebar(props: LeftSidebarProps) {
             onSetLayerRamp={props.onSetLayerRamp}
             onSetLayerControl={props.onSetLayerControl}
             onMoveLayer={props.onMoveLayer}
+            onReorderLayer={props.onReorderLayer}
             onResetLayer={props.onResetLayer}
             onApplyPreset={props.onApplyPreset}
             onSetWmsTimePolicy={props.onSetWmsTimePolicy}

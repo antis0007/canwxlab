@@ -26,7 +26,7 @@ export function SourceStatusPanel({ sources, apiError, onRefresh, isRefreshing }
           </button>
         </div>
       </div>
-      {apiError && <p className="warning-text">API unavailable: using frontend fallback mock data.</p>}
+      {apiError && <p className="warning-text">API unavailable: using local fallback metadata.</p>}
       <div className="source-list">
         {sources.map((source) => (
           <article key={source.source_id} className="source-card">

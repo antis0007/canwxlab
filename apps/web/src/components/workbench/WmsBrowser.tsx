@@ -24,9 +24,9 @@ export function WmsBrowser({ onAddLayer }: WmsBrowserProps) {
     async function fetchLayers() {
       setLoading(true);
       try {
-        const [result, diag] = await Promise.all([api.wmsLayers(), api.wmsDiagnostics()]);
-        setLayers(result);
-        const base = (diag as { wms_base_url?: unknown }).wms_base_url;
+        const summary = await api.wmsCapabilitiesSummary();
+        setLayers(summary.layers);
+        const base = summary.source.homepage_url;
         if (typeof base === "string" && base.length > 0) {
           setWmsBaseUrl(base);
         }

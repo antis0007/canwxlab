@@ -33,7 +33,7 @@ export function InspectorPanel({ inspector }: InspectorPanelProps) {
           ))}
         </div>
       ) : (
-        <p className="muted">Click anywhere on the map to inspect mock layer values.</p>
+        <p className="muted">Click anywhere on the map to inspect active layer values.</p>
       )}
     </section>
   );

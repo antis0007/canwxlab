@@ -65,7 +65,7 @@ function capabilitiesForRenderer(rendererType: LayerRendererType): LayerRenderer
 }
 
 function rendererFromLayer(layer: WeatherLayer): LayerRendererType {
-  if (layer.service_type === "wms") return "wms-raster";
+  if (layer.service_type === "wms" || layer.service_type === "wmts") return "wms-raster";
   if (layer.variable.includes("alert")) return "deck-polygon";
   if (layer.variable.includes("station") || layer.variable.includes("observation")) return "deck-scatter";
   return "deck-grid";
@@ -78,19 +78,7 @@ function rampForLayer(category: LayerCategory, layer: WeatherLayer): string {
   return defaultRampByCategory[category] ?? "viridis-like";
 }
 
-function categoryDefaultVisibility(layer: WeatherLayer, dataMode: DataMode): boolean {
-  if (dataMode === "mock") {
-    return [
-      "mock_temperature",
-      "mock_alerts",
-      "mock_stations",
-      "demo_radar_animation",
-      "demo_wind_particles",
-      "eccc_radar_1km_rrai",
-      "eccc_goes_east_cloud_type",
-    ].includes(layer.layer_id);
-  }
-  // Live / hybrid: turn on a useful default stack so the map is not blank.
+function categoryDefaultVisibility(layer: WeatherLayer): boolean {
   return [
     "eccc_radar_1km_rrai",
     "eccc_gdps_p_msl",
@@ -102,13 +90,11 @@ function categoryDefaultVisibility(layer: WeatherLayer, dataMode: DataMode): boo
 
 export type DataMode = "mock" | "live" | "hybrid";
 
-function backendLayerToDefinition(layer: WeatherLayer, zIndex: number, dataMode: DataMode): LayerDefinition {
+function backendLayerToDefinition(layer: WeatherLayer, zIndex: number): LayerDefinition {
   const category = categoryFromLayer(layer);
   const rendererType = rendererFromLayer(layer);
   const colourRamp = rampForLayer(category, layer);
-  const isMockStatus = layer.status === "mock" || layer.status === "fallback";
-  const titleBase = layer.title ?? layer.name;
-  const displayTitle = isMockStatus && !/^\[MOCK\]|^\[DEMO\]/i.test(titleBase) ? `[MOCK] ${titleBase}` : titleBase;
+  const displayTitle = layer.title ?? layer.name;
   const legend = layer.variable.includes("alert")
     ? alertLegend()
     : legendFromRamp(displayTitle, layer.unit, colourRamp);
@@ -121,7 +107,7 @@ function backendLayerToDefinition(layer: WeatherLayer, zIndex: number, dataMode:
     sourceId: layer.source_id,
     status: layer.status,
     isExperimental: layer.is_experimental,
-    defaultVisible: categoryDefaultVisibility(layer, dataMode),
+    defaultVisible: categoryDefaultVisibility(layer),
     defaultOpacity: layer.default_opacity,
     zIndex,
     colourRamp,
@@ -154,7 +140,7 @@ function pluginToLayer(plugin: PluginCatalogItem, zIndex: number): LayerDefiniti
     description: plugin.description,
     category: plugin.plugin_type === "diagnostic" ? "diagnostic" : "plugin",
     sourceId: plugin.id,
-    status: plugin.status === "installed" ? "mock" : "unavailable",
+    status: plugin.status === "installed" ? "derived" : "unavailable",
     isExperimental: plugin.safety_level !== "core",
     defaultVisible: false,
     defaultOpacity: 0.8,
@@ -183,147 +169,23 @@ function pluginToLayer(plugin: PluginCatalogItem, zIndex: number): LayerDefiniti
   };
 }
 
-function demoLayers(baseIndex: number, dataMode: DataMode): LayerDefinition[] {
-  const visibleByDefault = dataMode === "mock";
-  const layers: LayerDefinition[] = [
-    {
-      id: "demo_temperature_field",
-      title: "[MOCK] Demo Temperature Field",
-      description: "Animated mock temperature field for local visual iteration.",
-      category: "forecast",
-      sourceId: "mock_canwxlab",
-      status: "mock",
-      isExperimental: false,
-      defaultVisible: visibleByDefault,
-      defaultOpacity: 0.66,
-      zIndex: baseIndex,
-      colourRamp: "temperature-blue-red",
-      legend: legendFromRamp("Temperature", "degC", "temperature-blue-red"),
-      rendererType: "deck-grid",
-      capabilities: capabilitiesForRenderer("deck-grid"),
-      animation: { frameCount: 240 },
-      controls: { ...defaultLayerControls, min: -35, max: 35, smoothing: 0.6 },
-      variable: "temperature_2m",
-      unit: "degC",
-      message: "MOCK/DEMO",
-      metadata: {},
-    },
-    {
-      id: "demo_radar_animation",
-      title: "[MOCK] Demo Radar Precipitation",
-      description: "Animated mock precipitation blobs resembling radar echoes.",
-      category: "radar",
-      sourceId: "mock_canwxlab",
-      status: "mock",
-      isExperimental: false,
-      defaultVisible: visibleByDefault,
-      defaultOpacity: 0.62,
-      zIndex: baseIndex + 1,
-      colourRamp: "radar",
-      legend: legendFromRamp("Radar", "mm/h", "radar"),
-      rendererType: "deck-grid",
-      capabilities: capabilitiesForRenderer("deck-grid"),
-      animation: { frameCount: 240 },
-      controls: {
-        ...defaultLayerControls,
-        min: 0,
-        max: 14,
-        precipitationIntensity: 1.15,
-      },
-      variable: "precipitation_rate",
-      unit: "mm/h",
-      message: "MOCK/DEMO",
-      metadata: {},
-    },
-    {
-      id: "demo_pressure_msl",
-      title: "[MOCK] Demo Mean Sea Level Pressure",
-      description: "Animated mock MSLP analysis field for pressure-pattern inspection.",
-      category: "forecast",
-      sourceId: "mock_canwxlab",
-      status: "mock",
-      isExperimental: false,
-      defaultVisible: visibleByDefault,
-      defaultOpacity: 0.42,
-      zIndex: baseIndex + 2,
-      colourRamp: "pressure",
-      legend: legendFromRamp("MSLP", "hPa", "pressure"),
-      rendererType: "deck-grid",
-      capabilities: capabilitiesForRenderer("deck-grid"),
-      animation: { frameCount: 240 },
-      controls: { ...defaultLayerControls, min: 980, max: 1045, smoothing: 0.7, contourInterval: 4 },
-      variable: "pressure_msl",
-      unit: "hPa",
-      message: "MOCK/DEMO",
-      metadata: {},
-    },
-    {
-      id: "demo_wind_particles",
-      title: "[MOCK] Demo Wind Particles",
-      description: "Animated wind particle paths from deterministic mock vector field.",
-      category: "forecast",
-      sourceId: "mock_canwxlab",
-      status: "mock",
-      isExperimental: false,
-      defaultVisible: visibleByDefault,
-      defaultOpacity: 0.84,
-      zIndex: baseIndex + 3,
-      colourRamp: "wind",
-      legend: legendFromRamp("Wind", "m/s", "wind"),
-      rendererType: "deck-particles",
-      capabilities: capabilitiesForRenderer("deck-particles"),
-      animation: { frameCount: 240 },
-      controls: { ...defaultLayerControls, particleCount: 2200, windScale: 1.1 },
-      variable: "wind_10m",
-      unit: "m/s",
-      message: "MOCK/DEMO",
-      metadata: {},
-    },
-    {
-      id: "demo_clouds",
-      title: "[MOCK] Demo Cloud Overlay",
-      description: "Animated semi-transparent cloud texture using deterministic noise.",
-      category: "satellite",
-      sourceId: "mock_canwxlab",
-      status: "mock",
-      isExperimental: false,
-      defaultVisible: visibleByDefault,
-      defaultOpacity: 0.46,
-      zIndex: baseIndex + 4,
-      colourRamp: "cloud-gray",
-      legend: legendFromRamp("Cloud Opacity", "0-1", "cloud-gray"),
-      rendererType: "deck-grid",
-      capabilities: capabilitiesForRenderer("deck-grid"),
-      animation: { frameCount: 240 },
-      controls: { ...defaultLayerControls, min: 0, max: 1, cloudOpacity: 0.7 },
-      variable: "cloud_opacity",
-      unit: "ratio",
-      message: "MOCK/DEMO",
-      metadata: {},
-    },
-  ];
-  return layers;
-}
-
 export function buildLayerDefinitions(input: {
   backendLayers: WeatherLayer[];
   plugins: PluginCatalogItem[];
   pluginEnabled: Record<string, boolean>;
   dataMode?: DataMode;
 }): LayerDefinition[] {
-  const dataMode: DataMode = input.dataMode ?? "mock";
-  const backendInput = dataMode === "mock"
-    ? input.backendLayers
-    : input.backendLayers.filter((layer) => layer.status !== "mock" && !layer.layer_id.startsWith("mock_"));
-  const backend = backendInput.map((layer, index) => backendLayerToDefinition(layer, index + 100, dataMode));
-  const demos = dataMode === "mock" ? demoLayers(10, dataMode) : [];
+  const liveLayers = input.backendLayers.filter(
+    (layer) => layer.status !== "mock" && !layer.layer_id.startsWith("mock_"),
+  );
+  const backend = liveLayers.map((layer, index) => backendLayerToDefinition(layer, index + 100));
 
   const pluginLayers = input.plugins
     .filter((plugin) => input.pluginEnabled[plugin.id] ?? plugin.enabled_default)
     .map((plugin, index) => pluginToLayer(plugin, index + 300));
 
   const mergedById = new Map<string, LayerDefinition>();
-  [...demos, ...backend, ...pluginLayers].forEach((layer) => {
+  [...backend, ...pluginLayers].forEach((layer) => {
     mergedById.set(layer.id, layer);
   });
 

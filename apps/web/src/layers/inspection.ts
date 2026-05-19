@@ -1,6 +1,5 @@
 import type { AlertFeature, Observation, SourceStatus } from "../types/weather";
 import { solarElevationDeg } from "../time/solarBands";
-import { sampleMockWeatherPoint } from "./renderers/mockWeatherFields";
 import {
   airDensityKgM3,
   beaufortFromWindMs,
@@ -23,7 +22,7 @@ export interface HeroMetric {
   value: string;
   /** Unit suffix shown smaller next to the value. */
   unit: string;
-  /** Provenance shown as a small chip ("live", "mock", "derived", …). */
+  /** Provenance shown as a small chip ("live", "derived", "fallback", etc.). */
   status: SourceStatus;
   /** Optional caption line (e.g. "WSW · Light breeze" for wind). */
   caption?: string;
@@ -48,6 +47,10 @@ export interface InspectorWmsRow {
   resolvedTime: string | null;
   timePolicy: string;
   status: SourceStatus;
+  availability: string;
+  requestedTime: string | null;
+  rangeStart: string | null;
+  rangeEnd: string | null;
 }
 
 export interface InspectorPayload {
@@ -130,6 +133,24 @@ export function nearestObservation(
   }
 
   return nearest;
+}
+
+export function isMeasuredObservation(observation: Observation): boolean {
+  const flags = new Set(observation.quality_flags.map((flag) => flag.toLowerCase()));
+  if (flags.has("mock") || flags.has("hourly_mock") || flags.has("fallback")) return false;
+  return observation.source_status === "live" || observation.source_status === "stale";
+}
+
+export function nearestMeasuredObservation(
+  observations: Observation[],
+  longitude: number,
+  latitude: number,
+): Observation | null {
+  return nearestObservation(
+    observations.filter(isMeasuredObservation),
+    longitude,
+    latitude,
+  );
 }
 
 export function nearestStationName(
@@ -234,11 +255,8 @@ function readNumber(values: Record<string, number>, key: string): number | null 
 
 function buildHeroMetrics(input: InspectorBuildInput): HeroMetric[] {
   const metrics: HeroMetric[] = [];
-  const nearest = nearestObservation(input.observations, input.longitude, input.latitude);
+  const nearest = nearestMeasuredObservation(input.observations, input.longitude, input.latitude);
 
-  // Prefer station observations because they are real measurements. Fall back
-  // to the mock sampled field only when nothing measured is available so the
-  // hero strip is never empty.
   const stationTemp = nearest ? readNumber(nearest.values, "temperature_2m") : null;
   const stationPressure = nearest ? readNumber(nearest.values, "pressure_msl") : null;
   const stationWindSpeed = nearest ? readNumber(nearest.values, "wind_speed_10m") : null;
@@ -263,12 +281,6 @@ function buildHeroMetrics(input: InspectorBuildInput): HeroMetric[] {
   const derivedDir = stationWindDir
     ?? (stationWindU !== null && stationWindV !== null ? windDirectionFromUVDeg(stationWindU, stationWindV) : null);
 
-  const sampled = sampleMockWeatherPoint(input.longitude, input.latitude, input.frame);
-  const hasMockTemp = input.activeLayers.some((layer) => layer.id === "demo_temperature_field" || layer.id === "mock_temperature");
-  const hasMockPressure = input.activeLayers.some((layer) => layer.id === "demo_pressure_msl" || layer.variable === "pressure_msl");
-  const hasMockWind = input.activeLayers.some((layer) => layer.id === "demo_wind_particles" || layer.id === "mock_wind");
-  const hasMockRadar = input.activeLayers.some((layer) => layer.id === "demo_radar_animation" || layer.id === "mock_radar" || layer.category === "radar");
-
   if (stationTemp !== null) {
     metrics.push({
       id: "temperature",
@@ -278,15 +290,6 @@ function buildHeroMetrics(input: InspectorBuildInput): HeroMetric[] {
       status: nearest?.source_status ?? "live",
       caption: nearest?.station_name,
       source: nearest?.station_id,
-    });
-  } else if (hasMockTemp) {
-    metrics.push({
-      id: "temperature",
-      label: "TEMP",
-      value: sampled.temperatureC.toFixed(1),
-      unit: "°C",
-      status: "mock",
-      caption: "sampled mock field",
     });
   }
 
@@ -299,15 +302,6 @@ function buildHeroMetrics(input: InspectorBuildInput): HeroMetric[] {
       status: nearest?.source_status ?? "live",
       caption: nearest?.station_name,
       source: nearest?.station_id,
-    });
-  } else if (hasMockPressure) {
-    metrics.push({
-      id: "pressure",
-      label: "MSLP",
-      value: sampled.pressureHpa.toFixed(1),
-      unit: "hPa",
-      status: "mock",
-      caption: "sampled mock field",
     });
   }
 
@@ -328,19 +322,6 @@ function buildHeroMetrics(input: InspectorBuildInput): HeroMetric[] {
       caption: captionBits.join(" · ") || undefined,
       source: nearest?.station_id,
     });
-  } else if (hasMockWind) {
-    const dir = windDirectionFromUVDeg(sampled.windU, sampled.windV);
-    const beaufort = beaufortFromWindMs(sampled.windSpeed);
-    metrics.push({
-      id: "wind",
-      label: "WIND",
-      value: sampled.windSpeed.toFixed(1),
-      unit: "m/s",
-      status: "mock",
-      caption: dir !== null && beaufort
-        ? `${cardinalDirection(dir)} · F${beaufort.force}`
-        : "sampled mock field",
-    });
   }
 
   if (stationPrecip1h !== null) {
@@ -351,15 +332,6 @@ function buildHeroMetrics(input: InspectorBuildInput): HeroMetric[] {
       unit: nearest?.units.precipitation_1h ?? "mm",
       status: nearest?.source_status ?? "live",
       source: nearest?.station_id,
-    });
-  } else if (hasMockRadar) {
-    metrics.push({
-      id: "precipitation",
-      label: "PRECIP",
-      value: sampled.precipitationRate.toFixed(2),
-      unit: "mm/h",
-      status: "mock",
-      caption: "sampled mock radar",
     });
   }
 
@@ -459,6 +431,16 @@ function buildWmsRows(plan: RenderLayerPlan[]): InspectorWmsRow[] {
       resolvedTime: entry.resolvedTime,
       timePolicy: entry.timePolicy,
       status: entry.source.status,
+      availability: String(entry.source.metadata.time_availability ?? "available"),
+      requestedTime: typeof entry.source.metadata.requested_time === "string"
+        ? entry.source.metadata.requested_time
+        : null,
+      rangeStart: typeof entry.source.metadata.available_time_start === "string"
+        ? entry.source.metadata.available_time_start
+        : null,
+      rangeEnd: typeof entry.source.metadata.available_time_end === "string"
+        ? entry.source.metadata.available_time_end
+        : null,
     }));
 }
 
@@ -466,8 +448,10 @@ export function buildInspectorPayload(input: InspectorBuildInput): InspectorPayl
   const heroMetrics = buildHeroMetrics(input);
   const values = buildAnalysisRows(input);
   const wmsLayers = buildWmsRows(input.renderPlan);
-  const pressureSystems = detectPressureSystems(input.observations);
-  const nearest = nearestObservation(input.observations, input.longitude, input.latitude);
+  const observationPool = input.observations.filter(isMeasuredObservation);
+  const alertPool = input.alerts.filter((alert) => alert.source_status === "live" || alert.source_status === "stale");
+  const pressureSystems = detectPressureSystems(observationPool);
+  const nearest = nearestObservation(observationPool, input.longitude, input.latitude);
   const nearestStationKm = nearest
     ? haversineKm(input.longitude, input.latitude, nearest.longitude, nearest.latitude)
     : null;
@@ -477,9 +461,9 @@ export function buildInspectorPayload(input: InspectorBuildInput): InspectorPayl
     latitude: input.latitude,
     heroMetrics,
     values,
-    nearestStation: nearestStationName(input.observations, input.longitude, input.latitude),
+    nearestStation: nearestStationName(observationPool, input.longitude, input.latitude),
     nearestStationKm,
-    activeAlert: activeAlertAtPoint(input.alerts, input.longitude, input.latitude),
+    activeAlert: activeAlertAtPoint(alertPool, input.longitude, input.latitude),
     pressureSystems,
     wmsLayers,
   };

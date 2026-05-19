@@ -89,7 +89,7 @@ export interface EventIngestionResult {
 }
 // ─────────────────────────────────────────────────────────────────────────
 export type LayerKind = "raster" | "vector" | "point" | "polygon" | "simulation";
-export type LayerServiceType = "ogc_api" | "wms" | "mock" | "generated";
+export type LayerServiceType = "ogc_api" | "wms" | "wmts" | "mock" | "generated";
 
 export interface DataSource {
   source_id: string;

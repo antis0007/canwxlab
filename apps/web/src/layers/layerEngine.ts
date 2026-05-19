@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PluginCatalogItem, WeatherLayer } from "../types/weather";
 
 import { colorRamps } from "./colorRamps";
-import { buildLayerDefinitions, type DataMode } from "./registry";
+import { buildLayerDefinitions } from "./registry";
 import {
   defaultLayerControls,
   defaultUiPreferences,
@@ -72,7 +72,6 @@ function normalizeWmsTimePolicy(existing: LayerRuntimeState): LayerRuntimeState[
 export function useLayerEngine(input: {
   backendLayers: WeatherLayer[];
   plugins: PluginCatalogItem[];
-  dataMode?: DataMode;
 }) {
   const [pluginEnabled, setPluginEnabled] = useState<Record<string, boolean>>(() =>
     readJson<Record<string, boolean>>(STORAGE_KEY_PLUGIN_ENABLED, {})
@@ -87,9 +86,9 @@ export function useLayerEngine(input: {
         backendLayers: input.backendLayers,
         plugins: input.plugins,
         pluginEnabled,
-        dataMode: input.dataMode,
+        dataMode: "live",
       }),
-    [input.backendLayers, input.plugins, pluginEnabled, input.dataMode]
+    [input.backendLayers, input.plugins, pluginEnabled]
   );
 
   const [runtimeState, setRuntimeState] = useState<Record<string, LayerRuntimeState>>(() =>
@@ -246,6 +245,19 @@ export function useLayerEngine(input: {
     });
   }, []);
 
+  const reorderLayer = useCallback((layerId: string, targetIndex: number) => {
+    setLayerOrder((current) => {
+      const sourceIndex = current.indexOf(layerId);
+      if (sourceIndex < 0 || sourceIndex === targetIndex) return current;
+      const clamped = Math.max(0, Math.min(current.length - 1, targetIndex));
+      if (sourceIndex === clamped) return current;
+      const next = [...current];
+      next.splice(sourceIndex, 1);
+      next.splice(clamped, 0, layerId);
+      return next;
+    });
+  }, []);
+
   const setPluginEnabledState = useCallback((pluginId: string, enabled: boolean) => {
     setPluginEnabled((current) => ({ ...current, [pluginId]: enabled }));
   }, []);
@@ -269,6 +281,7 @@ export function useLayerEngine(input: {
     setLayerControl,
     setWmsTimePolicy,
     moveLayer,
+    reorderLayer,
     resetLayer,
     resetAllLayers,
     pluginEnabled,
