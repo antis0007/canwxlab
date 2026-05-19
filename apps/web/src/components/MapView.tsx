@@ -29,7 +29,7 @@ import { StarInfoCard } from "./StarInfoCard";
 import type { Star } from "../lib/celestialSphere";
 import type { StarExposure } from "../layers/types";
 import { createDiffBitmapLayer, type DiffOverlayPayload } from "../layers/renderers/diffBitmap";
-import { createSatelliteCompositeLayer, getSatelliteDiskParams, isGeostationarySatellite } from "../layers/renderers/satelliteComposite";
+import { createSatelliteCompositeLayer, getSatelliteDiskParams, isGeostationarySatellite, type SatelliteCompositeLayer } from "../layers/renderers/satelliteComposite";
 import { detectPressureSystems } from "../layers/pressureSystems";
 import { createPressureSystemLayers } from "../layers/renderers/pressureSystemMarkers";
 
@@ -876,12 +876,12 @@ export function MapView({
   }, [activeLayers, alerts, layerState, observations, viewMode, diffOverlay, genericOgcLayerIds, ogcFeaturesByLayer]);
 
   // ── Satellite GPU compositor ───────────────────────────────────────────
-  // Replaces the old black-ellipse GeoJsonLayer edge masks with a proper
-  // WebGL multi-texture shader. Configs are derived from the render plan so
-  // the compositor always has the latest WMS URL templates (which carry the
-  // resolved timeline time). A signature string prevents needless re-creation
-  // on every animation frame tick — the layer instance is stable as long as
-  // the satellite URLs, visibility, and opacity don't change.
+  // Layer instance is held in a ref so timeProgress can be updated imperatively
+  // via setTimeProgress() — avoids destroying/rebuilding WebGL textures, models,
+  // and FBOs on every animation frame tick. Recreated only when satellite configs
+  // (visibility, WMS URL, opacity) actually change.
+  const satelliteLayerRef = useRef<SatelliteCompositeLayer | null>(null);
+
   const satelliteSignature = useMemo(() => {
     let acc = "";
     for (const plan of renderPlan) {
@@ -908,10 +908,19 @@ export function MapView({
       })
       .filter((c): c is NonNullable<typeof c> => c !== null);
 
-    if (configs.length === 0) return null;
-    return createSatelliteCompositeLayer({ satellites: configs, timeProgress: subFrameProgress ?? 0 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [satelliteSignature, subFrameProgress]);
+    if (configs.length === 0) {
+      satelliteLayerRef.current = null;
+      return null;
+    }
+    const layer = createSatelliteCompositeLayer({ satellites: configs, timeProgress: 0 });
+    satelliteLayerRef.current = layer;
+    return layer;
+  }, [satelliteSignature]);
+
+  // Imperative timeProgress update — no layer teardown, just one float write + redraw.
+  useEffect(() => {
+    satelliteLayerRef.current?.setTimeProgress(subFrameProgress ?? 0);
+  }, [subFrameProgress]);
 
   const deckLayers = useMemo(
     () => [...staticDeckLayers, satelliteCompositeLayer].filter(Boolean),

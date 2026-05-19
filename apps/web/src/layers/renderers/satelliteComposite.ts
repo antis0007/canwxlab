@@ -1,13 +1,10 @@
-/** GPU multi-texture satellite compositor.
+/** GPU multi-texture satellite compositor with optical-flow temporal morphing.
 
-Replaces the black-ellipse mask approach with a proper WebGL fragment shader
-that blends geostationary satellite imagery at the per-pixel level using
-great-circle distance weights and smoothstep feathering.
+Pass 1 (low-res FBO): Lucas-Kanade optical flow between prev/next frames.
+Pass 2 (full-res): per-pixel advected cross-dissolve with great-circle edge blending.
 
-Each satellite's WMS imagery is fetched at viewport resolution and uploaded
-as a WebGL texture. A full-viewport quad samples all active satellite textures
-in a single draw call, computing coverage weights from the inverse-Mercator
-geographic position of each fragment. */
+Satellites limited to 4 to keep total texture uniforms (4×3=12) under
+MAX_TEXTURE_IMAGE_UNITS(16) on integrated/low-end hardware. */
 
 import { Layer } from "@deck.gl/core";
 import type { LayerProps, UpdateParameters } from "@deck.gl/core";
@@ -32,8 +29,6 @@ export interface SatelliteCompositeConfig {
   subPoint: [number, number];
   coverageRadiusDeg: number;
   featherRadiusDeg: number;
-  /** WMS GetMap template URL with `{bbox-epsg-3857}` placeholder and
-    time parameter already resolved. */
   wmsUrlTemplate: string;
   opacity: number;
 }
@@ -45,9 +40,9 @@ interface SatEntry {
   flowTexture: Texture | null;
   flowFramebuffer: Framebuffer | null;
   flowSize: [number, number] | null;
-  /** Mercator bounds that the previous/next textures cover (meters). */
   prevMercBounds: [number, number, number, number] | null;
   nextMercBounds: [number, number, number, number] | null;
+  loadingMercBounds: [number, number, number, number] | null;
   loadedUrlTemplate: string | null;
   loadError: boolean;
   loading: boolean;
@@ -64,9 +59,10 @@ interface CompositorState {
   device: Device | null;
   lastFetchMercBounds: [number, number, number, number] | null;
   anyTextureLoaded: boolean;
-  /** Uniforms object kept by reference so draw() can mutate it without a setUniforms() API. */
   uniforms: Record<string, unknown> | null;
   flowUniforms: Record<string, unknown> | null;
+  /** Imperatively updated every frame; read by draw(). */
+  timeProgress: number;
 }
 
 interface SatelliteCompositeLayerProps extends LayerProps {
@@ -115,13 +111,20 @@ const GEOSTATIONARY_SATELLITES: Record<string, SatelliteDiskParams> = {
 };
 
 const EARTH_RADIUS_M = 6_378_137.0;
-const MAX_SATELLITES = 6;
+/** Max concurrent geostationary satellites. Bounded by
+  MAX_TEXTURE_IMAGE_UNITS(16) — 4 sats × 3 textures (prev/next/flow) = 12,
+  plus 2 for flow compute pass = 14, well under 16. */
+const MAX_SATELLITES = 4;
 const MAX_TEX_DIM = 2048;
 const FLOW_TEX_DIM = 256;
 const MAX_FLOW_UV = 0.05;
 const REFETCH_THRESHOLD = 0.15;
+const FETCH_PADDING = 0.5;
 const FETCH_STAGGER_MS = 200;
 const RETRY_DELAYS_MS = [500, 1500, 4500];
+
+const DEG_TO_RAD = Math.PI / 180;
+const RAD_TO_DEG = 180 / Math.PI;
 
 // ── GLSL Shaders ─────────────────────────────────────────────────────────
 
@@ -136,6 +139,11 @@ void main() {
 }
 `;
 
+// Chord-length approximation replaces the great-circle haversine, trading
+// ~1% edge-blend error for eliminating sin/cos/atan/sqrt per-pixel-per-sat.
+// Sub-point Cartesian coords and chord-space radii are pre-computed on CPU
+// and packed into uSatParams (x,y,z = subCartesian, w = maxChord,
+// uSatFeather[i] = featherStartChord).
 const FS = `\
 #version 300 es
 precision highp float;
@@ -147,28 +155,25 @@ uniform sampler2D uPrevTex0;
 uniform sampler2D uPrevTex1;
 uniform sampler2D uPrevTex2;
 uniform sampler2D uPrevTex3;
-uniform sampler2D uPrevTex4;
-uniform sampler2D uPrevTex5;
 uniform sampler2D uNextTex0;
 uniform sampler2D uNextTex1;
 uniform sampler2D uNextTex2;
 uniform sampler2D uNextTex3;
-uniform sampler2D uNextTex4;
-uniform sampler2D uNextTex5;
 uniform sampler2D uFlowTex0;
 uniform sampler2D uFlowTex1;
 uniform sampler2D uFlowTex2;
 uniform sampler2D uFlowTex3;
-uniform sampler2D uFlowTex4;
-uniform sampler2D uFlowTex5;
 uniform vec4 uMercBounds;
 uniform float uEarthRadius;
-uniform vec4 uSatParams[6];
+uniform vec4 uSatParams[4];
+uniform float uSatFeather[4];
+uniform vec4 uPrevBounds[4];
+uniform vec4 uNextBounds[4];
 uniform int uSatCount;
-uniform float uSatOpacity[6];
-uniform float uHasPrevTex[6];
-uniform float uHasNextTex[6];
-uniform float uHasFlowTex[6];
+uniform float uSatOpacity[4];
+uniform float uHasPrevTex[4];
+uniform float uHasNextTex[4];
+uniform float uHasFlowTex[4];
 uniform float uTimeProgress;
 uniform float uMaxFlowUv;
 
@@ -184,89 +189,97 @@ float mercatorXToLon(float x) {
   return x / uEarthRadius * RAD_TO_DEG;
 }
 
-float greatCircleDistDeg(float lat1, float lon1, float lat2, float lon2) {
-  float dLat = (lat2 - lat1) * DEG_TO_RAD;
-  float dLon = (lon2 - lon1) * DEG_TO_RAD;
-  float sinDLat = sin(dLat * 0.5);
-  float sinDLon = sin(dLon * 0.5);
-  float a = sinDLat * sinDLat +
-            cos(lat1 * DEG_TO_RAD) * cos(lat2 * DEG_TO_RAD) *
-            sinDLon * sinDLon;
-  return 2.0 * atan(sqrt(a), sqrt(1.0 - a)) * RAD_TO_DEG;
+vec3 latLonToCartesian(float lat, float lon) {
+  float phi = lat * DEG_TO_RAD;
+  float lambda = lon * DEG_TO_RAD;
+  return vec3(cos(phi) * cos(lambda), cos(phi) * sin(lambda), sin(phi));
 }
 
 vec4 samplePrevTex(int idx, vec2 uv) {
   if (idx == 0) return texture(uPrevTex0, uv);
   if (idx == 1) return texture(uPrevTex1, uv);
   if (idx == 2) return texture(uPrevTex2, uv);
-  if (idx == 3) return texture(uPrevTex3, uv);
-  if (idx == 4) return texture(uPrevTex4, uv);
-  return texture(uPrevTex5, uv);
+  return texture(uPrevTex3, uv);
 }
 
 vec4 sampleNextTex(int idx, vec2 uv) {
   if (idx == 0) return texture(uNextTex0, uv);
   if (idx == 1) return texture(uNextTex1, uv);
   if (idx == 2) return texture(uNextTex2, uv);
-  if (idx == 3) return texture(uNextTex3, uv);
-  if (idx == 4) return texture(uNextTex4, uv);
-  return texture(uNextTex5, uv);
+  return texture(uNextTex3, uv);
 }
 
 vec4 sampleFlowTex(int idx, vec2 uv) {
   if (idx == 0) return texture(uFlowTex0, uv);
   if (idx == 1) return texture(uFlowTex1, uv);
   if (idx == 2) return texture(uFlowTex2, uv);
-  if (idx == 3) return texture(uFlowTex3, uv);
-  if (idx == 4) return texture(uFlowTex4, uv);
-  return texture(uFlowTex5, uv);
+  return texture(uFlowTex3, uv);
 }
 
-vec4 sampleMorph(int idx, vec2 uv) {
+vec2 mercToTexUv(vec2 merc, vec4 bounds) {
+  vec2 span = max(bounds.zw - bounds.xy, vec2(1.0));
+  return (merc - bounds.xy) / span;
+}
+
+bool uvInside(vec2 uv) {
+  return uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
+}
+
+vec4 sampleMorph(int idx, vec2 merc) {
   bool hasPrev = uHasPrevTex[idx] > 0.5;
   bool hasNext = uHasNextTex[idx] > 0.5;
+  vec2 prevUv = mercToTexUv(merc, uPrevBounds[idx]);
+  vec2 nextUv = mercToTexUv(merc, uNextBounds[idx]);
+  bool prevInside = hasPrev && uvInside(prevUv);
+  bool nextInside = hasNext && uvInside(nextUv);
+  if (!prevInside && !nextInside) return vec4(0.0);
+
   if (hasPrev && hasNext) {
     vec2 flow = vec2(0.0);
-    if (uHasFlowTex[idx] > 0.5) {
-      vec4 packed = sampleFlowTex(idx, uv);
+    if (uHasFlowTex[idx] > 0.5 && prevInside && nextInside) {
+      vec4 packed = sampleFlowTex(idx, nextUv);
       if (packed.b > 0.25) {
         flow = (packed.rg - vec2(0.5)) * (uMaxFlowUv * 2.0);
       }
     }
-    vec2 advectedUv = clamp(uv + flow * uTimeProgress, vec2(0.0), vec2(1.0));
-    vec4 advected = samplePrevTex(idx, advectedUv);
-    vec4 nextSample = sampleNextTex(idx, uv);
+    vec4 advected = prevInside
+      ? samplePrevTex(idx, clamp(prevUv + flow * uTimeProgress, vec2(0.0), vec2(1.0)))
+      : vec4(0.0);
+    vec4 nextSample = nextInside ? sampleNextTex(idx, nextUv) : vec4(0.0);
+    if (!prevInside) return nextSample;
+    if (!nextInside) return advected;
     return mix(advected, nextSample, uTimeProgress);
   }
-  if (hasNext) return sampleNextTex(idx, uv);
-  if (hasPrev) return samplePrevTex(idx, uv);
+  if (nextInside) return sampleNextTex(idx, nextUv);
+  if (prevInside) return samplePrevTex(idx, prevUv);
   return vec4(0.0);
 }
 
 void main() {
   float xMerc = mix(uMercBounds.x, uMercBounds.z, vUv.x);
   float yMerc = mix(uMercBounds.y, uMercBounds.w, vUv.y);
+  vec2 merc = vec2(xMerc, yMerc);
   float lon = mercatorXToLon(xMerc);
   float lat = mercatorYToLat(yMerc);
+  vec3 fragCart = latLonToCartesian(lat, lon);
 
   vec4 color = vec4(0.0);
   float totalWeight = 0.0;
 
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < 4; i++) {
     if (i >= uSatCount) break;
     if (uHasPrevTex[i] < 0.5 && uHasNextTex[i] < 0.5) continue;
 
-    vec4 params = uSatParams[i];
-    float subLon = params.x;
-    float subLat = params.y;
-    float coverageDeg = params.z;
-    float featherDeg = params.w;
+    // Chord distance between fragment and satellite sub-point (both on unit sphere).
+    vec3 subCart = uSatParams[i].xyz;
+    float maxChord = uSatParams[i].w;
+    float featherStart = uSatFeather[i];
+    float chordDist = length(fragCart - subCart);
 
-    float dist = greatCircleDistDeg(lat, lon, subLat, subLon);
-    float weight = 1.0 - smoothstep(coverageDeg - featherDeg, coverageDeg, dist);
+    float weight = 1.0 - smoothstep(featherStart, maxChord, chordDist);
 
     if (weight > 0.001) {
-      vec4 texel = sampleMorph(i, vUv);
+      vec4 texel = sampleMorph(i, merc);
       float contrib = weight * texel.a * uSatOpacity[i];
       color += texel * contrib;
       totalWeight += contrib;
@@ -349,11 +362,10 @@ function mercatorBoundsFromViewport(viewport: {
   const east = Math.max(b[0], b[2]);
   const north = Math.max(b[1], b[3]);
 
-  const d2r = Math.PI / 180;
-  const westM = west * d2r * EARTH_RADIUS_M;
-  const eastM = east * d2r * EARTH_RADIUS_M;
-  const southM = Math.log(Math.tan((90 + south) * d2r * 0.5)) * EARTH_RADIUS_M;
-  const northM = Math.log(Math.tan((90 + north) * d2r * 0.5)) * EARTH_RADIUS_M;
+  const westM = west * DEG_TO_RAD * EARTH_RADIUS_M;
+  const eastM = east * DEG_TO_RAD * EARTH_RADIUS_M;
+  const southM = Math.log(Math.tan((90 + south) * DEG_TO_RAD * 0.5)) * EARTH_RADIUS_M;
+  const northM = Math.log(Math.tan((90 + north) * DEG_TO_RAD * 0.5)) * EARTH_RADIUS_M;
 
   return [westM, southM, eastM, northM];
 }
@@ -363,12 +375,46 @@ function shouldRefetch(
   last: [number, number, number, number] | null,
 ): boolean {
   if (!last) return true;
-  const dx = Math.abs(current[2] - current[0]);
-  const dy = Math.abs(current[3] - current[1]);
-  if (dx < 1000 || dy < 1000) return false;
-  const ex = Math.abs(current[0] - last[0]);
-  const ey = Math.abs(current[1] - last[1]);
-  return ex > dx * REFETCH_THRESHOLD || ey > dy * REFETCH_THRESHOLD;
+  const currentW = Math.abs(current[2] - current[0]);
+  const currentH = Math.abs(current[3] - current[1]);
+  const lastW = Math.abs(last[2] - last[0]);
+  const lastH = Math.abs(last[3] - last[1]);
+  if (currentW < 1000 || currentH < 1000) return false;
+  const currentCx = (current[0] + current[2]) * 0.5;
+  const currentCy = (current[1] + current[3]) * 0.5;
+  const lastCx = (last[0] + last[2]) * 0.5;
+  const lastCy = (last[1] + last[3]) * 0.5;
+  const centerShifted =
+    Math.abs(currentCx - lastCx) > currentW * REFETCH_THRESHOLD ||
+    Math.abs(currentCy - lastCy) > currentH * REFETCH_THRESHOLD;
+  const scaleChanged =
+    Math.abs(currentW - lastW) > currentW * 0.25 ||
+    Math.abs(currentH - lastH) > currentH * 0.25;
+  return centerShifted || scaleChanged;
+}
+
+function expandMercatorBounds(
+  bounds: [number, number, number, number],
+  padding: number,
+): [number, number, number, number] {
+  const dx = Math.abs(bounds[2] - bounds[0]) * padding;
+  const dy = Math.abs(bounds[3] - bounds[1]) * padding;
+  return [bounds[0] - dx, bounds[1] - dy, bounds[2] + dx, bounds[3] + dy];
+}
+
+function boundsContain(
+  outer: [number, number, number, number] | null,
+  inner: [number, number, number, number],
+): boolean {
+  if (!outer) return false;
+  const tolX = Math.max(1, Math.abs(inner[2] - inner[0]) * 0.002);
+  const tolY = Math.max(1, Math.abs(inner[3] - inner[1]) * 0.002);
+  return (
+    inner[0] >= outer[0] - tolX &&
+    inner[1] >= outer[1] - tolY &&
+    inner[2] <= outer[2] + tolX &&
+    inner[3] <= outer[3] + tolY
+  );
 }
 
 function buildWmsUrl(
@@ -434,9 +480,10 @@ function viewportTexDimensions(viewport: {
   width: number;
   height: number;
 }): [number, number] {
+  const scale = 1 + FETCH_PADDING * 2;
   return [
-    Math.min(Math.round(viewport.width) || 1024, MAX_TEX_DIM),
-    Math.min(Math.round(viewport.height) || 768, MAX_TEX_DIM),
+    Math.min(Math.round(viewport.width * scale) || 1024, MAX_TEX_DIM),
+    Math.min(Math.round(viewport.height * scale) || 768, MAX_TEX_DIM),
   ];
 }
 
@@ -489,6 +536,27 @@ function createFallbackTexture(device: Device): Texture {
   });
 }
 
+function createSatelliteTexture(device: Device, bitmap: ImageBitmap): Texture {
+  const texture = device.createTexture({
+    width: bitmap.width,
+    height: bitmap.height,
+    format: "rgba8unorm" as any,
+    sampler: {
+      minFilter: "linear" as any,
+      magFilter: "linear" as any,
+      addressModeU: "clamp-to-edge" as any,
+      addressModeV: "clamp-to-edge" as any,
+    },
+  });
+  texture.copyExternalImage({
+    image: bitmap,
+    width: bitmap.width,
+    height: bitmap.height,
+    flipY: true,
+  });
+  return texture;
+}
+
 function createFullscreenGeometry(): Geometry {
   return new Geometry({
     topology: "triangle-strip",
@@ -502,6 +570,91 @@ function createFullscreenGeometry(): Geometry {
   });
 }
 
+/** Convert lon/lat sub-point to unit-sphere Cartesian. */
+function subPointCartesian(lon: number, lat: number): [number, number, number] {
+  const phi = lat * DEG_TO_RAD;
+  const lambda = lon * DEG_TO_RAD;
+  return [
+    Math.cos(phi) * Math.cos(lambda),
+    Math.cos(phi) * Math.sin(lambda),
+    Math.sin(phi),
+  ];
+}
+
+/** Convert coverage/feather radii from degrees to chord-space distances. */
+function chordParams(coverageDeg: number, featherDeg: number): { maxChord: number; featherStartChord: number } {
+  const maxChord = 2 * Math.sin(coverageDeg * DEG_TO_RAD * 0.5);
+  const featherStart = 2 * Math.sin(Math.max(0.001, coverageDeg - featherDeg) * DEG_TO_RAD * 0.5);
+  return { maxChord, featherStartChord: featherStart };
+}
+
+function createEntry(config: SatelliteCompositeConfig): SatEntry {
+  return {
+    config,
+    prevTexture: null,
+    nextTexture: null,
+    flowTexture: null,
+    flowFramebuffer: null,
+    flowSize: null,
+    prevMercBounds: null,
+    nextMercBounds: null,
+    loadingMercBounds: null,
+    loadedUrlTemplate: null,
+    loadError: false,
+    loading: false,
+    abortController: null,
+    fetchTimer: null,
+    retryTimer: null,
+  };
+}
+
+function hasUsableLoadedTexture(
+  entry: SatEntry,
+  viewMercBounds: [number, number, number, number],
+  fetchMercBounds: [number, number, number, number],
+): boolean {
+  return (
+    !!entry.nextTexture &&
+    entry.loadedUrlTemplate === entry.config.wmsUrlTemplate &&
+    boundsContain(entry.nextMercBounds, viewMercBounds) &&
+    !shouldRefetch(fetchMercBounds, entry.nextMercBounds)
+  );
+}
+
+function hasUsablePendingRequest(
+  entry: SatEntry,
+  fetchMercBounds: [number, number, number, number],
+): boolean {
+  return entry.loading && !shouldRefetch(fetchMercBounds, entry.loadingMercBounds);
+}
+
+function needsTextureFetch(
+  entry: SatEntry,
+  viewMercBounds: [number, number, number, number],
+  fetchMercBounds: [number, number, number, number],
+): boolean {
+  if (!entry.config.wmsUrlTemplate) return false;
+  return (
+    !hasUsableLoadedTexture(entry, viewMercBounds, fetchMercBounds) &&
+    !hasUsablePendingRequest(entry, fetchMercBounds)
+  );
+}
+
+function boundsEquivalent(
+  a: [number, number, number, number] | null,
+  b: [number, number, number, number] | null,
+): boolean {
+  if (!a || !b) return false;
+  const width = Math.max(1, Math.abs(a[2] - a[0]));
+  const height = Math.max(1, Math.abs(a[3] - a[1]));
+  return (
+    Math.abs(a[0] - b[0]) < width * 0.001 &&
+    Math.abs(a[1] - b[1]) < height * 0.001 &&
+    Math.abs(a[2] - b[2]) < width * 0.001 &&
+    Math.abs(a[3] - b[3]) < height * 0.001
+  );
+}
+
 // ── Custom Layer ─────────────────────────────────────────────────────────
 
 export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps> {
@@ -511,13 +664,13 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     const device = this.context.device;
     const fallbackTexture = createFallbackTexture(device);
 
-    // Uniforms object kept by reference — mutated in draw() per frame.
-    // luma.gl 9.x passes `this.props.uniforms` to each pipeline draw call,
-    // so updating the referenced object is sufficient.
     const uniforms: Record<string, unknown> = {
       uMercBounds: [0, 0, 0, 0],
       uEarthRadius: EARTH_RADIUS_M,
       uSatParams: new Array(MAX_SATELLITES * 4).fill(0),
+      uSatFeather: new Array(MAX_SATELLITES).fill(0),
+      uPrevBounds: new Array(MAX_SATELLITES * 4).fill(0),
+      uNextBounds: new Array(MAX_SATELLITES * 4).fill(0),
       uSatCount: 0,
       uSatOpacity: new Array(MAX_SATELLITES).fill(0),
       uHasPrevTex: new Array(MAX_SATELLITES).fill(0),
@@ -560,20 +713,30 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     this.setState({
       model,
       flowModel,
-      entries: [],
+      entries: this.props.satellites.slice(0, MAX_SATELLITES).map(createEntry),
       fallbackTexture,
       device,
       lastFetchMercBounds: null,
       anyTextureLoaded: false,
       uniforms,
       flowUniforms,
+      timeProgress: 0,
     });
+  }
+
+  /** Imperative time update — avoids layer teardown/rebuild on every rAF. */
+  setTimeProgress(value: number): void {
+    if (!this.state) return; // DeckGL hasn't called initializeState yet
+    const state = this.state as unknown as CompositorState;
+    state.timeProgress = Math.max(0, Math.min(1, value));
+    this.setNeedsRedraw();
   }
 
   override updateState(
     params: UpdateParameters<Layer<SatelliteCompositeLayerProps>>,
   ): void {
-    const state = this.state as unknown as CompositorState;
+    const state = this.state as unknown as CompositorState | undefined;
+    if (!state?.entries) return;
     const newSats = params.props.satellites;
     const oldSats = params.oldProps.satellites;
 
@@ -581,7 +744,6 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
 
     const oldById = new Map(state.entries.map((e) => [e.config.id, e]));
 
-    // Clean up entries whose satellites were removed
     for (const old of state.entries) {
       if (!newSats.find((s) => s.id === old.config.id)) {
         old.abortController?.abort();
@@ -596,12 +758,9 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
 
     state.entries = newSats.map((config) => {
       const old = oldById.get(config.id);
-      // Same URL — keep existing texture
       if (old && old.config.wmsUrlTemplate === config.wmsUrlTemplate) {
         return { ...old, config };
       }
-      // Config exists but URL changed (time advanced / viewport moved).
-      // Abort any in-flight load, keep showing old texture.
       if (old) {
         old.abortController?.abort();
         if (old.fetchTimer !== null) window.clearTimeout(old.fetchTimer);
@@ -616,28 +775,13 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
           retryTimer: null,
         };
       }
-      // Brand-new satellite
-      return {
-        config,
-        prevTexture: null,
-        nextTexture: null,
-        flowTexture: null,
-        flowFramebuffer: null,
-        flowSize: null,
-        prevMercBounds: null,
-        nextMercBounds: null,
-        loadedUrlTemplate: null,
-        loadError: false,
-        loading: false,
-        abortController: null,
-        fetchTimer: null,
-        retryTimer: null,
-      };
+      return createEntry(config);
     });
   }
 
   override draw(opts: any): void {
-    const state = this.state as unknown as CompositorState;
+    const state = this.state as unknown as CompositorState | undefined;
+    if (!state?.entries) return; // not initialized yet
     const { context, renderPass } = opts;
     const viewport = context.viewport as {
       getBounds: () => [number, number, number, number];
@@ -646,17 +790,18 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     };
 
     const mercBounds = mercatorBoundsFromViewport(viewport);
+    const fetchMercBounds = expandMercatorBounds(mercBounds, FETCH_PADDING);
 
-    if (
-      shouldRefetch(mercBounds, state.lastFetchMercBounds) ||
-      state.entries.some((e) => !e.nextTexture && !e.loading && !e.loadError)
-    ) {
-      this._fetchTextures(mercBounds, viewport);
+    if (state.entries.some((entry) => needsTextureFetch(entry, mercBounds, fetchMercBounds))) {
+      this._fetchTextures(mercBounds, fetchMercBounds, viewport);
     }
 
     if (!state.model || !state.anyTextureLoaded) return;
 
     const satParams: number[] = [];
+    const satFeather: number[] = [];
+    const prevBounds: number[] = [];
+    const nextBounds: number[] = [];
     const satOpacity: number[] = [];
     const hasPrevTex: number[] = [];
     const hasNextTex: number[] = [];
@@ -666,21 +811,29 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     for (let i = 0; i < MAX_SATELLITES; i++) {
       const entry = state.entries[i];
       if (entry?.prevTexture || entry?.nextTexture) {
-        satParams.push(
+        const [sx, sy, sz] = subPointCartesian(
           entry.config.subPoint[0],
           entry.config.subPoint[1],
-          entry.config.coverageRadiusDeg,
-          entry.config.featherRadiusDeg,
         );
+        const chord = chordParams(entry.config.coverageRadiusDeg, entry.config.featherRadiusDeg);
+        satParams.push(sx, sy, sz, chord.maxChord);
+        satFeather.push(chord.featherStartChord);
+        prevBounds.push(...(entry.prevMercBounds ?? entry.nextMercBounds ?? mercBounds));
+        nextBounds.push(...(entry.nextMercBounds ?? entry.prevMercBounds ?? mercBounds));
         satOpacity.push(entry.config.opacity);
         hasPrevTex.push(entry.prevTexture ? 1 : 0);
         hasNextTex.push(entry.nextTexture ? 1 : 0);
-        hasFlowTex.push(entry.flowTexture ? 1 : 0);
+        hasFlowTex.push(
+          entry.flowTexture && boundsEquivalent(entry.prevMercBounds, entry.nextMercBounds) ? 1 : 0,
+        );
         bindings[`uPrevTex${i}`] = entry.prevTexture ?? state.fallbackTexture!;
         bindings[`uNextTex${i}`] = entry.nextTexture ?? entry.prevTexture ?? state.fallbackTexture!;
         bindings[`uFlowTex${i}`] = entry.flowTexture ?? state.fallbackTexture!;
       } else {
         satParams.push(0, 0, 0, 0);
+        satFeather.push(0);
+        prevBounds.push(0, 0, 1, 1);
+        nextBounds.push(0, 0, 1, 1);
         satOpacity.push(0);
         hasPrevTex.push(0);
         hasNextTex.push(0);
@@ -692,6 +845,9 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     }
 
     while (satParams.length < MAX_SATELLITES * 4) satParams.push(0);
+    while (satFeather.length < MAX_SATELLITES) satFeather.push(0);
+    while (prevBounds.length < MAX_SATELLITES * 4) prevBounds.push(0, 0, 1, 1);
+    while (nextBounds.length < MAX_SATELLITES * 4) nextBounds.push(0, 0, 1, 1);
     while (satOpacity.length < MAX_SATELLITES) satOpacity.push(0);
     while (hasPrevTex.length < MAX_SATELLITES) hasPrevTex.push(0);
     while (hasNextTex.length < MAX_SATELLITES) hasNextTex.push(0);
@@ -699,24 +855,27 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
 
     state.model.setBindings(bindings as any);
 
-    // Mutate the uniforms object by reference — luma.gl 9.x reads
-    // `this.props.uniforms` on each draw call (no setUniforms API).
     const u = state.uniforms!;
     u.uMercBounds = mercBounds;
     u.uSatParams = satParams;
-    u.uSatCount = state.entries.length;
+    u.uSatFeather = satFeather;
+    u.uPrevBounds = prevBounds;
+    u.uNextBounds = nextBounds;
+    u.uSatCount = Math.min(state.entries.length, MAX_SATELLITES);
     u.uSatOpacity = satOpacity;
     u.uHasPrevTex = hasPrevTex;
     u.uHasNextTex = hasNextTex;
     u.uHasFlowTex = hasFlowTex;
-    u.uTimeProgress = Math.max(0, Math.min(1, this.props.timeProgress ?? 0));
+    // Read from state, not props — updated imperatively by setTimeProgress().
+    u.uTimeProgress = state.timeProgress;
     u.uMaxFlowUv = MAX_FLOW_UV;
 
     state.model.draw(renderPass);
   }
 
   override finalizeState(): void {
-    const state = this.state as unknown as CompositorState;
+    const state = this.state as unknown as CompositorState | undefined;
+    if (!state?.entries) return;
     for (const entry of state.entries) {
       entry.abortController?.abort();
       if (entry.fetchTimer !== null) window.clearTimeout(entry.fetchTimer);
@@ -734,25 +893,21 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
   // ── Private ──────────────────────────────────────────────────────────
 
   private _fetchTextures(
-    mercBounds: [number, number, number, number],
+    viewMercBounds: [number, number, number, number],
+    fetchMercBounds: [number, number, number, number],
     viewport: { width: number; height: number },
   ): void {
     const state = this.state as unknown as CompositorState;
-    state.lastFetchMercBounds = mercBounds;
+    state.lastFetchMercBounds = fetchMercBounds;
 
     const [texW, texH] = viewportTexDimensions(viewport);
 
     state.entries.forEach((entry, index) => {
-      if (entry.loading) return;
-      if (
-        entry.nextTexture &&
-        entry.nextMercBounds &&
-        entry.loadedUrlTemplate === entry.config.wmsUrlTemplate &&
-        !shouldRefetch(mercBounds, entry.nextMercBounds) &&
-        entry.config.wmsUrlTemplate
-      ) {
+      if (hasUsableLoadedTexture(entry, viewMercBounds, fetchMercBounds)) {
+        entry.loadError = false;
         return;
       }
+      if (hasUsablePendingRequest(entry, fetchMercBounds)) return;
       if (!entry.config.wmsUrlTemplate) {
         entry.loadError = true;
         return;
@@ -764,8 +919,10 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       const controller = new AbortController();
       entry.abortController = controller;
       entry.loading = true;
+      entry.loadingMercBounds = fetchMercBounds;
+      entry.loadError = false;
 
-      const url = buildProxiedWmsUrl(entry.config.wmsUrlTemplate, mercBounds, texW, texH);
+      const url = buildProxiedWmsUrl(entry.config.wmsUrlTemplate, fetchMercBounds, texW, texH);
 
       entry.fetchTimer = window.setTimeout(() => {
         entry.fetchTimer = null;
@@ -775,18 +932,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
               bitmap.close?.();
               return;
             }
-            const newTexture = state.device!.createTexture({
-              data: bitmap,
-              width: bitmap.width,
-              height: bitmap.height,
-              format: "rgba8unorm" as any,
-              sampler: {
-                minFilter: "linear" as any,
-                magFilter: "linear" as any,
-                addressModeU: "clamp-to-edge" as any,
-                addressModeV: "clamp-to-edge" as any,
-              },
-            });
+            const newTexture = createSatelliteTexture(state.device!, bitmap);
             bitmap.close?.();
 
             const oldPrev = entry.prevTexture;
@@ -795,15 +941,22 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
               entry.prevMercBounds = entry.nextMercBounds;
             }
             entry.nextTexture = newTexture;
-            entry.nextMercBounds = mercBounds;
+            entry.nextMercBounds = fetchMercBounds;
             entry.loadedUrlTemplate = entry.config.wmsUrlTemplate;
             entry.loadError = false;
             entry.loading = false;
+            entry.loadingMercBounds = null;
             entry.abortController = null;
             oldPrev?.destroy();
 
-            if (entry.prevTexture && entry.nextTexture) {
+            if (entry.prevTexture && entry.nextTexture && boundsEquivalent(entry.prevMercBounds, entry.nextMercBounds)) {
               this._computeFlowTexture(entry);
+            } else {
+              entry.flowFramebuffer?.destroy();
+              entry.flowTexture?.destroy();
+              entry.flowFramebuffer = null;
+              entry.flowTexture = null;
+              entry.flowSize = null;
             }
             state.anyTextureLoaded = true;
             this.setNeedsRedraw();
@@ -811,10 +964,12 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
           .catch((err) => {
             if (err instanceof DOMException && err.name === "AbortError") {
               entry.loading = false;
+              entry.loadingMercBounds = null;
               return;
             }
             entry.loadError = !entry.nextTexture && !entry.prevTexture;
             entry.loading = false;
+            entry.loadingMercBounds = null;
             entry.abortController = null;
             // eslint-disable-next-line no-console
             console.warn(
@@ -876,8 +1031,6 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       pass.end();
       state.device.submit(encoder.finish());
     } catch (err) {
-      // Flow is an enhancement. If it fails on a WebGL driver, keep the dual
-      // texture morph alive as a plain cross-dissolve instead of blanking.
       entry.flowFramebuffer?.destroy();
       entry.flowTexture?.destroy();
       entry.flowFramebuffer = null;
@@ -889,10 +1042,8 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
   }
 }
 
-// ── Public API ─────────────────────────────────────────────────────────────
+// ── Public API ───────────────────────────────────────────────────────────
 
-/** Create a SatelliteCompositeLayer for active geostationary satellite layers.
-  Returns null when there are no satellites to composite. */
 export function createSatelliteCompositeLayer(configs: {
   satellites: SatelliteCompositeConfig[];
   timeProgress?: number;
@@ -907,7 +1058,6 @@ export function createSatelliteCompositeLayer(configs: {
   });
 }
 
-/** Retrieve satellite disk params for a layer, if it is a geostationary satellite. */
 export function getSatelliteDiskParams(
   layerId: string,
 ): SatelliteDiskParams | null {
@@ -916,7 +1066,6 @@ export function getSatelliteDiskParams(
   return { ...params };
 }
 
-/** Check if a layer ID belongs to a known geostationary satellite. */
 export function isGeostationarySatellite(layerId: string): boolean {
   return layerId in GEOSTATIONARY_SATELLITES;
 }
