@@ -13,6 +13,7 @@ import { Texture } from "@luma.gl/core";
 import type { Device, Framebuffer } from "@luma.gl/core";
 
 import { API_BASE_URL } from "../../lib/api";
+import { cachedGetImageBlob } from "../../lib/localCache";
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,7 @@ interface CompositorState {
   flowUniforms: Record<string, unknown> | null;
   /** Imperatively updated every frame; read by draw(). */
   timeProgress: number;
+  geometryKey: string | null;
 }
 
 interface SatelliteCompositeLayerProps extends LayerProps {
@@ -122,13 +124,27 @@ const REFETCH_THRESHOLD = 0.15;
 const FETCH_PADDING = 0.5;
 const FETCH_STAGGER_MS = 200;
 const RETRY_DELAYS_MS = [500, 1500, 4500];
+const VIEWPORT_MESH_SEGMENTS = 32;
 
 const DEG_TO_RAD = Math.PI / 180;
-const RAD_TO_DEG = 180 / Math.PI;
 
 // ── GLSL Shaders ─────────────────────────────────────────────────────────
 
 const VS = `\
+#version 300 es
+in vec2 aPosition;
+in vec2 aMercator;
+out vec2 vUv;
+out vec2 vMercator;
+
+void main() {
+  gl_Position = vec4(aPosition, 0.0, 1.0);
+  vUv = aPosition * 0.5 + 0.5;
+  vMercator = aMercator;
+}
+`;
+
+const FLOW_VS = `\
 #version 300 es
 in vec2 aPosition;
 out vec2 vUv;
@@ -149,6 +165,7 @@ const FS = `\
 precision highp float;
 
 in vec2 vUv;
+in vec2 vMercator;
 out vec4 fragColor;
 
 uniform sampler2D uPrevTex0;
@@ -256,9 +273,9 @@ vec4 sampleMorph(int idx, vec2 merc) {
 }
 
 void main() {
-  float xMerc = mix(uMercBounds.x, uMercBounds.z, vUv.x);
-  float yMerc = mix(uMercBounds.y, uMercBounds.w, vUv.y);
-  vec2 merc = vec2(xMerc, yMerc);
+  float xMerc = vMercator.x;
+  float yMerc = vMercator.y;
+  vec2 merc = vMercator;
   float lon = mercatorXToLon(xMerc);
   float lat = mercatorYToLat(yMerc);
   vec3 fragCart = latLonToCartesian(lat, lon);
@@ -368,6 +385,86 @@ function mercatorBoundsFromViewport(viewport: {
   const northM = Math.log(Math.tan((90 + north) * DEG_TO_RAD * 0.5)) * EARTH_RADIUS_M;
 
   return [westM, southM, eastM, northM];
+}
+
+function lonLatToMercator(lon: number, lat: number): [number, number] {
+  const clampedLat = Math.max(-85.05112878, Math.min(85.05112878, lat));
+  return [
+    lon * DEG_TO_RAD * EARTH_RADIUS_M,
+    Math.log(Math.tan((90 + clampedLat) * DEG_TO_RAD * 0.5)) * EARTH_RADIUS_M,
+  ];
+}
+
+function viewportGeometryKey(viewport: any, mercBounds: [number, number, number, number]): string {
+  const parts = [
+    viewport.width,
+    viewport.height,
+    viewport.longitude,
+    viewport.latitude,
+    viewport.zoom,
+    viewport.bearing,
+    viewport.pitch,
+    ...mercBounds,
+  ];
+  return parts.map((part) => (typeof part === "number" ? part.toFixed(4) : String(part ?? ""))).join("|");
+}
+
+function mercatorAtScreenPoint(
+  viewport: any,
+  x: number,
+  y: number,
+  mercBounds: [number, number, number, number],
+): [number, number] {
+  try {
+    const lonLat = viewport.unproject?.([x, y]);
+    if (Array.isArray(lonLat) && Number.isFinite(lonLat[0]) && Number.isFinite(lonLat[1])) {
+      return lonLatToMercator(lonLat[0], lonLat[1]);
+    }
+  } catch {
+    /* fall back to current axis-aligned bounds */
+  }
+  const u = x / Math.max(1, viewport.width);
+  const v = y / Math.max(1, viewport.height);
+  return [
+    mercBounds[0] + (mercBounds[2] - mercBounds[0]) * u,
+    mercBounds[3] + (mercBounds[1] - mercBounds[3]) * v,
+  ];
+}
+
+function createViewportGeometry(
+  viewport: { width: number; height: number; getBounds: () => [number, number, number, number] },
+  mercBounds: [number, number, number, number],
+): Geometry {
+  const width = Math.max(1, viewport.width);
+  const height = Math.max(1, viewport.height);
+  const positions: number[] = [];
+  const mercators: number[] = [];
+
+  const pushVertex = (ix: number, iy: number) => {
+    const x = (ix / VIEWPORT_MESH_SEGMENTS) * width;
+    const y = (iy / VIEWPORT_MESH_SEGMENTS) * height;
+    positions.push((x / width) * 2 - 1, 1 - (y / height) * 2);
+    mercators.push(...mercatorAtScreenPoint(viewport, x, y, mercBounds));
+  };
+
+  for (let iy = 0; iy < VIEWPORT_MESH_SEGMENTS; iy += 1) {
+    for (let ix = 0; ix < VIEWPORT_MESH_SEGMENTS; ix += 1) {
+      pushVertex(ix, iy);
+      pushVertex(ix + 1, iy);
+      pushVertex(ix, iy + 1);
+      pushVertex(ix + 1, iy);
+      pushVertex(ix + 1, iy + 1);
+      pushVertex(ix, iy + 1);
+    }
+  }
+
+  return new Geometry({
+    topology: "triangle-list",
+    attributes: {
+      aPosition: { size: 2, value: new Float32Array(positions) },
+      aMercator: { size: 2, value: new Float32Array(mercators) },
+    },
+  });
 }
 
 function shouldRefetch(
@@ -488,7 +585,10 @@ function viewportTexDimensions(viewport: {
 }
 
 async function loadImage(url: string, signal: AbortSignal): Promise<ImageBitmap> {
-  const response = await fetch(url, { signal, mode: "cors" });
+  const response = await cachedGetImageBlob(url, signal, {
+    ttlMs: 30 * 60 * 1000,
+    staleIfErrorMs: 6 * 60 * 60 * 1000,
+  });
   if (!response.ok) {
     throw new Error(`WMS image request failed ${response.status}: ${url.slice(0, 120)}`);
   }
@@ -552,7 +652,7 @@ function createSatelliteTexture(device: Device, bitmap: ImageBitmap): Texture {
     image: bitmap,
     width: bitmap.width,
     height: bitmap.height,
-    flipY: true,
+    flipY: false,
   });
   return texture;
 }
@@ -565,6 +665,23 @@ function createFullscreenGeometry(): Geometry {
       aPosition: {
         size: 2,
         value: new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+      },
+    },
+  });
+}
+
+function createInitialCompositeGeometry(): Geometry {
+  return new Geometry({
+    topology: "triangle-strip",
+    vertexCount: 4,
+    attributes: {
+      aPosition: {
+        size: 2,
+        value: new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+      },
+      aMercator: {
+        size: 2,
+        value: new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]),
       },
     },
   });
@@ -683,7 +800,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       uTexelSize: [1 / FLOW_TEX_DIM, 1 / FLOW_TEX_DIM],
       uFlowEncodeScale: MAX_FLOW_UV,
     };
-    const geometry = createFullscreenGeometry();
+    const geometry = createInitialCompositeGeometry();
 
     const model = new Model(device, {
       id: `${this.props.id}-model`,
@@ -701,7 +818,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     });
     const flowModel = new Model(device, {
       id: `${this.props.id}-flow-model`,
-      vs: VS,
+      vs: FLOW_VS,
       fs: FLOW_FS,
       topology: "triangle-strip" as any,
       vertexCount: 4,
@@ -721,6 +838,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       uniforms,
       flowUniforms,
       timeProgress: 0,
+      geometryKey: null,
     });
   }
 
@@ -791,12 +909,17 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
 
     const mercBounds = mercatorBoundsFromViewport(viewport);
     const fetchMercBounds = expandMercatorBounds(mercBounds, FETCH_PADDING);
+    const geometryKey = viewportGeometryKey(viewport, mercBounds);
 
     if (state.entries.some((entry) => needsTextureFetch(entry, mercBounds, fetchMercBounds))) {
       this._fetchTextures(mercBounds, fetchMercBounds, viewport);
     }
 
     if (!state.model || !state.anyTextureLoaded) return;
+    if (state.geometryKey !== geometryKey) {
+      state.model.setGeometry(createViewportGeometry(viewport, mercBounds));
+      state.geometryKey = geometryKey;
+    }
 
     const satParams: number[] = [];
     const satFeather: number[] = [];
@@ -971,7 +1094,6 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
             entry.loading = false;
             entry.loadingMercBounds = null;
             entry.abortController = null;
-            // eslint-disable-next-line no-console
             console.warn(
               `[SatelliteComposite] ${entry.config.id}:`,
               (err as Error).message,
@@ -1036,7 +1158,6 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       entry.flowFramebuffer = null;
       entry.flowTexture = null;
       entry.flowSize = null;
-      // eslint-disable-next-line no-console
       console.warn("[SatelliteComposite] optical-flow pass failed:", err);
     }
   }

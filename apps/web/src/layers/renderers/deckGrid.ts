@@ -1,6 +1,6 @@
 import { GeoJsonLayer, ScatterplotLayer } from "@deck.gl/layers";
 
-import { resolveRamp } from "../colorRamps";
+import { resolveRamp, rgbForRampValue } from "../colorRamps";
 import type { LayerRuntimeState } from "../types";
 
 interface PointFieldDatum {
@@ -9,13 +9,13 @@ interface PointFieldDatum {
   value: number;
 }
 
-function colorFromStops(value: number, min: number, max: number, colors: string[]): [number, number, number] {
+function colorFromRamp(value: number, min: number, max: number, rampId: string): [number, number, number] {
+  const ramp = resolveRamp(rampId);
+  const sorted = ramp.stops.slice().sort((a, b) => a.value - b.value);
+  const rampMin = sorted[0]?.value ?? 0;
+  const rampMax = sorted[sorted.length - 1]?.value ?? 1;
   const normalized = Math.max(0, Math.min(1, (value - min) / Math.max(0.001, max - min)));
-  const index = Math.min(colors.length - 1, Math.floor(normalized * colors.length));
-  const hex = colors[index].replace("#", "");
-  const parsed = Number.parseInt(hex, 16);
-  if (Number.isNaN(parsed)) return [128, 128, 128];
-  return [(parsed >> 16) & 0xff, (parsed >> 8) & 0xff, parsed & 0xff];
+  return rgbForRampValue(rampId, rampMin + (rampMax - rampMin) * normalized);
 }
 
 // WebGL blend constants.
@@ -57,9 +57,6 @@ export function createDeckGridLayer(options: {
   min: number;
   max: number;
 }) {
-  const ramp = resolveRamp(options.runtime.colourRamp);
-  const colors = ramp.stops.map((stop) => stop.color);
-
   return new GeoJsonLayer({
     id: options.id,
     data: options.data as any,
@@ -75,7 +72,7 @@ export function createDeckGridLayer(options: {
     getFillColor: (feature: any) => {
       const raw = feature?.properties?.[options.valueKey];
       const numeric = typeof raw === "number" ? raw : options.min;
-      const [r, g, b] = colorFromStops(numeric, options.min, options.max, colors);
+      const [r, g, b] = colorFromRamp(numeric, options.min, options.max, options.runtime.colourRamp);
       return [r, g, b, 170];
     },
     updateTriggers: {
@@ -94,9 +91,6 @@ export function createDeckPointFieldLayer(options: {
   max: number;
   radiusMeters?: number;
 }) {
-  const ramp = resolveRamp(options.runtime.colourRamp);
-  const colors = ramp.stops.map((stop) => stop.color);
-
   const points = options.data.features
     .map((feature) => {
       const ring = (feature.geometry as any)?.coordinates?.[0] as [number, number][] | undefined;
@@ -125,7 +119,7 @@ export function createDeckPointFieldLayer(options: {
     pickable: true,
     transitions: {},
     getFillColor: (point: PointFieldDatum) => {
-      const [r, g, b] = colorFromStops(point.value, options.min, options.max, colors);
+      const [r, g, b] = colorFromRamp(point.value, options.min, options.max, options.runtime.colourRamp);
       return [r, g, b, 150];
     },
     updateTriggers: {

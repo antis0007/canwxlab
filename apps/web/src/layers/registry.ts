@@ -128,7 +128,10 @@ function backendLayerToDefinition(layer: WeatherLayer, zIndex: number): LayerDef
     wmsBaseUrl: layer.wms_base_url,
     wmsLayerName: layer.wms_layer_name,
     styles: layer.styles,
-    metadata: layer.metadata,
+    metadata: {
+      ...layer.metadata,
+      legend_url: layer.legend_url,
+    },
   };
 }
 

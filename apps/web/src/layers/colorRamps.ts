@@ -153,3 +153,71 @@ export const defaultRampByCategory: Record<string, string> = {
 export function resolveRamp(rampId: string): ColorRamp {
   return colorRamps.find((ramp) => ramp.id === rampId) ?? colorRamps[0];
 }
+
+export function hexToRgb(hex: string): [number, number, number] | null {
+  const clean = hex.trim().replace(/^#/, "");
+  if (!/^[0-9a-f]{6}$/i.test(clean)) return null;
+  const parsed = Number.parseInt(clean, 16);
+  return [(parsed >> 16) & 0xff, (parsed >> 8) & 0xff, parsed & 0xff];
+}
+
+function interpolate(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+export function rgbForRampValue(
+  rampId: string,
+  value: number,
+): [number, number, number] {
+  const ramp = resolveRamp(rampId);
+  const stops = ramp.stops.slice().sort((a, b) => a.value - b.value);
+  if (stops.length === 0) return [128, 128, 128];
+  if (value <= stops[0].value) return hexToRgb(stops[0].color) ?? [128, 128, 128];
+  const last = stops[stops.length - 1];
+  if (value >= last.value) return hexToRgb(last.color) ?? [128, 128, 128];
+
+  for (let i = 1; i < stops.length; i += 1) {
+    const prev = stops[i - 1];
+    const next = stops[i];
+    if (value > next.value) continue;
+    const prevRgb = hexToRgb(prev.color);
+    const nextRgb = hexToRgb(next.color);
+    if (!prevRgb || !nextRgb) return [128, 128, 128];
+    const t = (value - prev.value) / Math.max(0.000001, next.value - prev.value);
+    return [
+      Math.round(interpolate(prevRgb[0], nextRgb[0], t)),
+      Math.round(interpolate(prevRgb[1], nextRgb[1], t)),
+      Math.round(interpolate(prevRgb[2], nextRgb[2], t)),
+    ];
+  }
+
+  return hexToRgb(last.color) ?? [128, 128, 128];
+}
+
+export function valueForRampColor(
+  rampId: string,
+  rgb: [number, number, number],
+): { value: number; distance: number; confidence: number } | null {
+  const ramp = resolveRamp(rampId);
+  const stops = ramp.stops.slice().sort((a, b) => a.value - b.value);
+  if (stops.length < 2) return null;
+  const min = stops[0].value;
+  const max = stops[stops.length - 1].value;
+  let bestValue = min;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  const samples = 160;
+  for (let i = 0; i <= samples; i += 1) {
+    const value = min + ((max - min) * i) / samples;
+    const sampled = rgbForRampValue(rampId, value);
+    const distance = Math.hypot(sampled[0] - rgb[0], sampled[1] - rgb[1], sampled[2] - rgb[2]);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestValue = value;
+    }
+  }
+  return {
+    value: bestValue,
+    distance: bestDistance,
+    confidence: Math.max(0, Math.min(1, 1 - bestDistance / 160)),
+  };
+}

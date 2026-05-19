@@ -648,21 +648,37 @@ export function MapView({
   useEffect(() => { observationsRef.current = observations; }, [observations]);
   useEffect(() => { alertsRef.current = alerts; }, [alerts]);
 
+  function sampleCanvasRgb(canvas: HTMLCanvasElement, point: [number, number]): [number, number, number] | null {
+    const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+    if (!gl) return null;
+    const rect = canvas.getBoundingClientRect();
+    const xCss = point[0] >= rect.left && point[0] <= rect.right
+      ? point[0] - rect.left
+      : point[0];
+    const yCss = point[1] >= rect.top && point[1] <= rect.bottom
+      ? point[1] - rect.top
+      : point[1];
+    const scaleX = canvas.width / Math.max(1, rect.width || canvas.clientWidth);
+    const scaleY = canvas.height / Math.max(1, rect.height || canvas.clientHeight);
+    const x = Math.max(0, Math.min(canvas.width - 1, Math.round(xCss * scaleX)));
+    const y = Math.max(0, Math.min(canvas.height - 1, Math.round(canvas.height - yCss * scaleY)));
+    const pixel = new Uint8Array(4);
+    gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+    if (pixel[3] === 0 && pixel[0] === 0 && pixel[1] === 0 && pixel[2] === 0) return null;
+    return [pixel[0], pixel[1], pixel[2]];
+  }
+
   function sampleCompositeRgb(point?: [number, number]): [number, number, number] | null {
     const map = mapRef.current;
     if (!map || !point) return null;
     try {
+      const canvases = Array.from(containerRef.current?.querySelectorAll("canvas") ?? []);
+      for (const canvas of canvases.slice().reverse()) {
+        const sampled = sampleCanvasRgb(canvas, point);
+        if (sampled) return sampled;
+      }
       const canvas = map.getCanvas();
-      const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
-      if (!gl) return null;
-      const scaleX = canvas.width / Math.max(1, canvas.clientWidth);
-      const scaleY = canvas.height / Math.max(1, canvas.clientHeight);
-      const x = Math.round(point[0] * scaleX);
-      const y = Math.round(canvas.height - point[1] * scaleY);
-      const pixel = new Uint8Array(4);
-      gl.readPixels(x, y, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-      if (pixel[3] === 0 && pixel[0] === 0 && pixel[1] === 0 && pixel[2] === 0) return null;
-      return [pixel[0], pixel[1], pixel[2]];
+      return sampleCanvasRgb(canvas, point);
     } catch {
       return null;
     }
@@ -915,6 +931,8 @@ export function MapView({
     const layer = createSatelliteCompositeLayer({ satellites: configs, timeProgress: 0 });
     satelliteLayerRef.current = layer;
     return layer;
+    // satelliteSignature intentionally captures only visibility, opacity, and URL-template changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [satelliteSignature]);
 
   // Imperative timeProgress update — no layer teardown, just one float write + redraw.

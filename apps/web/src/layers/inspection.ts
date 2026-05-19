@@ -1,4 +1,5 @@
 import type { AlertFeature, Observation, SourceStatus } from "../types/weather";
+import { valueForRampColor } from "./colorRamps";
 import { solarElevationDeg } from "../time/solarBands";
 import {
   airDensityKgM3,
@@ -379,6 +380,52 @@ function buildHeroMetrics(input: InspectorBuildInput): HeroMetric[] {
 
 function buildAnalysisRows(input: InspectorBuildInput): RendererFeatureValue[] {
   const values: RendererFeatureValue[] = [];
+  const topQueryableLayer = input.renderPlan
+    .filter((plan) => plan.visible)
+    .slice()
+    .sort((a, b) => b.order - a.order)
+    .map((plan) => ({
+      plan,
+      layer: input.activeLayers.find((candidate) => candidate.id === plan.source.layerId),
+    }))
+    .find(({ layer }) => {
+      if (!layer) return false;
+      const variable = `${layer.variable ?? ""} ${layer.title}`.toLowerCase();
+      return (
+        layer.category !== "satellite"
+        && layer.category !== "radar"
+        && layer.legend.unit !== "category"
+        && !variable.includes("alert")
+      );
+    });
+
+  if (topQueryableLayer?.layer) {
+    if (input.sampledRgb) {
+      const derived = valueForRampColor(topQueryableLayer.layer.colourRamp, input.sampledRgb);
+      if (derived) {
+        const prefix = derived.confidence >= 0.7 ? "" : "approx ";
+        values.push({
+          label: `${topQueryableLayer.layer.title} colour sample`,
+          value: `${prefix}${derived.value.toFixed(1)}`,
+          unit: topQueryableLayer.layer.legend.unit ?? topQueryableLayer.layer.unit ?? undefined,
+          status: "derived",
+        });
+        values.push({
+          label: "Pixel RGB",
+          value: `rgb(${input.sampledRgb.join(", ")})`,
+          unit: `${Math.round(derived.confidence * 100)}% ramp confidence`,
+          status: "derived",
+        });
+      }
+    } else {
+      values.push({
+        label: `${topQueryableLayer.layer.title} colour sample`,
+        value: "pixel sample unavailable",
+        unit: topQueryableLayer.layer.legend.unit ?? topQueryableLayer.layer.unit ?? undefined,
+        status: "unavailable",
+      });
+    }
+  }
 
   const wmsLayers = input.renderPlan.filter((plan) => plan.visible && plan.rendererType === "wms-raster");
   const microphysics = wmsLayers.find(isDayNightMicrophysicsLayer);
