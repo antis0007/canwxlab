@@ -39,12 +39,16 @@ interface SatEntry {
   prevTexture: Texture | null;
   nextTexture: Texture | null;
   flowTexture: Texture | null;
+  flowScratchTexture: Texture | null;
   flowFramebuffer: Framebuffer | null;
+  flowScratchFramebuffer: Framebuffer | null;
   flowSize: [number, number] | null;
   prevMercBounds: [number, number, number, number] | null;
   nextMercBounds: [number, number, number, number] | null;
   loadingMercBounds: [number, number, number, number] | null;
   loadedUrlTemplate: string | null;
+  failedUrl: string | null;
+  failedAtMs: number | null;
   loadError: boolean;
   loading: boolean;
   abortController: AbortController | null;
@@ -124,6 +128,8 @@ const REFETCH_THRESHOLD = 0.15;
 const FETCH_PADDING = 0.5;
 const FETCH_STAGGER_MS = 200;
 const RETRY_DELAYS_MS = [500, 1500, 4500];
+const FAILED_URL_COOLDOWN_MS = 5 * 60 * 1000;
+const SATELLITE_FRAME_INTERVAL_MS = 5 * 60 * 1000;
 const VIEWPORT_MESH_SEGMENTS = 32;
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -235,11 +241,24 @@ vec4 sampleFlowTex(int idx, vec2 uv) {
 
 vec2 mercToTexUv(vec2 merc, vec4 bounds) {
   vec2 span = max(bounds.zw - bounds.xy, vec2(1.0));
-  return (merc - bounds.xy) / span;
+  vec2 uv = (merc - bounds.xy) / span;
+  return vec2(uv.x, 1.0 - uv.y);
 }
 
 bool uvInside(vec2 uv) {
   return uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
+}
+
+float texelValidity(vec4 texel) {
+  float luma = dot(texel.rgb, vec3(0.2126, 0.7152, 0.0722));
+  float chroma = max(max(texel.r, texel.g), texel.b) - min(min(texel.r, texel.g), texel.b);
+  float visible = max(smoothstep(0.018, 0.06, luma), smoothstep(0.02, 0.08, chroma));
+  return texel.a * visible;
+}
+
+vec4 cleanTexel(vec4 texel) {
+  texel.a *= texelValidity(texel);
+  return texel;
 }
 
 vec4 sampleMorph(int idx, vec2 merc) {
@@ -259,8 +278,8 @@ vec4 sampleMorph(int idx, vec2 merc) {
       flowConfidence = packed.b;
       flow = (packed.rg - vec2(0.5)) * (uMaxFlowUv * 2.0);
     }
-    vec4 prevSample = prevInside ? samplePrevTex(idx, prevUv) : vec4(0.0);
-    vec4 nextSample = nextInside ? sampleNextTex(idx, nextUv) : vec4(0.0);
+    vec4 prevSample = prevInside ? cleanTexel(samplePrevTex(idx, prevUv)) : vec4(0.0);
+    vec4 nextSample = nextInside ? cleanTexel(sampleNextTex(idx, nextUv)) : vec4(0.0);
     if (!prevInside) return nextSample;
     if (!nextInside) return prevSample;
 
@@ -269,17 +288,19 @@ vec4 sampleMorph(int idx, vec2 merc) {
 
     vec4 prevForward = samplePrevTex(
       idx,
-      clamp(prevUv + flow * uTimeProgress, vec2(0.0), vec2(1.0))
+      clamp(prevUv - flow * uTimeProgress, vec2(0.0), vec2(1.0))
     );
     vec4 nextBackward = sampleNextTex(
       idx,
-      clamp(nextUv - flow * (1.0 - uTimeProgress), vec2(0.0), vec2(1.0))
+      clamp(nextUv + flow * (1.0 - uTimeProgress), vec2(0.0), vec2(1.0))
     );
+    prevForward = cleanTexel(prevForward);
+    nextBackward = cleanTexel(nextBackward);
     vec4 advected = mix(prevForward, nextBackward, uTimeProgress);
     return mix(dissolved, advected, smoothstep(0.25, 0.85, flowConfidence));
   }
-  if (nextInside) return sampleNextTex(idx, nextUv);
-  if (prevInside) return samplePrevTex(idx, prevUv);
+  if (nextInside) return cleanTexel(sampleNextTex(idx, nextUv));
+  if (prevInside) return cleanTexel(samplePrevTex(idx, prevUv));
   return vec4(0.0);
 }
 
@@ -332,12 +353,29 @@ out vec4 fragColor;
 
 uniform sampler2D uFlowPrevTex;
 uniform sampler2D uFlowNextTex;
+uniform sampler2D uFlowHistoryTex;
 uniform vec2 uTexelSize;
 uniform float uFlowEncodeScale;
+uniform float uHasFlowHistory;
+
+vec4 safeSample(sampler2D tex, vec2 uv) {
+  return texture(tex, clamp(uv, vec2(0.0), vec2(1.0)));
+}
+
+float lumaOf(vec3 rgb) {
+  return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+}
+
+float validSignal(vec4 texel) {
+  float luma = lumaOf(texel.rgb);
+  float chroma = max(max(texel.r, texel.g), texel.b) - min(min(texel.r, texel.g), texel.b);
+  float visible = smoothstep(0.015, 0.06, luma) + smoothstep(0.015, 0.08, chroma);
+  return texel.a * clamp(visible, 0.0, 1.0);
+}
 
 float lumaAt(sampler2D tex, vec2 uv) {
-  vec3 rgb = texture(tex, clamp(uv, vec2(0.0), vec2(1.0))).rgb;
-  return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+  vec4 texel = safeSample(tex, uv);
+  return lumaOf(texel.rgb);
 }
 
 void main() {
@@ -351,29 +389,53 @@ void main() {
     for (int x = -2; x <= 2; x++) {
       vec2 offset = vec2(float(x), float(y)) * uTexelSize;
       vec2 uv = vUv + offset;
+      vec4 prevCenter = safeSample(uFlowPrevTex, uv);
+      vec4 nextCenter = safeSample(uFlowNextTex, uv);
+      float validity = min(validSignal(prevCenter), validSignal(nextCenter));
       float left = lumaAt(uFlowPrevTex, uv - vec2(uTexelSize.x, 0.0));
       float right = lumaAt(uFlowPrevTex, uv + vec2(uTexelSize.x, 0.0));
       float down = lumaAt(uFlowPrevTex, uv - vec2(0.0, uTexelSize.y));
       float up = lumaAt(uFlowPrevTex, uv + vec2(0.0, uTexelSize.y));
       float ix = (right - left) * 0.5;
       float iy = (up - down) * 0.5;
-      float it = lumaAt(uFlowNextTex, uv) - lumaAt(uFlowPrevTex, uv);
-      a00 += ix * ix;
-      a01 += ix * iy;
-      a11 += iy * iy;
-      b0 += -it * ix;
-      b1 += -it * iy;
+      float it = lumaOf(nextCenter.rgb) - lumaOf(prevCenter.rgb);
+      a00 += ix * ix * validity;
+      a01 += ix * iy * validity;
+      a11 += iy * iy * validity;
+      b0 += -it * ix * validity;
+      b1 += -it * iy * validity;
     }
   }
 
   float det = a00 * a11 - a01 * a01;
   float gradientEnergy = a00 + a11;
-  float confidence = smoothstep(0.0005, 0.02, gradientEnergy) * step(0.000001, abs(det));
+  float centerValidity = min(validSignal(safeSample(uFlowPrevTex, vUv)), validSignal(safeSample(uFlowNextTex, vUv)));
+  float confidence = centerValidity * smoothstep(0.0005, 0.02, gradientEnergy) * step(0.000001, abs(det));
   vec2 flowPx = vec2(0.0);
   if (confidence > 0.0) {
     flowPx = vec2((a11 * b0 - a01 * b1) / det, (-a01 * b0 + a00 * b1) / det);
   }
   vec2 flowUv = clamp(flowPx * uTexelSize, vec2(-uFlowEncodeScale), vec2(uFlowEncodeScale));
+  if (uHasFlowHistory > 0.5 && confidence > 0.25) {
+    vec4 history = safeSample(uFlowHistoryTex, vUv);
+    if (history.b > 0.25) {
+      vec2 historyFlow = (history.rg - vec2(0.5)) * (uFlowEncodeScale * 2.0);
+      float agreement = smoothstep(0.0, 0.75, dot(normalize(flowUv + vec2(1e-6)), normalize(historyFlow + vec2(1e-6))) * 0.5 + 0.5);
+      flowUv = mix(flowUv, historyFlow, 0.35 * agreement);
+      confidence = max(confidence, min(history.b, confidence) * 0.25);
+    }
+  }
+  if (confidence > 0.25) {
+    float prevCenter = lumaAt(uFlowPrevTex, vUv);
+    float forwardError = abs(prevCenter - lumaAt(uFlowNextTex, vUv + flowUv));
+    float reverseError = abs(prevCenter - lumaAt(uFlowNextTex, vUv - flowUv));
+    if (reverseError + 0.015 < forwardError) {
+      flowUv = -flowUv;
+      confidence *= 0.65;
+    } else {
+      confidence *= smoothstep(0.16, 0.02, forwardError);
+    }
+  }
   vec2 encoded = flowUv / (uFlowEncodeScale * 2.0) + vec2(0.5);
   fragColor = vec4(encoded, confidence, 1.0);
 }
@@ -584,6 +646,30 @@ function buildProxiedWmsUrl(
   }
 }
 
+function templateTimeMs(template: string | null): number | null {
+  if (!template) return null;
+  try {
+    const parsed = new URL(template);
+    const raw = parsed.searchParams.get("TIME") ?? parsed.searchParams.get("time");
+    if (!raw) return null;
+    const value = Date.parse(raw);
+    return Number.isFinite(value) ? value : null;
+  } catch {
+    const match = /[?&]time=([^&]+)/i.exec(template);
+    if (!match) return null;
+    const value = Date.parse(decodeURIComponent(match[1]));
+    return Number.isFinite(value) ? value : null;
+  }
+}
+
+function areAdjacentFrameTemplates(previous: string | null, next: string | null): boolean {
+  const previousMs = templateTimeMs(previous);
+  const nextMs = templateTimeMs(next);
+  if (previousMs === null || nextMs === null) return false;
+  const delta = Math.abs(nextMs - previousMs);
+  return delta > 0 && delta <= SATELLITE_FRAME_INTERVAL_MS * 1.5;
+}
+
 function viewportTexDimensions(viewport: {
   width: number;
   height: number;
@@ -601,7 +687,9 @@ async function loadImage(url: string, signal: AbortSignal): Promise<ImageBitmap>
     staleIfErrorMs: 6 * 60 * 60 * 1000,
   });
   if (!response.ok) {
-    throw new Error(`WMS image request failed ${response.status}: ${url.slice(0, 120)}`);
+    const error = new Error(`WMS image request failed ${response.status}: ${url.slice(0, 120)}`) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
   }
   const contentType = response.headers.get("content-type") ?? "";
   if (contentType && !contentType.toLowerCase().startsWith("image/")) {
@@ -619,6 +707,10 @@ async function loadImageWithRetry(url: string, signal: AbortSignal): Promise<Ima
     } catch (err) {
       if (signal.aborted) throw err;
       lastError = err;
+      const status = typeof (err as { status?: unknown }).status === "number"
+        ? (err as { status: number }).status
+        : null;
+      if (status !== null && status >= 400 && status < 600) break;
       const delay = RETRY_DELAYS_MS[attempt];
       if (delay === undefined) break;
       await new Promise<void>((resolve, reject) => {
@@ -722,12 +814,16 @@ function createEntry(config: SatelliteCompositeConfig): SatEntry {
     prevTexture: null,
     nextTexture: null,
     flowTexture: null,
+    flowScratchTexture: null,
     flowFramebuffer: null,
+    flowScratchFramebuffer: null,
     flowSize: null,
     prevMercBounds: null,
     nextMercBounds: null,
     loadingMercBounds: null,
     loadedUrlTemplate: null,
+    failedUrl: null,
+    failedAtMs: null,
     loadError: false,
     loading: false,
     abortController: null,
@@ -790,6 +886,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
 
   override initializeState(): void {
     const device = this.context.device;
+    this.getAttributeManager()?.remove(["instancePickingColors"]);
     const fallbackTexture = createFallbackTexture(device);
 
     const uniforms: Record<string, unknown> = {
@@ -810,6 +907,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     const flowUniforms: Record<string, unknown> = {
       uTexelSize: [1 / FLOW_TEX_DIM, 1 / FLOW_TEX_DIM],
       uFlowEncodeScale: MAX_FLOW_UV,
+      uHasFlowHistory: 0,
     };
     const geometry = createInitialCompositeGeometry();
 
@@ -821,6 +919,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       vertexCount: 4,
       geometry,
       uniforms,
+      disableWarnings: true,
       parameters: {
         blend: true,
         blendColorSrcFactor: "src-alpha",
@@ -835,6 +934,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       vertexCount: 4,
       geometry: createFullscreenGeometry(),
       uniforms: flowUniforms,
+      disableWarnings: true,
       parameters: { depthWriteEnabled: false } as any,
     });
 
@@ -881,7 +981,9 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
         old.prevTexture?.destroy();
         old.nextTexture?.destroy();
         old.flowFramebuffer?.destroy();
+        old.flowScratchFramebuffer?.destroy();
         old.flowTexture?.destroy();
+        old.flowScratchTexture?.destroy();
       }
     }
 
@@ -945,6 +1047,9 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     for (let i = 0; i < MAX_SATELLITES; i++) {
       const entry = state.entries[i];
       if (entry?.prevTexture || entry?.nextTexture) {
+        const templateMatches = entry.loadedUrlTemplate === entry.config.wmsUrlTemplate;
+        const prevTexture = templateMatches ? entry.prevTexture : null;
+        const nextTexture = entry.nextTexture;
         const [sx, sy, sz] = subPointCartesian(
           entry.config.subPoint[0],
           entry.config.subPoint[1],
@@ -955,13 +1060,13 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
         prevBounds.push(...(entry.prevMercBounds ?? entry.nextMercBounds ?? mercBounds));
         nextBounds.push(...(entry.nextMercBounds ?? entry.prevMercBounds ?? mercBounds));
         satOpacity.push(entry.config.opacity);
-        hasPrevTex.push(entry.prevTexture ? 1 : 0);
-        hasNextTex.push(entry.nextTexture ? 1 : 0);
+        hasPrevTex.push(prevTexture ? 1 : 0);
+        hasNextTex.push(nextTexture ? 1 : 0);
         hasFlowTex.push(
-          entry.flowTexture && boundsEquivalent(entry.prevMercBounds, entry.nextMercBounds) ? 1 : 0,
+          templateMatches && entry.flowTexture && boundsEquivalent(entry.prevMercBounds, entry.nextMercBounds) ? 1 : 0,
         );
-        bindings[`uPrevTex${i}`] = entry.prevTexture ?? state.fallbackTexture!;
-        bindings[`uNextTex${i}`] = entry.nextTexture ?? entry.prevTexture ?? state.fallbackTexture!;
+        bindings[`uPrevTex${i}`] = prevTexture ?? state.fallbackTexture!;
+        bindings[`uNextTex${i}`] = nextTexture ?? state.fallbackTexture!;
         bindings[`uFlowTex${i}`] = entry.flowTexture ?? state.fallbackTexture!;
       } else {
         satParams.push(0, 0, 0, 0);
@@ -1017,7 +1122,9 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       entry.prevTexture?.destroy();
       entry.nextTexture?.destroy();
       entry.flowFramebuffer?.destroy();
+      entry.flowScratchFramebuffer?.destroy();
       entry.flowTexture?.destroy();
+      entry.flowScratchTexture?.destroy();
     }
     state.fallbackTexture?.destroy();
     state.flowModel?.destroy();
@@ -1057,6 +1164,16 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       entry.loadError = false;
 
       const url = buildProxiedWmsUrl(entry.config.wmsUrlTemplate, fetchMercBounds, texW, texH);
+      if (
+        entry.failedUrl === url
+        && entry.failedAtMs !== null
+        && Date.now() - entry.failedAtMs < FAILED_URL_COOLDOWN_MS
+      ) {
+        entry.loading = false;
+        entry.loadingMercBounds = null;
+        entry.abortController = null;
+        return;
+      }
 
       entry.fetchTimer = window.setTimeout(() => {
         entry.fetchTimer = null;
@@ -1070,13 +1187,21 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
             bitmap.close?.();
 
             const oldPrev = entry.prevTexture;
-            if (entry.nextTexture) {
+            const oldNext = entry.nextTexture;
+            const canMorphFromCurrent = areAdjacentFrameTemplates(entry.loadedUrlTemplate, entry.config.wmsUrlTemplate);
+            if (entry.nextTexture && canMorphFromCurrent) {
               entry.prevTexture = entry.nextTexture;
               entry.prevMercBounds = entry.nextMercBounds;
+            } else {
+              entry.prevTexture = null;
+              entry.prevMercBounds = null;
+              oldNext?.destroy();
             }
             entry.nextTexture = newTexture;
             entry.nextMercBounds = fetchMercBounds;
             entry.loadedUrlTemplate = entry.config.wmsUrlTemplate;
+            entry.failedUrl = null;
+            entry.failedAtMs = null;
             entry.loadError = false;
             entry.loading = false;
             entry.loadingMercBounds = null;
@@ -1087,9 +1212,13 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
               this._computeFlowTexture(entry);
             } else {
               entry.flowFramebuffer?.destroy();
+              entry.flowScratchFramebuffer?.destroy();
               entry.flowTexture?.destroy();
+              entry.flowScratchTexture?.destroy();
               entry.flowFramebuffer = null;
+              entry.flowScratchFramebuffer = null;
               entry.flowTexture = null;
+              entry.flowScratchTexture = null;
               entry.flowSize = null;
             }
             state.anyTextureLoaded = true;
@@ -1102,6 +1231,8 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
               return;
             }
             entry.loadError = !entry.nextTexture && !entry.prevTexture;
+            entry.failedUrl = url;
+            entry.failedAtMs = Date.now();
             entry.loading = false;
             entry.loadingMercBounds = null;
             entry.abortController = null;
@@ -1121,11 +1252,32 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
 
     const flowW = Math.min(FLOW_TEX_DIM, Math.max(64, Math.round(entry.nextTexture.width / 4)));
     const flowH = Math.min(FLOW_TEX_DIM, Math.max(64, Math.round(entry.nextTexture.height / 4)));
+    let hasFlowHistory = !!entry.flowTexture && entry.flowSize?.[0] === flowW && entry.flowSize?.[1] === flowH;
 
-    if (!entry.flowTexture || !entry.flowFramebuffer || entry.flowSize?.[0] !== flowW || entry.flowSize?.[1] !== flowH) {
+    if (
+      !entry.flowTexture
+      || !entry.flowScratchTexture
+      || !entry.flowFramebuffer
+      || !entry.flowScratchFramebuffer
+      || entry.flowSize?.[0] !== flowW
+      || entry.flowSize?.[1] !== flowH
+    ) {
       entry.flowFramebuffer?.destroy();
+      entry.flowScratchFramebuffer?.destroy();
       entry.flowTexture?.destroy();
+      entry.flowScratchTexture?.destroy();
       entry.flowTexture = state.device.createTexture({
+        width: flowW,
+        height: flowH,
+        format: "rgba8unorm" as any,
+        sampler: {
+          minFilter: "linear" as any,
+          magFilter: "linear" as any,
+          addressModeU: "clamp-to-edge" as any,
+          addressModeV: "clamp-to-edge" as any,
+        },
+      });
+      entry.flowScratchTexture = state.device.createTexture({
         width: flowW,
         height: flowH,
         format: "rgba8unorm" as any,
@@ -1139,21 +1291,27 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       entry.flowFramebuffer = state.device.createFramebuffer({
         colorAttachments: [entry.flowTexture],
       });
+      entry.flowScratchFramebuffer = state.device.createFramebuffer({
+        colorAttachments: [entry.flowScratchTexture],
+      });
       entry.flowSize = [flowW, flowH];
+      hasFlowHistory = false;
     }
 
     const u = state.flowUniforms!;
     u.uTexelSize = [1 / Math.max(1, flowW), 1 / Math.max(1, flowH)];
     u.uFlowEncodeScale = MAX_FLOW_UV;
+    u.uHasFlowHistory = hasFlowHistory ? 1 : 0;
     state.flowModel.setBindings({
       uFlowPrevTex: entry.prevTexture,
       uFlowNextTex: entry.nextTexture,
+      uFlowHistoryTex: entry.flowTexture ?? state.fallbackTexture!,
     } as any);
 
     try {
       const encoder = state.device.createCommandEncoder();
       const pass = encoder.beginRenderPass({
-        framebuffer: entry.flowFramebuffer,
+        framebuffer: entry.flowScratchFramebuffer,
         clearColor: [0.5, 0.5, 0, 1],
         parameters: {
           viewport: [0, 0, flowW, flowH],
@@ -1163,11 +1321,21 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       state.flowModel.draw(pass);
       pass.end();
       state.device.submit(encoder.finish());
+      const oldFlowTexture = entry.flowTexture;
+      const oldFlowFramebuffer = entry.flowFramebuffer;
+      entry.flowTexture = entry.flowScratchTexture;
+      entry.flowFramebuffer = entry.flowScratchFramebuffer;
+      entry.flowScratchTexture = oldFlowTexture;
+      entry.flowScratchFramebuffer = oldFlowFramebuffer;
     } catch (err) {
       entry.flowFramebuffer?.destroy();
+      entry.flowScratchFramebuffer?.destroy();
       entry.flowTexture?.destroy();
+      entry.flowScratchTexture?.destroy();
       entry.flowFramebuffer = null;
+      entry.flowScratchFramebuffer = null;
       entry.flowTexture = null;
+      entry.flowScratchTexture = null;
       entry.flowSize = null;
       console.warn("[SatelliteComposite] optical-flow pass failed:", err);
     }

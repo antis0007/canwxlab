@@ -658,6 +658,7 @@ export default function App() {
             alerts={alerts}
             viewMode={viewMode}
             animationFrame={playbackState.frame}
+            subFrameProgress={playbackState.subFrameProgress}
             globalTimeMs={new Date(playbackState.selectedValidTime).getTime()}
             onInspect={handleInspect}
             onDiagnostics={(partial) => setDiagnostics((current) => ({

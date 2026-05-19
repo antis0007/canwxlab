@@ -212,10 +212,11 @@ export function BottomTimeline({
     [startMs, playback.frameCount],
   );
 
-  const progressPct = (playback.frame / Math.max(1, playback.frameCount - 1)) * 100;
+  const progressPct = (playback.playheadFrame / Math.max(1, playback.frameCount - 1)) * 100;
   const loopStartPct = (playback.loopStart / Math.max(1, playback.frameCount - 1)) * 100;
   const loopEndPct = (playback.loopEnd / Math.max(1, playback.frameCount - 1)) * 100;
-  const validLabel = new Date(playback.selectedValidTime).toLocaleString("en-CA", {
+  const displayMs = startMs + playback.playheadFrame * FRAME_INTERVAL_MS;
+  const validLabel = new Date(displayMs).toLocaleString("en-CA", {
     year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone,
   });
 
@@ -237,7 +238,8 @@ export function BottomTimeline({
 
   return (
     <footer className="wb-timeline" aria-label="Timeline scrubber">
-      <div className="wb-timeline-controls">
+      <div className="wb-timeline-top">
+        <div className="wb-timeline-controls">
         <button
           type="button"
           className="wb-tl-btn wb-tl-step"
@@ -359,6 +361,16 @@ export function BottomTimeline({
         </span>
       </div>
 
+      <div className="wb-tl-readout">
+        <span className="wb-tl-time">{validLabel}</span>
+        <span className="wb-tl-frame">
+          F <span className="wb-tl-frame-num">{String(playback.frame + 1).padStart(3, "0")}</span>
+          <span className="wb-tl-frame-sep">/</span>
+          {String(playback.frameCount).padStart(3, "0")}
+        </span>
+      </div>
+      </div>
+
       <div
         ref={stripRef}
         className="wb-tl-strip"
@@ -433,23 +445,16 @@ export function BottomTimeline({
           <input
             type="range"
             className="wb-tl-slider"
+            step="any"
             min={0}
             max={playback.frameCount - 1}
-            value={playback.frame}
+            value={playback.playheadFrame}
+            onInput={(event) => onSetFrame(Number(event.currentTarget.value))}
             onChange={(event) => onSetFrame(Number(event.target.value))}
             aria-label={`Frame ${playback.frame + 1} of ${playback.frameCount}`}
             title={`${validLabel}  ·  frame ${playback.frame + 1}/${playback.frameCount}`}
           />
         </div>
-      </div>
-
-      <div className="wb-tl-readout">
-        <span className="wb-tl-time">{validLabel}</span>
-        <span className="wb-tl-frame">
-          F <span className="wb-tl-frame-num">{String(playback.frame + 1).padStart(3, "0")}</span>
-          <span className="wb-tl-frame-sep">/</span>
-          {String(playback.frameCount).padStart(3, "0")}
-        </span>
       </div>
     </footer>
   );

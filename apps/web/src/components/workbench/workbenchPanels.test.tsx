@@ -17,6 +17,7 @@ import type {
 const playback: AnimationPlaybackState = {
   isPlaying: true,
   speedMultiplier: 1,
+  playheadFrame: 10,
   frame: 10,
   frameCount: 240,
   selectedValidTime: new Date().toISOString(),

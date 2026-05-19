@@ -23,6 +23,8 @@ from canwxlab_api.routes.params import parse_bbox_param
 router = APIRouter(prefix="/api/eccc", tags=["eccc"])
 
 _WMS_IMAGE_LOCKS: dict[str, asyncio.Lock] = {}
+_WMS_IMAGE_FAILURES: dict[str, tuple[datetime, str]] = {}
+_WMS_IMAGE_FAILURE_TTL_SECONDS = 5 * 60
 
 
 def _adapter_wms_base(adapter: WeatherSourceAdapter) -> str:
@@ -304,6 +306,16 @@ async def get_wms_image(
         content, content_type, _retrieved_at, expires_at = cached
         if expires_at > now:
             return _cached_wms_response(content, content_type, expires_at, "hit")
+    failure = _WMS_IMAGE_FAILURES.get(cache_key)
+    if failure is not None:
+        failed_at, detail = failure
+        if (now - failed_at).total_seconds() < _WMS_IMAGE_FAILURE_TTL_SECONDS:
+            raise HTTPException(
+                status_code=502,
+                detail=detail,
+                headers={"cache-control": "public, max-age=300", "x-canwxlab-cache": "failure-hit"},
+            )
+        _WMS_IMAGE_FAILURES.pop(cache_key, None)
 
     lock = _WMS_IMAGE_LOCKS.setdefault(cache_key, asyncio.Lock())
     async with lock:
@@ -313,6 +325,16 @@ async def get_wms_image(
             content, content_type, _retrieved_at, expires_at = cached
             if expires_at > now:
                 return _cached_wms_response(content, content_type, expires_at, "hit")
+        failure = _WMS_IMAGE_FAILURES.get(cache_key)
+        if failure is not None:
+            failed_at, detail = failure
+            if (now - failed_at).total_seconds() < _WMS_IMAGE_FAILURE_TTL_SECONDS:
+                raise HTTPException(
+                    status_code=502,
+                    detail=detail,
+                    headers={"cache-control": "public, max-age=300", "x-canwxlab-cache": "failure-hit"},
+                )
+            _WMS_IMAGE_FAILURES.pop(cache_key, None)
 
         try:
             async with httpx.AsyncClient(
@@ -325,11 +347,14 @@ async def get_wms_image(
             if cached is not None:
                 content, content_type, _retrieved_at, expires_at = cached
                 return _cached_wms_response(content, content_type, expires_at, "stale")
-            raise HTTPException(status_code=502, detail=f"WMS image fetch failed: {exc}") from exc
+            detail = f"WMS image fetch failed: {exc}"
+            _WMS_IMAGE_FAILURES[cache_key] = (datetime.now(UTC), detail)
+            raise HTTPException(status_code=502, detail=detail) from exc
 
         content_type = upstream.headers.get("content-type", format)
         if not content_type.lower().startswith("image/"):
             detail = upstream.text[:300] if upstream.text else "WMS returned a non-image response"
+            _WMS_IMAGE_FAILURES[cache_key] = (datetime.now(UTC), detail)
             raise HTTPException(status_code=502, detail=detail)
 
         retrieved_at = datetime.now(UTC)

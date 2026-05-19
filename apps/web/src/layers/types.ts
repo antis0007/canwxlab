@@ -173,6 +173,9 @@ export interface LayerDiagnostics {
 export interface AnimationPlaybackState {
   isPlaying: boolean;
   speedMultiplier: number;
+  /** Continuous timeline position, in frame units. Drives smooth scrub/playback UI. */
+  playheadFrame: number;
+  /** Discrete WMS target frame used for fetching the next raster frame. */
   frame: number;
   frameCount: number;
   selectedValidTime: string;

@@ -22,7 +22,7 @@ export function useAnimationTimeline() {
   // the convenience of an autoplay.
   const [isPlaying, setIsPlaying] = useState(false);
   const [speedMultiplier, setSpeedMultiplierState] = useState(1);
-  const [frame, setFrame] = useState(FRAME_COUNT - 1);
+  const [playheadFrame, setPlayheadFrame] = useState(FRAME_COUNT - 1);
   const [loopStart, setLoopStart] = useState(0);
   const [loopEnd, setLoopEnd] = useState(FRAME_COUNT - 1);
   // Window anchor: refreshed on mount so playback covers the last WINDOW_SPAN_MS.
@@ -31,15 +31,21 @@ export function useAnimationTimeline() {
   const [windowStartMs, setWindowStartMs] = useState(() => Date.now() - WINDOW_SPAN_MS);
   const rafRef = useRef<number | null>(null);
   const lastFrameAtRef = useRef<number>(performance.now());
-  const [subFrameProgress, setSubFrameProgress] = useState(0);
 
-  const advanceFrame = useCallback(() => {
-    setFrame((current) => {
-      const next = current + 1;
-      if (next > loopEnd) return loopStart;
-      return next;
+  const frame = playheadFrame <= 0 ? 0 : Math.ceil(playheadFrame);
+  const subFrameProgress = useMemo(() => {
+    if (playheadFrame <= 0) return 0;
+    const fractional = playheadFrame - Math.floor(playheadFrame);
+    return fractional === 0 ? 1 : fractional;
+  }, [playheadFrame]);
+
+  const setFrame = useCallback((value: number | ((current: number) => number)) => {
+    setPlayheadFrame((current) => {
+      const raw = typeof value === "function" ? value(current) : value;
+      return Math.max(0, Math.min(FRAME_COUNT - 1, raw));
     });
-  }, [loopEnd, loopStart]);
+    lastFrameAtRef.current = performance.now();
+  }, []);
 
   useEffect(() => {
     if (!isPlaying) {
@@ -47,20 +53,23 @@ export function useAnimationTimeline() {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      setSubFrameProgress(0);
       return;
     }
 
+    lastFrameAtRef.current = performance.now();
     const tick = (timestamp: number) => {
       const intervalMs = 1000 / Math.max(MIN_SPEED, speedMultiplier);
       const elapsed = timestamp - lastFrameAtRef.current;
-      if (elapsed >= intervalMs) {
-        advanceFrame();
-        lastFrameAtRef.current = timestamp;
-        setSubFrameProgress(0);
-      } else {
-        setSubFrameProgress(Math.min(1, elapsed / intervalMs));
-      }
+      const deltaFrames = elapsed / intervalMs;
+      lastFrameAtRef.current = timestamp;
+      setPlayheadFrame((current) => {
+        const span = Math.max(1, loopEnd - loopStart);
+        const next = current + deltaFrames;
+        if (next > loopEnd) {
+          return loopStart + ((next - loopEnd) % span);
+        }
+        return Math.max(loopStart, Math.min(loopEnd, next));
+      });
       rafRef.current = requestAnimationFrame(tick);
     };
 
@@ -71,7 +80,7 @@ export function useAnimationTimeline() {
         rafRef.current = null;
       }
     };
-  }, [advanceFrame, isPlaying, speedMultiplier]);
+  }, [isPlaying, loopEnd, loopStart, speedMultiplier]);
 
   const setSpeedMultiplier = useCallback((value: number) => {
     setSpeedMultiplierState(clampSpeed(value));
@@ -84,6 +93,7 @@ export function useAnimationTimeline() {
   const playbackState: AnimationPlaybackState = {
     isPlaying,
     speedMultiplier,
+    playheadFrame,
     frame,
     frameCount: FRAME_COUNT,
     selectedValidTime,
@@ -98,11 +108,11 @@ export function useAnimationTimeline() {
     setLoopStart(safeStart);
     setLoopEnd(safeEnd);
     setFrame((current) => Math.max(safeStart, Math.min(safeEnd, current)));
-  }, []);
+  }, [setFrame]);
 
   const stepFrame = useCallback((delta: number) => {
     setFrame((current) => Math.max(0, Math.min(FRAME_COUNT - 1, current + delta)));
-  }, []);
+  }, [setFrame]);
 
   return {
     playbackState,
