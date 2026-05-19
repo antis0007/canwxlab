@@ -32,6 +32,7 @@ export type LayerRendererType =
   | "deck-polygon"
   | "deck-line"
   | "deck-particles"
+  | "deck-satellite"
   | "custom-canvas"
   | "wms-raster";
 
@@ -56,6 +57,7 @@ export interface LayerControlValues {
   cloudOpacity: number;
   contourInterval: number;
   blendMode: string;
+  edgeBlur: number;
 }
 
 export type RenderLayerType =
@@ -71,6 +73,7 @@ export type RenderBlendMode = "normal" | "screen" | "multiply" | "add" | "max" |
 
 export interface RenderSourcePlan {
   kind: "wms" | "deck" | "native" | "shader";
+  sourceKind?: "wms" | "wmts";
   layerId: string;
   sourceId: string;
   status: SourceStatus;
@@ -175,6 +178,8 @@ export interface AnimationPlaybackState {
   selectedValidTime: string;
   loopStart: number;
   loopEnd: number;
+  /** 0→1 progress from the current frame toward the next. 0 when paused. */
+  subFrameProgress: number;
 }
 
 export interface UnitPreferences {
@@ -216,6 +221,7 @@ export const defaultLayerControls: LayerControlValues = {
   cloudOpacity: 0.7,
   contourInterval: 4,
   blendMode: "normal",
+  edgeBlur: 0,
 };
 
 export const defaultUiPreferences: UiPreferences = {

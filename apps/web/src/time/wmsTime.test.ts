@@ -22,6 +22,16 @@ describe('wmsTime utilities', () => {
     expect(times).toHaveLength(4); // 00, 01, 02, 03
   });
 
+  it('parseWmsTimeDimension - daily interval', () => {
+    const extent = '2024-01-01T00:00:00Z/2024-01-03T00:00:00Z/P1D';
+    const times = parseWmsTimeDimension(extent);
+    expect(times).toEqual([
+      new Date('2024-01-01T00:00:00Z').getTime(),
+      new Date('2024-01-02T00:00:00Z').getTime(),
+      new Date('2024-01-03T00:00:00Z').getTime(),
+    ]);
+  });
+
   it('nearestTime', () => {
     const times = [1000, 2000, 3000];
     expect(nearestTime(1400, times)).toBe(1000);

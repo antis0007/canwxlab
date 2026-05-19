@@ -15,7 +15,7 @@ describe("buildRenderPlan", () => {
     });
     const active = layers.filter((layer) => ["eccc_radar_1km_rrai", "eccc_goes_east_cloud_type"].includes(layer.id));
     const runtimeState = Object.fromEntries(
-      active.map((layer, index) => [
+      active.map((layer) => [
         layer.id,
         {
           enabled: true,

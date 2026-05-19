@@ -16,14 +16,8 @@ export function parseWmsTimeDimension(timeExtent: string): number[] {
       const start = new Date(startStr).getTime();
       const end = new Date(endStr).getTime();
 
-      if (!isNaN(start) && !isNaN(end) && duration && duration.startsWith('PT')) {
-        let stepMs = 0;
-        // Simple regex to extract H and M from PT#H#M
-        const hMatch = duration.match(/(\d+)H/);
-        const mMatch = duration.match(/(\d+)M/);
-        
-        if (hMatch) stepMs += parseInt(hMatch[1]) * 60 * 60 * 1000;
-        if (mMatch) stepMs += parseInt(mMatch[1]) * 60 * 1000;
+      if (!isNaN(start) && !isNaN(end) && duration && duration.startsWith('P')) {
+        const stepMs = parseIsoDurationMs(duration);
 
         if (stepMs > 0) {
           for (let t = start; t <= end; t += stepMs) {
@@ -46,6 +40,23 @@ export function parseWmsTimeDimension(timeExtent: string): number[] {
   }
 
   return Array.from(times).sort((a, b) => a - b);
+}
+
+function parseIsoDurationMs(duration: string): number {
+  const match = duration.match(
+    /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/,
+  );
+  if (!match) return 0;
+  const days = Number.parseInt(match[1] ?? "0", 10);
+  const hours = Number.parseInt(match[2] ?? "0", 10);
+  const minutes = Number.parseInt(match[3] ?? "0", 10);
+  const seconds = Number.parseInt(match[4] ?? "0", 10);
+  return (
+    days * 24 * 60 * 60 * 1000
+    + hours * 60 * 60 * 1000
+    + minutes * 60 * 1000
+    + seconds * 1000
+  );
 }
 
 /**
@@ -76,6 +87,23 @@ export function isTimeInRange(targetTime: number, availableTimes: number[]): boo
   return targetTime >= availableTimes[0] && targetTime <= availableTimes[availableTimes.length - 1];
 }
 
+export type WmsTimeAvailability = "available" | "before-range" | "after-range" | "no-time-dimension";
+
+export interface WmsResolvedTime {
+  resolvedTime: string | null;
+  availability: WmsTimeAvailability;
+  requestedTime: string | null;
+  rangeStart: string | null;
+  rangeEnd: string | null;
+}
+
+function availabilityForTarget(targetTime: number, availableTimes: number[]): WmsTimeAvailability {
+  if (!availableTimes || availableTimes.length === 0) return "no-time-dimension";
+  if (targetTime < availableTimes[0]) return "before-range";
+  if (targetTime > availableTimes[availableTimes.length - 1]) return "after-range";
+  return "available";
+}
+
 /**
  * Resolves the final WMS time string to use based on the layer's time policy.
  * @param globalTime The current global timeline time (ms).
@@ -89,9 +117,32 @@ export function resolveWmsTimeForTimeline(
   policy: 'timeline' | 'global' | 'latest' | 'fixed',
   fixedTime?: number
 ): string | null {
-  if (!availableTimes || availableTimes.length === 0) return null;
+  return resolveWmsTimeForTimelineDetailed(globalTime, availableTimes, policy, fixedTime).resolvedTime;
+}
+
+export function resolveWmsTimeForTimelineDetailed(
+  globalTime: number,
+  availableTimes: number[],
+  policy: 'timeline' | 'global' | 'latest' | 'fixed',
+  fixedTime?: number
+): WmsResolvedTime {
+  if (!availableTimes || availableTimes.length === 0) {
+    const requestedMs = policy === "fixed" && fixedTime !== undefined ? fixedTime : globalTime;
+    return {
+      resolvedTime: null,
+      availability: "no-time-dimension",
+      requestedTime: Number.isFinite(requestedMs) ? formatWmsUtcSecond(requestedMs) : null,
+      rangeStart: null,
+      rangeEnd: null,
+    };
+  }
 
   let resolvedMs: number | null = null;
+  const targetMs = policy === "latest"
+    ? availableTimes[availableTimes.length - 1]
+    : policy === "fixed" && fixedTime !== undefined
+      ? fixedTime
+      : globalTime;
 
   if (policy === 'latest') {
     resolvedMs = availableTimes[availableTimes.length - 1];
@@ -102,12 +153,29 @@ export function resolveWmsTimeForTimeline(
     resolvedMs = nearestTime(globalTime, availableTimes);
   }
 
-  if (resolvedMs === null) return null;
+  const rangeStart = availableTimes[0] ?? null;
+  const rangeEnd = availableTimes[availableTimes.length - 1] ?? null;
+
+  if (resolvedMs === null) {
+    return {
+      resolvedTime: null,
+      availability: "no-time-dimension",
+      requestedTime: Number.isFinite(targetMs) ? formatWmsUtcSecond(targetMs) : null,
+      rangeStart: rangeStart !== null ? formatWmsUtcSecond(rangeStart) : null,
+      rangeEnd: rangeEnd !== null ? formatWmsUtcSecond(rangeEnd) : null,
+    };
+  }
 
   // GeoMet WMS rejects fractional seconds in TIME, returning an XML exception
   // that MapLibre then reports as an unsupported image type. Keep whole-second
   // UTC timestamps for WMS 1.3.0 GetMap requests.
-  return formatWmsUtcSecond(resolvedMs);
+  return {
+    resolvedTime: formatWmsUtcSecond(resolvedMs),
+    availability: availabilityForTarget(targetMs, availableTimes),
+    requestedTime: Number.isFinite(targetMs) ? formatWmsUtcSecond(targetMs) : null,
+    rangeStart: rangeStart !== null ? formatWmsUtcSecond(rangeStart) : null,
+    rangeEnd: rangeEnd !== null ? formatWmsUtcSecond(rangeEnd) : null,
+  };
 }
 
 export function formatWmsUtcSecond(ms: number): string {

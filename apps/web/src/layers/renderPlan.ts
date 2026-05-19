@@ -1,5 +1,5 @@
 import { buildWmsGetMapTemplate, canRenderWmsLayer, toWmsLayerDefinition } from "../lib/wms";
-import { parseWmsTimeDimension, resolveWmsTimeForTimeline } from "../time/wmsTime";
+import { parseWmsTimeDimension, resolveWmsTimeForTimelineDetailed } from "../time/wmsTime";
 import type {
   LayerDefinition,
   LayerRuntimeState,
@@ -55,18 +55,38 @@ function priorityForLayer(layer: LayerDefinition): number {
 function resolveWmsTime(layer: LayerDefinition, runtime: LayerRuntimeState | undefined, globalTimeMs: number): {
   policy: RenderTimePolicy;
   resolvedTime: string | null;
+  timeAvailability: string;
+  requestedTime: string | null;
+  rangeStart: string | null;
+  rangeEnd: string | null;
 } {
   const policy = normalizeWmsTimePolicy(runtime?.wmsTimePolicy);
   const extent = typeof layer.metadata?.time_extent === "string" ? layer.metadata.time_extent : null;
-  if (!extent) return { policy, resolvedTime: null };
+  if (!extent) {
+    return {
+      policy,
+      resolvedTime: null,
+      timeAvailability: "no-time-dimension",
+      requestedTime: null,
+      rangeStart: null,
+      rangeEnd: null,
+    };
+  }
   const times = parseWmsTimeDimension(extent);
-  const resolvedTime = resolveWmsTimeForTimeline(
+  const resolved = resolveWmsTimeForTimelineDetailed(
     globalTimeMs,
     times,
     policy,
     runtime?.wmsFixedTime,
   );
-  return { policy, resolvedTime };
+  return {
+    policy,
+    resolvedTime: resolved.resolvedTime,
+    timeAvailability: resolved.availability,
+    requestedTime: resolved.requestedTime,
+    rangeStart: resolved.rangeStart,
+    rangeEnd: resolved.rangeEnd,
+  };
 }
 
 export function buildRenderPlan(input: {
@@ -82,9 +102,16 @@ export function buildRenderPlan(input: {
       const runtime = input.runtimeState[layer.id];
       const visible = Boolean(runtime?.enabled);
       const rendererType = rendererTypeForLayer(layer);
-      const { policy, resolvedTime } = layer.rendererType === "wms-raster"
+      const { policy, resolvedTime, timeAvailability, requestedTime, rangeStart, rangeEnd } = layer.rendererType === "wms-raster"
         ? resolveWmsTime(layer, runtime, input.globalTimeMs)
-        : { policy: "timeline" as const, resolvedTime: null };
+        : {
+            policy: "timeline" as const,
+            resolvedTime: null,
+            timeAvailability: "no-time-dimension",
+            requestedTime: null,
+            rangeStart: null,
+            rangeEnd: null,
+          };
 
       let urlTemplate: string | undefined;
       if (layer.rendererType === "wms-raster") {
@@ -104,7 +131,7 @@ export function buildRenderPlan(input: {
           unit: layer.unit ?? "",
           source_id: layer.sourceId,
           adapter: "layer-engine",
-          service_type: "wms",
+          service_type: (layer.serviceType as any) ?? "wms",
           last_updated: null,
           last_successful_fetch: null,
           last_attempted_fetch: null,
@@ -119,7 +146,10 @@ export function buildRenderPlan(input: {
           is_experimental: layer.isExperimental,
           metadata: layer.metadata ?? {},
         } as any);
-        if (!definition || !canRenderWmsLayer(definition)) return null;
+        if (!definition || !canRenderWmsLayer(definition)) {
+          console.warn("[renderPlan] WMS layer skipped — cannot render:", layer.id, layer.title);
+          return null;
+        }
         urlTemplate = buildWmsGetMapTemplate(definition, { time: resolvedTime ?? undefined });
       }
 
@@ -133,6 +163,7 @@ export function buildRenderPlan(input: {
         resolvedTime,
         source: {
           kind: layer.rendererType === "wms-raster" ? "wms" : layer.rendererType.startsWith("deck") ? "deck" : "native",
+          sourceKind: layer.serviceType === "wmts" ? "wmts" : "wms",
           layerId: layer.id,
           sourceId: layer.sourceId,
           status: layer.status,
@@ -147,6 +178,10 @@ export function buildRenderPlan(input: {
           metadata: {
             ...layer.metadata,
             rendererKind,
+            time_availability: timeAvailability,
+            requested_time: requestedTime,
+            available_time_start: rangeStart,
+            available_time_end: rangeEnd,
           },
         },
         blendMode: normalizeBlendMode(runtime?.controls.blendMode),

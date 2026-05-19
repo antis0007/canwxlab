@@ -10,9 +10,6 @@ importers:
 
   apps/web:
     dependencies:
-      '@canwxlab/layer-sdk':
-        specifier: workspace:*
-        version: link:../../packages/layer-sdk
       '@deck.gl/core':
         specifier: ^9.0.0
         version: 9.3.2
@@ -22,6 +19,15 @@ importers:
       '@deck.gl/mapbox':
         specifier: ^9.0.0
         version: 9.3.2(@deck.gl/core@9.3.2)(@luma.gl/core@9.3.3)(@math.gl/web-mercator@4.1.0)
+      '@luma.gl/core':
+        specifier: ^9.3.0
+        version: 9.3.3
+      '@luma.gl/engine':
+        specifier: ^9.3.0
+        version: 9.3.3(@luma.gl/core@9.3.3)(@luma.gl/shadertools@9.3.3(@luma.gl/core@9.3.3))
+      gifenc:
+        specifier: ^1.0.3
+        version: 1.0.3
       maplibre-gl:
         specifier: ^5.0.0
         version: 5.24.0
@@ -77,8 +83,6 @@ importers:
       vitest:
         specifier: ^2.0.5
         version: 2.1.9(@types/node@24.12.4)
-
-  packages/layer-sdk: {}
 
 packages:
 
@@ -1127,6 +1131,9 @@ packages:
   gensync@1.0.0-beta.2:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
     engines: {node: '>=6.9.0'}
+
+  gifenc@1.0.3:
+    resolution: {integrity: sha512-xdr6AdrfGBcfzncONUOlXMBuc5wJDtOueE3c5rdG0oNgtINLD+f2iFZltrBRZYzACRbKr+mSVU/x98zv2u3jmw==}
 
   gl-matrix@3.4.4:
     resolution: {integrity: sha512-latSnyDNt/8zYUB6VIJ6PCh2jBjJX6gnDsoCZ7LyW7GkqrD51EWwa9qCoGixj8YqBtETQK/xY7OmpTF8xz1DdQ==}
@@ -2806,6 +2813,8 @@ snapshots:
   function-bind@1.1.2: {}
 
   gensync@1.0.0-beta.2: {}
+
+  gifenc@1.0.3: {}
 
   gl-matrix@3.4.4: {}
 

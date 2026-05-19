@@ -14,24 +14,14 @@ import type {
   ViewMode,
   CameraState,
 } from "../layers/types";
-import { createDeckGridLayer, createDeckPointFieldLayer } from "../layers/renderers/deckGrid";
-import { createDeckParticleLayer } from "../layers/renderers/deckParticles";
 import {
   createAlertMarkerLayer,
   createAlertPolygonLayer,
   createOgcFeatureLayer,
   createStationLayer,
 } from "../layers/renderers/deckVector";
-import {
-  createCloudOverlay,
-  createPressureGrid,
-  createRadarBlobs,
-  createTemperatureGrid,
-  createWindParticles,
-  sampleMockWeatherPoint,
-} from "../layers/renderers/mockWeatherFields";
 import { getWmsRendererTelemetry, syncWmsLayers } from "../layers/renderers/maplibreRaster";
-import { buildInspectorPayload } from "../layers/inspection";
+import { buildInspectorPayload, type InspectorWmsRow } from "../layers/inspection";
 import { buildRenderPlan, rendererKindForViewMode } from "../layers/renderPlan";
 import type { BasemapId } from "./LayersPicker";
 import { Starfield, type StarProjection } from "./Starfield";
@@ -39,6 +29,7 @@ import { StarInfoCard } from "./StarInfoCard";
 import type { Star } from "../lib/celestialSphere";
 import type { StarExposure } from "../layers/types";
 import { createDiffBitmapLayer, type DiffOverlayPayload } from "../layers/renderers/diffBitmap";
+import { createSatelliteCompositeLayer, getSatelliteDiskParams, isGeostationarySatellite } from "../layers/renderers/satelliteComposite";
 import { detectPressureSystems } from "../layers/pressureSystems";
 import { createPressureSystemLayers } from "../layers/renderers/pressureSystemMarkers";
 
@@ -48,12 +39,7 @@ interface MapInspectPayload {
   values: RendererFeatureValue[];
   heroMetrics: import("../layers/inspection").HeroMetric[];
   pressureSystems: import("../layers/pressureSystems").PressureSystem[];
-  wmsLayerRows: Array<{
-    title: string;
-    resolvedTime: string | null;
-    timePolicy: string;
-    status: import("../types/weather").SourceStatus;
-  }>;
+  wmsLayerRows: InspectorWmsRow[];
   nearestStation: string | null;
   nearestStationKm: number | null;
   activeAlert: string | null;
@@ -89,6 +75,7 @@ interface MapViewProps {
   alerts: AlertFeature[];
   viewMode: ViewMode;
   animationFrame: number;
+  subFrameProgress?: number;
   onInspect: (payload: MapInspectPayload) => void;
   onDiagnostics: (diagnostics: Partial<LayerDiagnostics>) => void;
   onGlobeSupportDetected: (supported: boolean) => void;
@@ -102,6 +89,7 @@ interface MapViewProps {
   starMaxDistanceLy?: number;
   timelinePlaying: boolean;
   timelineSpeedMultiplier: number;
+  onCanvasReady?: (canvas: HTMLCanvasElement) => void;
 }
 
 interface BasemapPreset {
@@ -109,11 +97,10 @@ interface BasemapPreset {
   style: StyleSpecification;
 }
 
-const NORMALIZED_ALERT_LAYER_IDS = new Set(["eccc_weather_alerts", "mock_alerts"]);
+const NORMALIZED_ALERT_LAYER_IDS = new Set(["eccc_weather_alerts"]);
 const NORMALIZED_OBSERVATION_LAYER_IDS = new Set([
   "eccc_climate_stations",
   "eccc_climate_hourly",
-  "mock_stations",
 ]);
 // Performance cap. 2.0 would render 4× the pixels on a Retina display which
 // crushes mid-range GPUs when multiple WMS rasters and deck overlays are
@@ -147,6 +134,20 @@ function normalizeLongitude(longitude: number): number {
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.max(min, Math.min(max, value));
+}
+
+function viewportBboxParam(map: maplibregl.Map): string | null {
+  const bounds = map.getBounds();
+  const west = clamp(bounds.getWest(), -180, 180);
+  const south = clamp(bounds.getSouth(), -90, 90);
+  const east = clamp(bounds.getEast(), -180, 180);
+  const north = clamp(bounds.getNorth(), -90, 90);
+  const minLon = Math.min(west, east);
+  const maxLon = Math.max(west, east);
+  const minLat = Math.min(south, north);
+  const maxLat = Math.max(south, north);
+  if (maxLon - minLon < 0.001 || maxLat - minLat < 0.001) return null;
+  return [minLon, minLat, maxLon, maxLat].map((part) => part.toFixed(4)).join(",");
 }
 
 function normalizeCameraState(camera: CameraState, viewMode: ViewMode): CameraState {
@@ -270,7 +271,7 @@ const BASEMAP_PRESETS: BasemapPreset[] = [
     style: rasterStyle({
       background: "#06101c",
       tiles: [
-        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/500m/{z}/{y}/{x}.jpeg",
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg",
       ],
       tileSize: 256,
       maxzoom: 8,
@@ -283,7 +284,7 @@ const BASEMAP_PRESETS: BasemapPreset[] = [
       background: "#02060e",
       tiles: [
         // {time} placeholder is rewritten to YYYY-MM-DD by getBasemapStyle().
-        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/{time}/250m/{z}/{y}/{x}.jpg",
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/{time}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg",
       ],
       tileSize: 256,
       maxzoom: 9,
@@ -296,7 +297,7 @@ const BASEMAP_PRESETS: BasemapPreset[] = [
     style: rasterStyle({
       background: "#02060e",
       tiles: [
-        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/{time}/250m/{z}/{y}/{x}.jpg",
+        "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_NOAA20_CorrectedReflectance_TrueColor/default/{time}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg",
       ],
       tileSize: 256,
       maxzoom: 9,
@@ -343,6 +344,15 @@ function rewriteTimeInStyle(style: StyleSpecification, timeStr: string): StyleSp
   return cloned;
 }
 
+function basemapUsesTimelineDate(id: BasemapId): boolean {
+  return id === "gibs_truecolor" || id === "gibs_viirs";
+}
+
+function basemapStyleKey(id: BasemapId, timeMs: number): string {
+  const dateKey = basemapUsesTimelineDate(id) ? ymdUtcMinusDays(timeMs, 1) : "static";
+  return `${id}:${dateKey}`;
+}
+
 function applyGlobePresentation(
   map: maplibregl.Map,
   viewMode: ViewMode,
@@ -384,26 +394,6 @@ export function getBasemapStyle(id: BasemapId, timeMs?: number): string | StyleS
   const ref = typeof timeMs === "number" && Number.isFinite(timeMs) ? timeMs : Date.now();
   const dateStr = ymdUtcMinusDays(ref, 1);
   return rewriteTimeInStyle(preset.style, dateStr);
-}
-
-function activeAlertAtPoint(alerts: AlertFeature[], longitude: number, latitude: number): string | null {
-  for (const alert of alerts) {
-    const coordinates = (alert.geometry as any)?.coordinates;
-    if (!Array.isArray(coordinates)) continue;
-    const flat = flattenPoints(coordinates);
-    if (flat.length === 0) continue;
-    const lons = flat.map((point) => point[0]);
-    const lats = flat.map((point) => point[1]);
-    if (
-      longitude >= Math.min(...lons)
-      && longitude <= Math.max(...lons)
-      && latitude >= Math.min(...lats)
-      && latitude <= Math.max(...lats)
-    ) {
-      return summarizeAlert(alert);
-    }
-  }
-  return null;
 }
 
 function escapeHtml(value: unknown): string {
@@ -477,139 +467,6 @@ ${descHtml}${expires}`;
   return null;
 }
 
-function summarizeAlert(alert: AlertFeature): string {
-  const severity = alert.severity && alert.severity !== "unknown"
-    ? alert.severity.toUpperCase()
-    : null;
-  const head = alert.headline?.trim() || alert.event?.trim() || "Weather alert";
-  const expiresPart = alert.expires_at
-    ? ` · expires ${new Date(alert.expires_at).toLocaleString()}`
-    : "";
-  const descSrc = (alert.description ?? "").trim();
-  const desc = descSrc.length > 220 ? `${descSrc.slice(0, 218).trimEnd()}…` : descSrc;
-  const headLine = severity ? `[${severity}] ${head}` : head;
-  return desc && desc !== head ? `${headLine}${expiresPart}\n${desc}` : `${headLine}${expiresPart}`;
-}
-
-function flattenPoints(value: unknown): [number, number][] {
-  if (!Array.isArray(value)) return [];
-  if (
-    value.length === 2
-    && typeof value[0] === "number"
-    && typeof value[1] === "number"
-  ) {
-    return [[value[0], value[1]]];
-  }
-  return value.flatMap((item) => flattenPoints(item));
-}
-
-function nearestObservation(
-  observations: Observation[],
-  longitude: number,
-  latitude: number,
-): Observation | null {
-  let nearest: Observation | null = null;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-
-  for (const observation of observations) {
-    const distance = Math.hypot(observation.longitude - longitude, observation.latitude - latitude);
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearest = observation;
-    }
-  }
-
-  return nearest;
-}
-
-function nearestStationName(
-  observations: Observation[],
-  longitude: number,
-  latitude: number,
-): string | null {
-  const nearest = nearestObservation(observations, longitude, latitude);
-  return nearest ? `${nearest.station_name} (${nearest.station_id})` : null;
-}
-
-function sampleValues(
-  longitude: number,
-  latitude: number,
-  frame: number,
-  activeLayers: LayerDefinition[],
-  observations: Observation[],
-): RendererFeatureValue[] {
-  const sampled = sampleMockWeatherPoint(longitude, latitude, frame);
-  const values: RendererFeatureValue[] = [];
-
-  if (activeLayers.some((layer) => layer.id === "demo_temperature_field" || layer.id === "mock_temperature")) {
-    values.push({
-      label: "Temperature",
-      value: sampled.temperatureC.toFixed(1),
-      unit: "degC",
-      status: "mock",
-    });
-  }
-  if (activeLayers.some((layer) => layer.id === "demo_pressure_msl" || layer.variable === "pressure_msl")) {
-    values.push({
-      label: "MSLP",
-      value: sampled.pressureHpa.toFixed(1),
-      unit: "hPa",
-      status: "mock",
-    });
-  }
-  if (activeLayers.some((layer) => layer.id === "demo_radar_animation" || layer.id === "mock_radar")) {
-    values.push({
-      label: "Precipitation",
-      value: sampled.precipitationRate.toFixed(2),
-      unit: "mm/h",
-      status: "mock",
-    });
-  }
-  if (activeLayers.some((layer) => layer.id === "demo_wind_particles" || layer.id === "mock_wind")) {
-    values.push({
-      label: "Wind Speed",
-      value: sampled.windSpeed.toFixed(1),
-      unit: "m/s",
-      status: "mock",
-    });
-    values.push({
-      label: "Wind Vector",
-      value: `${sampled.windU.toFixed(1)}, ${sampled.windV.toFixed(1)}`,
-      unit: "u/v",
-      status: "mock",
-    });
-  }
-  if (activeLayers.some((layer) => layer.id === "demo_clouds")) {
-    values.push({
-      label: "Cloud Opacity",
-      value: sampled.cloudOpacity.toFixed(2),
-      unit: "ratio",
-      status: "mock",
-    });
-  }
-
-  const nearest = nearestObservation(observations, longitude, latitude);
-  if (nearest) {
-    const stationValues: Array<[string, string, string]> = [
-      ["temperature_2m", "Station Temperature", "degC"],
-      ["pressure_msl", "Station MSLP", "hPa"],
-      ["wind_speed_10m", "Station Wind", "m/s"],
-    ];
-    for (const [key, label, fallbackUnit] of stationValues) {
-      const raw = nearest.values[key];
-      if (typeof raw !== "number" || !Number.isFinite(raw)) continue;
-      values.push({
-        label,
-        value: raw.toFixed(key === "pressure_msl" ? 1 : 1),
-        unit: nearest.units[key] ?? fallbackUnit,
-        status: nearest.source_status,
-      });
-    }
-  }
-
-  return values;
-}
-
 export function MapView({
   layers,
   layerState,
@@ -617,6 +474,7 @@ export function MapView({
   alerts,
   viewMode,
   animationFrame,
+  subFrameProgress,
   onInspect,
   onDiagnostics,
   onGlobeSupportDetected,
@@ -630,6 +488,7 @@ export function MapView({
   starMaxDistanceLy,
   timelinePlaying,
   timelineSpeedMultiplier,
+  onCanvasReady,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -645,13 +504,18 @@ export function MapView({
   const animationFrameRef = useRef<number>(animationFrame);
   const observationsRef = useRef<Observation[]>(observations);
   const alertsRef = useRef<AlertFeature[]>(alerts);
+  const lastBasemapStyleKeyRef = useRef<string | null>(null);
   const [ogcFeaturesByLayer, setOgcFeaturesByLayer] = useState<Record<string, OgcFeatureCollection>>({});
+  const [visibleBbox, setVisibleBbox] = useState<string | null>(null);
 
   const onInspectRef = useRef(onInspect);
   const onGlobeSupportDetectedRef = useRef(onGlobeSupportDetected);
+  const onDiagnosticsRef = useRef(onDiagnostics);
+  const prevDiagnosticsRef = useRef<string>("");
   const onCameraChangeRef = useRef(onCameraChange);
   useEffect(() => { onInspectRef.current = onInspect; });
   useEffect(() => { onGlobeSupportDetectedRef.current = onGlobeSupportDetected; });
+  useEffect(() => { onDiagnosticsRef.current = onDiagnostics; });
   useEffect(() => { onCameraChangeRef.current = onCameraChange; });
 
   // Live camera + time refs for the celestial starfield (avoids React re-renders on every drag frame).
@@ -749,11 +613,17 @@ export function MapView({
         cancelled = true;
       };
     }
+    if (!visibleBbox) {
+      setOgcFeaturesByLayer({});
+      return () => {
+        cancelled = true;
+      };
+    }
 
     Promise.all(
       genericOgcLayerIds.map(async (layerId) => {
         try {
-          return [layerId, await api.ogcLayerFeatures(layerId, { limit: 500 })] as const;
+          return [layerId, await api.ogcLayerFeatures(layerId, { bbox: visibleBbox, limit: 250 })] as const;
         } catch {
           return [
             layerId,
@@ -769,7 +639,7 @@ export function MapView({
     return () => {
       cancelled = true;
     };
-  }, [genericOgcLayerIds.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [genericOgcLayerIds.join("|"), visibleBbox]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { activeLayersRef.current = activeLayers; }, [activeLayers]);
   useEffect(() => { renderPlanRef.current = renderPlan; }, [renderPlan]);
@@ -900,236 +770,161 @@ export function MapView({
     markerRefs.current.push(marker);
   }
 
-  const deckLayers = useMemo(() => {
+  // ── Static deck layers (do NOT depend on animationFrame) ──────────────────
+  // These are memoised separately so station markers, alert polygons, and OGC
+  // feature layers survive across frame ticks without WebGL teardown/rebuild.
+  // Animated raster/satellite layers are handled by their dedicated renderers.
+  const staticDeckLayers = useMemo(() => {
     const list: any[] = [];
     const getRuntime = (layerId: string) => layerState[layerId];
-    // Globe projection: polygon grids are converted to point fields because large
-    // tessellated overlays can tear across wrap/projection boundaries on MapLibre globe.
     const useGlobePointFields = viewMode === "globe";
 
-    const temperatureLayer = activeLayers.find((layer) =>
-      layer.id === "demo_temperature_field" || layer.id === "mock_temperature"
-    );
-    if (temperatureLayer) {
-      const runtime = getRuntime(temperatureLayer.id);
-      if (runtime) {
-        const data = createTemperatureGrid(animationFrame);
-        list.push(useGlobePointFields
-          ? createDeckPointFieldLayer({
-              id: "demo-temperature-points",
-              data,
-              valueKey: "temperature",
-              runtime,
-              min: runtime.controls.min,
-              max: runtime.controls.max,
-              radiusMeters: 95_000,
-            })
-          : createDeckGridLayer({
-              id: "demo-temperature-grid",
-              data,
-              valueKey: "temperature",
-              runtime,
-              min: runtime.controls.min,
-              max: runtime.controls.max,
-            }));
+    try {
+      const alertLayer = activeLayers.find((layer) => NORMALIZED_ALERT_LAYER_IDS.has(layer.id));
+      if (alertLayer) {
+        const runtime = getRuntime(alertLayer.id);
+        if (runtime) {
+          list.push(useGlobePointFields
+            ? createAlertMarkerLayer({ id: "alerts-globe-markers", alerts, runtime })
+            : createAlertPolygonLayer({ id: "alerts", alerts, runtime }));
+        }
       }
+    } catch (err) {
+      console.warn("[MapView] Failed to create alert layers:", err);
     }
 
-    const pressureLayer = activeLayers.find((layer) =>
-      layer.id === "demo_pressure_msl"
-    );
-    if (pressureLayer) {
-      const runtime = getRuntime(pressureLayer.id);
-      if (runtime) {
-        const data = createPressureGrid(animationFrame);
-        list.push(useGlobePointFields
-          ? createDeckPointFieldLayer({
-              id: "demo-pressure-points",
-              data,
-              valueKey: "pressure",
-              runtime,
-              min: runtime.controls.min,
-              max: runtime.controls.max,
-              radiusMeters: 190_000,
-            })
-          : createDeckGridLayer({
-              id: "demo-pressure-grid",
-              data,
-              valueKey: "pressure",
-              runtime,
-              min: runtime.controls.min,
-              max: runtime.controls.max,
-            }));
+    try {
+      const stationLayer = activeLayers.find((layer) => NORMALIZED_OBSERVATION_LAYER_IDS.has(layer.id));
+      if (stationLayer) {
+        const runtime = getRuntime(stationLayer.id);
+        if (runtime) list.push(createStationLayer({ id: "stations", observations, runtime }));
       }
-    }
-
-    const radarLayer = activeLayers.find((layer) =>
-      layer.id === "demo_radar_animation" || layer.id === "mock_radar"
-    );
-    if (radarLayer) {
-      const runtime = getRuntime(radarLayer.id);
-      if (runtime) {
-        const radarData = createRadarBlobs(animationFrame);
-        radarData.features.forEach((feature: any) => {
-          feature.properties.precip *= runtime.controls.precipitationIntensity;
-        });
-        list.push(useGlobePointFields
-          ? createDeckPointFieldLayer({
-              id: "demo-radar-points",
-              data: radarData,
-              valueKey: "precip",
-              runtime,
-              min: runtime.controls.min,
-              max: runtime.controls.max,
-              radiusMeters: 135_000,
-            })
-          : createDeckGridLayer({
-              id: "demo-radar-grid",
-              data: radarData,
-              valueKey: "precip",
-              runtime,
-              min: runtime.controls.min,
-              max: runtime.controls.max,
-            }));
-      }
-    }
-
-    const cloudLayer = activeLayers.find((layer) => layer.id === "demo_clouds");
-    if (cloudLayer) {
-      const runtime = getRuntime(cloudLayer.id);
-      if (runtime) {
-        const data = createCloudOverlay(animationFrame);
-        const cloudRuntime = { ...runtime, opacity: runtime.controls.cloudOpacity };
-        list.push(useGlobePointFields
-          ? createDeckPointFieldLayer({
-              id: "demo-cloud-points",
-              data,
-              valueKey: "cloudOpacity",
-              runtime: cloudRuntime,
-              min: runtime.controls.min,
-              max: runtime.controls.max,
-              radiusMeters: 125_000,
-            })
-          : createDeckGridLayer({
-              id: "demo-cloud-grid",
-              data,
-              valueKey: "cloudOpacity",
-              runtime: cloudRuntime,
-              min: runtime.controls.min,
-              max: runtime.controls.max,
-            }));
-      }
-    }
-
-    const windLayer = activeLayers.find((layer) =>
-      layer.id === "demo_wind_particles" || layer.id === "mock_wind"
-    );
-    if (windLayer) {
-      const runtime = getRuntime(windLayer.id);
-      if (runtime) {
-        list.push(createDeckParticleLayer({
-          id: "demo-wind-particles",
-          particles: createWindParticles(
-            animationFrame,
-            runtime.controls.particleCount,
-            runtime.controls.windScale,
-          ),
-          runtime,
-        }));
-      }
-    }
-
-    const alertLayer = activeLayers.find((layer) => NORMALIZED_ALERT_LAYER_IDS.has(layer.id));
-    if (alertLayer) {
-      const runtime = getRuntime(alertLayer.id);
-      if (runtime) {
-        list.push(useGlobePointFields
-          ? createAlertMarkerLayer({ id: "alerts-globe-markers", alerts, runtime })
-          : createAlertPolygonLayer({ id: "alerts", alerts, runtime }));
-      }
-    }
-
-    const stationLayer = activeLayers.find((layer) => NORMALIZED_OBSERVATION_LAYER_IDS.has(layer.id));
-    if (stationLayer) {
-      const runtime = getRuntime(stationLayer.id);
-      if (runtime) list.push(createStationLayer({ id: "stations", observations, runtime }));
+    } catch (err) {
+      console.warn("[MapView] Failed to create station layer:", err);
     }
 
     activeLayers
       .filter((layer) => genericOgcLayerIds.includes(layer.id))
       .forEach((layer) => {
-        const runtime = getRuntime(layer.id);
-        const data = ogcFeaturesByLayer[layer.id];
-        if (!runtime || !data) return;
-        list.push(createOgcFeatureLayer({
-          id: `ogc-${layer.id}`,
-          layer,
-          data,
-          runtime,
-          globeSafe: viewMode === "globe",
-        }));
+        try {
+          const runtime = getRuntime(layer.id);
+          const data = ogcFeaturesByLayer[layer.id];
+          if (!runtime || !data) return;
+          list.push(createOgcFeatureLayer({
+            id: `ogc-${layer.id}`,
+            layer,
+            data,
+            runtime,
+            globeSafe: viewMode === "globe",
+          }));
+        } catch (err) {
+          console.warn(`[MapView] Failed to create OGC layer ${layer.id}:`, err);
+        }
       });
 
-    const simLayer = activeLayers.find((layer) => layer.id === "canwxsim_output");
-    if (simLayer && layerState[simLayer.id] && viewMode !== "globe") {
-      list.push(new GeoJsonLayer({
-        id: "canwxsim-domain",
-        data: {
-          type: "FeatureCollection",
-          features: [{
-            type: "Feature",
-            properties: { label: "CanWxSim domain" },
-            geometry: {
-              type: "Polygon",
-              coordinates: [[[-119, 49], [-107, 49], [-107, 56], [-119, 56], [-119, 49]]],
-            },
-          }],
-        } as any,
-        filled: true,
-        stroked: true,
-        getFillColor: [130, 255, 210, Math.round(70 * layerState[simLayer.id].opacity)],
-        getLineColor: [130, 255, 210, 240],
-        lineWidthUnits: "pixels",
-        getLineWidth: 1.5,
-        lineWidthMinPixels: 1.25,
-        lineWidthMaxPixels: 2,
-        parameters: { depthTest: false },
-      }));
+    try {
+      const simLayer = activeLayers.find((layer) => layer.id === "canwxsim_output");
+      if (simLayer && layerState[simLayer.id] && viewMode !== "globe") {
+        list.push(new GeoJsonLayer({
+          id: "canwxsim-domain",
+          data: {
+            type: "FeatureCollection",
+            features: [{
+              type: "Feature",
+              properties: { label: "CanWxSim domain" },
+              geometry: {
+                type: "Polygon",
+                coordinates: [[[-119, 49], [-107, 49], [-107, 56], [-119, 56], [-119, 49]]],
+              },
+            }],
+          } as any,
+          filled: true,
+          stroked: true,
+          getFillColor: [130, 255, 210, Math.round(70 * layerState[simLayer.id].opacity)],
+          getLineColor: [130, 255, 210, 240],
+          lineWidthUnits: "pixels",
+          getLineWidth: 1.5,
+          lineWidthMinPixels: 1.25,
+          lineWidthMaxPixels: 2,
+          parameters: { depthTest: false },
+        }));
+      }
+    } catch (err) {
+      console.warn("[MapView] Failed to create sim domain layer:", err);
     }
 
-    if (diffOverlay && viewMode !== "globe") {
-      const bmp = createDiffBitmapLayer(diffOverlay);
-      if (bmp) list.push(bmp);
+    try {
+      if (diffOverlay && viewMode !== "globe") {
+        const bmp = createDiffBitmapLayer(diffOverlay);
+        if (bmp) list.push(bmp);
+      }
+    } catch (err) {
+      console.warn("[MapView] Failed to create diff overlay layer:", err);
     }
 
-    // Pressure-system L/H markers — detected from observations and drawn on
-    // top of the basemap so the synoptic pattern is visible at a glance.
-    const stationLayerActive = activeLayers.some((layer) => NORMALIZED_OBSERVATION_LAYER_IDS.has(layer.id));
-    if (stationLayerActive && observations.length > 0) {
-      const systems = detectPressureSystems(observations);
-      list.push(...createPressureSystemLayers(systems));
+    try {
+      const stationLayerActive = activeLayers.some((layer) => NORMALIZED_OBSERVATION_LAYER_IDS.has(layer.id));
+      if (stationLayerActive && observations.length > 0) {
+        const systems = detectPressureSystems(observations);
+        list.push(...createPressureSystemLayers(systems));
+      }
+    } catch (err) {
+      console.warn("[MapView] Failed to create pressure system layers:", err);
     }
-
-    // TIMELINE-TODO: Add a shader/canvas day-night globe overlay driven by ephemeris-backed
-    // solar geometry. Do not use a deck.gl world-scale PolygonLayer on globe projection: it
-    // triangulates across wrap boundaries and can produce visible triangular tearing.
 
     return list;
-  }, [
-    activeLayers,
-    alerts,
-    animationFrame,
-    layerState,
-    observations,
-    viewMode,
-    diffOverlay,
-    genericOgcLayerIds,
-    ogcFeaturesByLayer,
-  ]);
-  const basemapDateKey = useMemo(() => ymdUtcMinusDays(globalTimeMs, 1), [globalTimeMs]);
+  }, [activeLayers, alerts, layerState, observations, viewMode, diffOverlay, genericOgcLayerIds, ogcFeaturesByLayer]);
+
+  // ── Satellite GPU compositor ───────────────────────────────────────────
+  // Replaces the old black-ellipse GeoJsonLayer edge masks with a proper
+  // WebGL multi-texture shader. Configs are derived from the render plan so
+  // the compositor always has the latest WMS URL templates (which carry the
+  // resolved timeline time). A signature string prevents needless re-creation
+  // on every animation frame tick — the layer instance is stable as long as
+  // the satellite URLs, visibility, and opacity don't change.
+  const satelliteSignature = useMemo(() => {
+    let acc = "";
+    for (const plan of renderPlan) {
+      if (plan.rendererType !== "wms-raster" || !isGeostationarySatellite(plan.id)) continue;
+      acc += `${plan.id}|${plan.visible ? 1 : 0}|${plan.opacity.toFixed(3)}|${plan.source.urlTemplate ?? ""};`;
+    }
+    return acc;
+  }, [renderPlan]);
+
+  const satelliteCompositeLayer = useMemo(() => {
+    const configs = renderPlan
+      .filter((plan) => plan.visible && plan.rendererType === "wms-raster" && isGeostationarySatellite(plan.id))
+      .map((plan) => {
+        const params = getSatelliteDiskParams(plan.id);
+        if (!params) return null;
+        return {
+          id: plan.id,
+          subPoint: params.subPoint,
+          coverageRadiusDeg: params.coverageRadiusDeg,
+          featherRadiusDeg: params.featherRadiusDeg,
+          wmsUrlTemplate: plan.source.urlTemplate ?? "",
+          opacity: plan.opacity,
+        };
+      })
+      .filter((c): c is NonNullable<typeof c> => c !== null);
+
+    if (configs.length === 0) return null;
+    return createSatelliteCompositeLayer({ satellites: configs, timeProgress: subFrameProgress ?? 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [satelliteSignature, subFrameProgress]);
+
+  const deckLayers = useMemo(
+    () => [...staticDeckLayers, satelliteCompositeLayer].filter(Boolean),
+    [staticDeckLayers, satelliteCompositeLayer],
+  );
+  const currentBasemapStyleKey = useMemo(
+    () => basemapStyleKey(basemap, globalTimeMs),
+    [basemap, globalTimeMs],
+  );
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+    lastBasemapStyleKeyRef.current = currentBasemapStyleKey;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -1141,7 +936,7 @@ export function MapView({
       renderWorldCopies: true,
       refreshExpiredTiles: false,
       fadeDuration: 0,
-      maxTileCacheSize: 768,
+      maxTileCacheSize: 8192,
       pixelRatio: renderPixelRatio(),
       attributionControl: false,
     });
@@ -1149,9 +944,10 @@ export function MapView({
     (map.touchZoomRotate as any)?.disableRotation?.();
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
-    if (typeof (maplibregl as any).GlobeControl === "function") {
-      map.addControl(new (maplibregl as any).GlobeControl(), "top-right");
-    }
+    // GlobeControl is intentionally NOT added. MapLibre's built-in globe toggle
+    // calls setProjection() directly, bypassing React's viewMode state and
+    // causing the TopBar MAP/GLOBE indicator to desync. Projection is controlled
+    // exclusively through the TopBar toggle → applyGlobePresentation().
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
     // interleaved:false renders deck.gl in a single pass entirely on top of
@@ -1214,7 +1010,10 @@ export function MapView({
 
     map.on("load", () => {
       setMapReady(true);
-      onGlobeSupportDetectedRef.current(true);
+      setVisibleBbox(viewportBboxParam(map));
+      const globeCapable = typeof (map as any).setProjection === "function";
+      onGlobeSupportDetectedRef.current(globeCapable);
+      onCanvasReady?.(map.getCanvas());
     });
 
     const updateLiveCamera = () => {
@@ -1234,6 +1033,7 @@ export function MapView({
     map.on("moveend", () => {
       updateLiveCamera();
       onCameraChangeRef.current(liveCameraRef.current!);
+      setVisibleBbox(viewportBboxParam(map));
     });
 
     const onMapContextMenu = (event: MouseEvent) => {
@@ -1359,7 +1159,6 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    onGlobeSupportDetectedRef.current(true);
     try {
       applyGlobePresentation(map, viewMode);
     } catch {
@@ -1370,21 +1169,30 @@ export function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
+    if (lastBasemapStyleKeyRef.current === currentBasemapStyleKey) return;
+    if (
+      timelinePlaying
+      && basemapUsesTimelineDate(basemap)
+      && lastBasemapStyleKeyRef.current?.startsWith(`${basemap}:`)
+    ) {
+      return;
+    }
+    lastBasemapStyleKeyRef.current = currentBasemapStyleKey;
     const next = getBasemapStyle(basemap, globalTimeMs);
     map.setStyle(next as any);
     const onStyle = () => {
       applyGlobePresentation(map, viewMode);
-      syncWmsLayers({ map, renderPlan, isPlaying: timelinePlaying });
+      syncWmsLayers({ map, renderPlan, isPlaying: timelinePlaying, speedMultiplier: timelineSpeedMultiplier });
     };
     if (map.isStyleLoaded()) onStyle();
     else map.once("style.load", onStyle);
-  }, [basemap, basemapDateKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [basemap, currentBasemapStyleKey, mapReady, timelinePlaying]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const wmsSignature = useMemo(() => wmsSyncSignature(renderPlan), [renderPlan]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    syncWmsLayers({ map, renderPlan, isPlaying: timelinePlaying });
+    syncWmsLayers({ map, renderPlan, isPlaying: timelinePlaying, speedMultiplier: timelineSpeedMultiplier });
     // The signature key is the real driver; renderPlan is left out of the
     // dependency array on purpose to avoid resyncing on every globalTimeMs
     // tick when no WMS field actually changed.
@@ -1398,7 +1206,23 @@ export function MapView({
     lastFrameAtRef.current = now;
     const wmsTelemetry = getWmsRendererTelemetry(mapRef.current);
 
-    onDiagnostics({
+    // Build a stable signature to avoid triggering parent re-renders when
+    // nothing material changed. fps is excluded because it varies every frame.
+    const sig = [
+      activeLayers.length,
+      deckLayers.length,
+      viewMode,
+      wmsTelemetry.pendingRasterFrames,
+      wmsTelemetry.promotedRasterFrames,
+      wmsTelemetry.failedRasterFrames,
+      wmsTelemetry.lastSourceError,
+      renderPlan.map((plan) => `${plan.id}:${String(plan.source.metadata.time_availability ?? "")}`).join(","),
+    ].join("|");
+
+    if (sig === prevDiagnosticsRef.current) return;
+    prevDiagnosticsRef.current = sig;
+
+    onDiagnosticsRef.current({
       fps,
       activeLayerCount: activeLayers.length,
       animatedLayerCount: activeLayers.filter((layer) => layer.capabilities.supportsAnimation).length,
@@ -1408,11 +1232,26 @@ export function MapView({
       promotedRasterFrames: wmsTelemetry.promotedRasterFrames,
       failedRasterFrames: wmsTelemetry.failedRasterFrames,
       lastSourceError: wmsTelemetry.lastSourceError,
-      warnings: activeLayers
+      warnings: [
+        ...activeLayers
         .filter((layer) => viewMode === "globe" && !layer.capabilities.supportsGlobe)
         .map((layer) => `${layer.title} is map-only and may be hidden in globe mode.`),
+        ...renderPlan
+          .filter((plan) => {
+            const availability = plan.source.metadata.time_availability;
+            return availability === "before-range" || availability === "after-range";
+          })
+          .slice(0, 3)
+          .map((plan) => {
+            const requested = String(plan.source.metadata.requested_time ?? "requested time");
+            const edge = plan.source.metadata.time_availability === "before-range"
+              ? String(plan.source.metadata.available_time_start ?? "earliest available time")
+              : String(plan.source.metadata.available_time_end ?? "latest available time");
+            return `${plan.source.title} has no frame at ${requested}; showing ${edge}.`;
+          }),
+      ],
     });
-  }, [activeLayers, deckLayers, onDiagnostics, viewMode]);
+  }, [activeLayers, deckLayers, renderPlan, viewMode]);
 
   const showStarfield = viewMode === "globe" && photorealisticGlobe;
   return (
