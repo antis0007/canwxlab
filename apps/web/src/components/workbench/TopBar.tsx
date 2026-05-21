@@ -2,6 +2,7 @@ import { StatusBadge } from "./StatusBadge";
 import { TimeZoneSelector } from "./TimeZoneSelector";
 
 import type { AnimationPlaybackState, ViewMode } from "../../layers/types";
+import type { PlanetaryTimelineState } from "../../types/planetary";
 import type { SourceStatus } from "../../types/weather";
 import { formatInZone } from "../../lib/timezone";
 
@@ -12,16 +13,17 @@ interface TopBarProps {
   globeCapabilityChecked: boolean;
   onSetViewMode: (mode: ViewMode) => void;
   playback: AnimationPlaybackState;
+  timelineState: PlanetaryTimelineState;
   onTogglePlay: () => void;
   onSpeedChange: (value: number) => void;
   onResetAnimation: () => void;
+  onReturnLive: () => void;
+  onSetForecastEnabled: (enabled: boolean) => void;
   sourceHealthStatus: SourceStatus;
   isRefreshing: boolean;
   onRefresh: () => void;
   isResettingExperience?: boolean;
   onFreshStart: () => void;
-  timelineMode: string;
-  onSetTimelineMode: (mode: string) => void;
   onToggleLeftPanel: () => void;
   onToggleRightPanel: () => void;
   leftPanelOpen: boolean;
@@ -31,17 +33,16 @@ interface TopBarProps {
   onSetTimeZone: (zone: string) => void;
   /** Open the City Picker quick-jump panel. */
   onOpenCityPicker: () => void;
+  /** Toggle the Hourly Forecast floating panel. */
+  onToggleHourlyForecast: () => void;
+  hourlyForecastOpen: boolean;
+  terminatorVisible: boolean;
+  terminatorIntensity: number;
+  onSetTerminatorVisible: (visible: boolean) => void;
+  onSetTerminatorIntensity: (intensity: number) => void;
 }
 
 const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
-
-const TIMELINE_MODES = [
-  { value: "live",         label: "LIVE" },
-  { value: "history",      label: "HIST" },
-  { value: "forecast",     label: "FCST" },
-  { value: "simulation",   label: "SIM" },
-  { value: "verification", label: "VRFY" },
-];
 
 function fmtTime(iso: string, timeZone: string): string {
   const ms = Date.parse(iso);
@@ -55,16 +56,17 @@ export function TopBar({
   globeSupported,
   onSetViewMode,
   playback,
+  timelineState,
   onTogglePlay,
   onSpeedChange,
   onResetAnimation,
+  onReturnLive,
+  onSetForecastEnabled,
   sourceHealthStatus,
   isRefreshing,
   onRefresh,
   isResettingExperience,
   onFreshStart,
-  timelineMode,
-  onSetTimelineMode,
   onToggleLeftPanel,
   onToggleRightPanel,
   leftPanelOpen,
@@ -72,9 +74,16 @@ export function TopBar({
   timeZone,
   onSetTimeZone,
   onOpenCityPicker,
+  onToggleHourlyForecast,
+  hourlyForecastOpen,
+  terminatorVisible,
+  terminatorIntensity,
+  onSetTerminatorVisible,
+  onSetTerminatorIntensity,
 }: TopBarProps) {
   const nowStr = fmtTime(new Date().toISOString(), timeZone);
   const validStr = fmtTime(timelineTime, timeZone);
+  const modeLabel = timelineState.mode.toUpperCase();
 
   return (
     <header className="wb-topbar">
@@ -129,16 +138,24 @@ export function TopBar({
         <span className="wb-topbar-label">VALID</span>
         <span className="wb-topbar-label" style={{ color: "var(--wb-accent)" }}>{validStr}</span>
         <TimeZoneSelector value={timeZone} onChange={onSetTimeZone} refMs={Date.parse(timelineTime) || Date.now()} />
-        <select
-          value={timelineMode}
-          onChange={(e) => onSetTimelineMode(e.target.value)}
-          style={{ marginLeft: 4 }}
-          title="Timeline mode"
+        <span className={`wb-mode-pill wb-mode-pill-${timelineState.mode}`}>{modeLabel}</span>
+        <button
+          type="button"
+          className={`wb-live-pill ${timelineState.isTrackingLive ? "is-live" : ""}`}
+          onClick={onReturnLive}
+          title="Return to current observed/live state"
         >
-          {TIMELINE_MODES.map(({ value, label }) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
+          <span className="wb-live-dot" aria-hidden="true" />
+          LIVE
+        </button>
+        <label className={`wb-forecast-toggle ${timelineState.forecastEnabled ? "is-on" : ""}`} title="Unlock forecast horizon">
+          <input
+            type="checkbox"
+            checked={timelineState.forecastEnabled}
+            onChange={(event) => onSetForecastEnabled(event.target.checked)}
+          />
+          <span>FCST</span>
+        </label>
         <button
           type="button"
           className="wb-panel-toggle"
@@ -146,6 +163,14 @@ export function TopBar({
           title="Open city quick-jump picker"
         >
           CITIES
+        </button>
+        <button
+          type="button"
+          className={`wb-panel-toggle ${hourlyForecastOpen ? "is-open" : ""}`}
+          onClick={onToggleHourlyForecast}
+          title="Toggle hourly forecast panel"
+        >
+          HOURLY
         </button>
       </div>
 
@@ -169,6 +194,31 @@ export function TopBar({
             GLOBE
           </button>
         </div>
+      </div>
+
+      {/* Day/night overlay */}
+      <div className="wb-topbar-group wb-terminator-controls">
+        <label className="wb-topbar-check" title="Show day/night terminator overlay">
+          <input
+            type="checkbox"
+            checked={terminatorVisible}
+            onChange={(event) => onSetTerminatorVisible(event.target.checked)}
+          />
+          <span>NIGHT</span>
+        </label>
+        <span className="wb-topbar-label">DARK</span>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={terminatorIntensity}
+          onChange={(event) => onSetTerminatorIntensity(Number(event.target.value))}
+          disabled={!terminatorVisible}
+          title="Terminator darkness"
+          aria-label="Terminator darkness"
+        />
+        <output className="wb-topbar-label">{Math.round(terminatorIntensity * 100)}%</output>
       </div>
 
       {/* Sources + inspector */}

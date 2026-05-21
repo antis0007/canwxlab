@@ -16,9 +16,21 @@ try {
     $proc = Get-Process -Id $existing.OwningProcess -ErrorAction SilentlyContinue
     $name = if ($proc) { $proc.ProcessName } else { "PID $($existing.OwningProcess)" }
     Write-Host "API port $Port already in use by $name."
+    Write-Host "Using existing API at http://127.0.0.1:$Port"
     exit 0
   }
 } catch {
+}
+$line = netstat -ano -p tcp | Select-String -Pattern "LISTENING" | Where-Object {
+  $_.Line -match "[:.]$Port\s+.*LISTENING\s+(\d+)\s*$"
+} | Select-Object -First 1
+if ($line -and $line.Line -match "(\d+)\s*$") {
+  $listenerPid = [int]$Matches[1]
+  $proc = Get-Process -Id $listenerPid -ErrorAction SilentlyContinue
+  $name = if ($proc) { "$($proc.ProcessName) PID $listenerPid" } else { "PID $listenerPid" }
+  Write-Host "API port $Port already in use by $name."
+  Write-Host "Using existing API at http://127.0.0.1:$Port"
+  exit 0
 }
 
 Push-Location $repoRoot

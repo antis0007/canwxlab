@@ -1,3 +1,4 @@
+import type { PlanetaryTimelineState } from "../types/planetary";
 import type { SourceStatus } from "../types/weather";
 
 export type ViewMode = "map" | "globe";
@@ -19,6 +20,7 @@ export type LayerCategory =
   | "satellite"
   | "forecast"
   | "simulation"
+  | "infrastructure"
   | "diagnostic"
   | "alert"
   | "plugin"
@@ -32,6 +34,7 @@ export type LayerRendererType =
   | "deck-polygon"
   | "deck-line"
   | "deck-particles"
+  | "deck-power-grid"
   | "deck-satellite"
   | "custom-canvas"
   | "wms-raster";
@@ -51,6 +54,10 @@ export interface LayerControlValues {
   min: number;
   max: number;
   smoothing: number;
+  rasterSmoothing?: "linear" | "nearest";
+  rasterContrast?: number;
+  rasterSaturation?: number;
+  rasterBrightness?: number;
   particleCount: number;
   windScale: number;
   precipitationIntensity: number;
@@ -98,6 +105,12 @@ export interface RenderLayerPlan {
   resolvedTime: string | null;
   source: RenderSourcePlan;
   blendMode: RenderBlendMode;
+  visualFilters?: {
+    rasterSmoothing: "linear" | "nearest";
+    rasterContrast: number;
+    rasterSaturation: number;
+    rasterBrightness: number;
+  };
   priority: number;
 }
 
@@ -179,10 +192,14 @@ export interface AnimationPlaybackState {
   frame: number;
   frameCount: number;
   selectedValidTime: string;
+  selectedContinuousTime: string;
   loopStart: number;
   loopEnd: number;
   /** 0→1 progress from the current frame toward the next. 0 when paused. */
   subFrameProgress: number;
+  timelineState: PlanetaryTimelineState;
+  liveFrame: number;
+  forecastFrame: number;
 }
 
 export interface UnitPreferences {
@@ -193,6 +210,7 @@ export interface UnitPreferences {
 }
 
 export type StarExposure = "dim" | "realistic" | "bright" | "extreme";
+export type RenderQualityPreset = "performance" | "balanced" | "quality";
 
 export interface UiPreferences {
   compactMode: boolean;
@@ -200,10 +218,14 @@ export interface UiPreferences {
   accentColor: string;
   mapBackgroundStyle: "default" | "muted" | "high-contrast";
   photorealisticGlobe: boolean;
+  /** Restrained orbital-photo colour response for the photorealistic globe pass. */
+  globePhotoGrade?: boolean;
   /** Visibility floor for the celestial-sphere starfield. */
   starExposure?: StarExposure;
   /** Light-years; stars beyond this distance are not drawn. Catalogue caps practical density. */
   starMaxDistanceLy?: number;
+  /** Global workstation quality profile used by heavy visual renderers. */
+  renderQuality?: RenderQualityPreset;
   units: UnitPreferences;
 }
 
@@ -218,6 +240,10 @@ export const defaultLayerControls: LayerControlValues = {
   min: 0,
   max: 1,
   smoothing: 0.5,
+  rasterSmoothing: "linear",
+  rasterContrast: 0,
+  rasterSaturation: 0,
+  rasterBrightness: 0,
   particleCount: 2000,
   windScale: 1,
   precipitationIntensity: 1,
@@ -233,8 +259,10 @@ export const defaultUiPreferences: UiPreferences = {
   accentColor: "#58d0bf",
   mapBackgroundStyle: "default",
   photorealisticGlobe: false,
+  globePhotoGrade: true,
   starExposure: "realistic",
   starMaxDistanceLy: 500,
+  renderQuality: "balanced",
   units: {
     temperature: "C",
     wind: "m/s",

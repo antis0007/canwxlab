@@ -1,5 +1,13 @@
 import { useMemo, useRef, useState } from "react";
 import type { AnimationPlaybackState } from "../../layers/types";
+import type { PlanetaryTimelineState } from "../../types/planetary";
+
+export interface TimelineWarningRange {
+  startFrame: number;
+  endFrame: number;
+  severity: "warning" | "error";
+  label: string;
+}
 
 interface BottomTimelineProps {
   playback: AnimationPlaybackState;
@@ -13,6 +21,9 @@ interface BottomTimelineProps {
   timeZone?: string;
   /** Open the GIF export panel. */
   onOpenGifExport?: () => void;
+  /** Timeline spans where selected layer data is outside loadable coverage. */
+  warningRanges?: TimelineWarningRange[];
+  timelineState: PlanetaryTimelineState;
 }
 
 /** Pin "A" or "B" comparison times on the timeline. Stored in localStorage so
@@ -43,6 +54,9 @@ function writeAbState(state: Record<AbKey, number | null>) {
 
 const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
 const FRAME_INTERVAL_MS = 5 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
 
 type TickKind = "fine" | "minor" | "major";
 interface Tick {
@@ -60,31 +74,147 @@ function pickSteps(totalMs: number): { fine: number; minor: number; major: numbe
   return                 { fine: 5 * 60 * 1000,   minor: 15 * 60 * 1000, major: 30 * 60 * 1000 };
 }
 
-function buildTicks(startMs: number, frameCount: number): Tick[] {
+interface LocalClockParts {
+  hour: number;
+  minute: number;
+  second: number;
+}
+
+const PARTS_FORMAT_CACHE = new Map<string, Intl.DateTimeFormat>();
+const OFFSET_FORMAT_CACHE = new Map<string, Intl.DateTimeFormat>();
+
+function partsFormatterFor(timeZone: string): Intl.DateTimeFormat {
+  let fmt = PARTS_FORMAT_CACHE.get(timeZone);
+  if (fmt) return fmt;
+  fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  PARTS_FORMAT_CACHE.set(timeZone, fmt);
+  return fmt;
+}
+
+function offsetFormatterFor(timeZone: string): Intl.DateTimeFormat {
+  let fmt = OFFSET_FORMAT_CACHE.get(timeZone);
+  if (fmt) return fmt;
+  fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "shortOffset",
+  });
+  OFFSET_FORMAT_CACHE.set(timeZone, fmt);
+  return fmt;
+}
+
+function localClockParts(ms: number, timeZone: string): LocalClockParts {
+  try {
+    const parts = partsFormatterFor(timeZone).formatToParts(new Date(ms));
+    const read = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? 0);
+    const hour = read("hour");
+    return {
+      hour: hour === 24 ? 0 : hour,
+      minute: read("minute"),
+      second: read("second"),
+    };
+  } catch {
+    const d = new Date(ms);
+    return {
+      hour: d.getUTCHours(),
+      minute: d.getUTCMinutes(),
+      second: d.getUTCSeconds(),
+    };
+  }
+}
+
+function localClockHour(ms: number, timeZone: string): number {
+  const parts = localClockParts(ms, timeZone);
+  return parts.hour + parts.minute / 60 + parts.second / 3600;
+}
+
+function timeZoneOffsetMs(timeZone: string, ms: number): number {
+  if (timeZone === "UTC") return 0;
+  try {
+    const parts = offsetFormatterFor(timeZone).formatToParts(new Date(ms));
+    const value = parts.find((part) => part.type === "timeZoneName")?.value ?? "";
+    if (value === "GMT" || value === "UTC") return 0;
+    const match = value.match(/^(?:GMT|UTC)([+-])(\d{1,2})(?::?(\d{2}))?$/);
+    if (!match) return 0;
+    const sign = match[1] === "-" ? -1 : 1;
+    const hours = Number(match[2]);
+    const minutes = Number(match[3] ?? 0);
+    return sign * (hours * HOUR_MS + minutes * MINUTE_MS);
+  } catch {
+    return 0;
+  }
+}
+
+function zonedWallClockMs(ms: number, timeZone: string): number {
+  return ms + timeZoneOffsetMs(timeZone, ms);
+}
+
+function zonedBoundaryToUtcMs(localBoundaryMs: number, timeZone: string): number {
+  if (timeZone === "UTC") return localBoundaryMs;
+  const firstOffset = timeZoneOffsetMs(timeZone, localBoundaryMs);
+  const firstUtc = localBoundaryMs - firstOffset;
+  const correctedOffset = timeZoneOffsetMs(timeZone, firstUtc);
+  return localBoundaryMs - correctedOffset;
+}
+
+function formatMajorTickLabel(ms: number, timeZone: string): string {
+  const parts = localClockParts(ms, timeZone);
+  const hh = String(parts.hour).padStart(2, "0");
+  const mm = String(parts.minute).padStart(2, "0");
+  if (parts.hour === 0 && parts.minute === 0) {
+    return new Date(ms).toLocaleDateString("en-CA", { month: "short", day: "2-digit", timeZone });
+  }
+  return timeZone === "UTC" ? `${hh}:${mm}Z` : `${hh}:${mm}`;
+}
+
+export function buildTicks(startMs: number, frameCount: number, timeZone = "UTC"): Tick[] {
   if (frameCount <= 1) return [];
   const totalMs = (frameCount - 1) * FRAME_INTERVAL_MS;
   const endMs = startMs + totalMs;
   const { fine, minor, major } = pickSteps(totalMs);
   const out: Tick[] = [];
+  const localStart = zonedWallClockMs(startMs, timeZone);
+  const firstLocalTick = Math.ceil(localStart / fine) * fine;
+  const minorMinutes = Math.round(minor / MINUTE_MS);
+  const majorMinutes = Math.round(major / MINUTE_MS);
 
-  for (let t = Math.ceil(startMs / fine) * fine; t <= endMs; t += fine) {
-    if (t % minor === 0) continue;
-    out.push({ pct: ((t - startMs) / totalMs) * 100, kind: "fine" });
+  for (let local = firstLocalTick; ; local += fine) {
+    const t = zonedBoundaryToUtcMs(local, timeZone);
+    if (t > endMs + 1) break;
+    if (t < startMs - 1) continue;
+
+    const parts = localClockParts(t, timeZone);
+    const minuteOfDay = parts.hour * 60 + parts.minute;
+    const pct = ((t - startMs) / totalMs) * 100;
+    if (minuteOfDay % majorMinutes === 0) {
+      out.push({ pct, kind: "major", label: formatMajorTickLabel(t, timeZone) });
+    } else if (minuteOfDay % minorMinutes === 0) {
+      out.push({ pct, kind: "minor" });
+    } else {
+      out.push({ pct, kind: "fine" });
+    }
   }
-  for (let t = Math.ceil(startMs / minor) * minor; t <= endMs; t += minor) {
-    if (t % major === 0) continue;
-    out.push({ pct: ((t - startMs) / totalMs) * 100, kind: "minor" });
-  }
-  for (let t = Math.ceil(startMs / major) * major; t <= endMs; t += major) {
-    const d = new Date(t);
-    const hh = String(d.getUTCHours()).padStart(2, "0");
-    const mm = String(d.getUTCMinutes()).padStart(2, "0");
-    const day = d.getUTCHours() === 0 && d.getUTCMinutes() === 0
-      ? d.toLocaleDateString("en-CA", { month: "short", day: "2-digit", timeZone: "UTC" })
-      : `${hh}:${mm}Z`;
-    out.push({ pct: ((t - startMs) / totalMs) * 100, kind: "major", label: day });
-  }
-  return out;
+  return out.sort((a, b) => a.pct - b.pct);
+}
+
+export function timelineMaxFrame(playback: AnimationPlaybackState, timelineState: PlanetaryTimelineState): number {
+  const endMs = timelineState.forecastEnabled ? timelineState.forecastEndMs : timelineState.liveTimeMs;
+  const frame = Math.round((endMs - timelineState.replayStartMs) / FRAME_INTERVAL_MS);
+  return Math.max(0, Math.min(playback.frameCount - 1, frame));
+}
+
+export function clampTimelineInputFrame(
+  frame: number,
+  playback: AnimationPlaybackState,
+  timelineState: PlanetaryTimelineState,
+): number {
+  if (!Number.isFinite(frame)) return playback.liveFrame;
+  return Math.max(0, Math.min(timelineMaxFrame(playback, timelineState), frame));
 }
 
 // Blend two RGB colours by a factor k (0..1).
@@ -106,15 +236,14 @@ const AFTERNOON_ANCHOR:[number, number, number]= [130, 180, 235]; // soft blue
 const SUNSET_ANCHOR:  [number, number, number] = [240, 135, 55]; // vivid orange
 const DUSK_ANCHOR:    [number, number, number] = [95, 38, 95];   // deep violet
 
-function dayNightStops(startMs: number, frameCount: number): string {
+function dayNightStops(startMs: number, frameCount: number, timeZone: string): string {
   const totalMs = (frameCount - 1) * FRAME_INTERVAL_MS;
-  const samples = 48;
+  const samples = 96;
   const stops: string[] = [];
 
   for (let i = 0; i <= samples; i += 1) {
     const t = startMs + (i / samples) * totalMs;
-    const d = new Date(t);
-    const hour = d.getUTCHours() + d.getUTCMinutes() / 60;
+    const hour = localClockHour(t, timeZone);
     let color: string;
 
     if (hour < 4.5) {
@@ -163,6 +292,15 @@ function dayNightStops(startMs: number, frameCount: number): string {
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
 
+function safeTimeZone(timeZone: string): string {
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone });
+    return timeZone;
+  } catch {
+    return "UTC";
+  }
+}
+
 export function BottomTimeline({
   playback,
   onSetFrame,
@@ -172,6 +310,8 @@ export function BottomTimeline({
   onShiftWindowDays,
   timeZone = "UTC",
   onOpenGifExport,
+  warningRanges = [],
+  timelineState,
 }: BottomTimelineProps) {
   const stripRef = useRef<HTMLDivElement | null>(null);
   const [hoverPct, setHoverPct] = useState<number | null>(null);
@@ -196,28 +336,29 @@ export function BottomTimeline({
     if (v !== null && v !== undefined) onSetFrame(v);
   };
 
-  const startMs = useMemo(() => {
-    const d = new Date(playback.selectedValidTime);
-    d.setUTCMinutes(d.getUTCMinutes() - playback.frame * 5);
-    return d.getTime();
-  }, [playback.selectedValidTime, playback.frame]);
+  const startMs = timelineState.replayStartMs;
+  const timelineTimeZone = safeTimeZone(timeZone);
 
   const ticks = useMemo(
-    () => buildTicks(startMs, playback.frameCount),
-    [startMs, playback.frameCount],
+    () => buildTicks(startMs, playback.frameCount, timelineTimeZone),
+    [startMs, playback.frameCount, timelineTimeZone],
   );
 
   const gradient = useMemo(
-    () => dayNightStops(startMs, playback.frameCount),
-    [startMs, playback.frameCount],
+    () => dayNightStops(startMs, playback.frameCount, timelineTimeZone),
+    [startMs, playback.frameCount, timelineTimeZone],
   );
 
   const progressPct = (playback.playheadFrame / Math.max(1, playback.frameCount - 1)) * 100;
+  const livePct = (playback.liveFrame / Math.max(1, playback.frameCount - 1)) * 100;
+  const forecastStartPct = livePct;
+  const maxFrame = timelineMaxFrame(playback, timelineState);
+  const maxPct = (maxFrame / Math.max(1, playback.frameCount - 1)) * 100;
   const loopStartPct = (playback.loopStart / Math.max(1, playback.frameCount - 1)) * 100;
   const loopEndPct = (playback.loopEnd / Math.max(1, playback.frameCount - 1)) * 100;
   const displayMs = startMs + playback.playheadFrame * FRAME_INTERVAL_MS;
   const validLabel = new Date(displayMs).toLocaleString("en-CA", {
-    year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone,
+    year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timelineTimeZone,
   });
 
   const hoverMs = hoverPct !== null
@@ -225,8 +366,8 @@ export function BottomTimeline({
     : null;
   const hoverLabel = hoverMs !== null
     ? new Date(hoverMs).toLocaleString("en-CA", {
-        month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone,
-      }) + (timeZone === "UTC" ? "Z" : "")
+        month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timelineTimeZone,
+      }) + (timelineTimeZone === "UTC" ? "Z" : "")
     : null;
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -303,9 +444,9 @@ export function BottomTimeline({
         <button
           type="button"
           className="wb-tl-btn wb-tl-step"
-          onClick={() => onSetFrame(playback.frameCount - 1)}
-          title="Jump to latest (End)"
-          aria-label="Latest frame"
+          onClick={() => onSetFrame(playback.liveFrame)}
+          title="Jump to live frame (End)"
+          aria-label="Live frame"
         >
           <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
             <path d="M11.75 3.25v9.5M3 3l6 5-6 5V3Z" fill="currentColor" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round" strokeLinecap="round" />
@@ -397,12 +538,47 @@ export function BottomTimeline({
         </div>
 
         <div className="wb-tl-track">
+          {warningRanges.map((range, i) => {
+            const maxFrame = Math.max(1, playback.frameCount - 1);
+            const startFrame = Math.max(0, Math.min(maxFrame, range.startFrame));
+            const endFrame = Math.max(startFrame, Math.min(maxFrame, range.endFrame));
+            const left = (startFrame / maxFrame) * 100;
+            const width = ((endFrame - startFrame) / maxFrame) * 100;
+            if (width <= 0) return null;
+            return (
+              <div
+                key={`${range.label}-${i}-${startFrame}-${endFrame}`}
+                className={`wb-tl-warning-range wb-tl-warning-range-${range.severity}`}
+                style={{ left: `${left}%`, width: `${width}%` }}
+                title={range.label}
+                aria-hidden="true"
+              />
+            );
+          })}
           <div
             className="wb-tl-loop"
             style={{ left: `${loopStartPct}%`, width: `${Math.max(0, loopEndPct - loopStartPct)}%` }}
             aria-hidden="true"
           />
           <div className="wb-tl-progress" style={{ width: `${progressPct}%` }} aria-hidden="true" />
+          <div
+            className={timelineState.forecastEnabled ? "wb-tl-forecast-open" : "wb-tl-forecast-locked"}
+            style={{ left: `${forecastStartPct}%`, width: `${Math.max(0, 100 - forecastStartPct)}%` }}
+            title={timelineState.forecastEnabled ? "Forecast horizon unlocked" : "Forecast horizon locked"}
+            aria-hidden="true"
+          />
+          <div
+            className="wb-tl-live-marker"
+            style={{ left: `${livePct}%` }}
+            title="Live now"
+            aria-hidden="true"
+          />
+          <div
+            className="wb-tl-max-marker"
+            style={{ left: `${maxPct}%` }}
+            title={timelineState.forecastEnabled ? "Forecast horizon" : "Forecast locked at live time"}
+            aria-hidden="true"
+          />
 
           {hoverPct !== null && (
             <>
@@ -447,10 +623,10 @@ export function BottomTimeline({
             className="wb-tl-slider"
             step="any"
             min={0}
-            max={playback.frameCount - 1}
-            value={playback.playheadFrame}
-            onInput={(event) => onSetFrame(Number(event.currentTarget.value))}
-            onChange={(event) => onSetFrame(Number(event.target.value))}
+            max={maxFrame}
+            value={Math.min(playback.playheadFrame, maxFrame)}
+            onInput={(event) => onSetFrame(clampTimelineInputFrame(Number(event.currentTarget.value), playback, timelineState))}
+            onChange={(event) => onSetFrame(clampTimelineInputFrame(Number(event.target.value), playback, timelineState))}
             aria-label={`Frame ${playback.frame + 1} of ${playback.frameCount}`}
             title={`${validLabel}  ·  frame ${playback.frame + 1}/${playback.frameCount}`}
           />

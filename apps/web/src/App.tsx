@@ -7,13 +7,14 @@ import { MapView } from "./components/MapView";
 import { LayersPicker, type BasemapId, BASEMAP_OPTIONS } from "./components/LayersPicker";
 import { CityPicker } from "./components/CityPicker";
 import { GifExportPanel } from "./components/workbench/GifExportPanel";
-import { BottomTimeline } from "./components/workbench/BottomTimeline";
+import { BottomTimeline, type TimelineWarningRange } from "./components/workbench/BottomTimeline";
 import { LeftSidebar } from "./components/workbench/LeftSidebar";
 import { RightInspector } from "./components/workbench/RightInspector";
 import { TopBar } from "./components/workbench/TopBar";
+import { HourlyForecastPanel } from "./components/workbench/HourlyForecastPanel";
 import { useAnimationTimeline } from "./layers/animation";
 import { useLayerEngine } from "./layers/layerEngine";
-import type { LayerDiagnostics, RendererFeatureValue, ViewMode, CameraState } from "./layers/types";
+import type { CameraState, LayerDefinition, LayerDiagnostics, LayerRuntimeState, RendererFeatureValue, ViewMode } from "./layers/types";
 import { api } from "./lib/api";
 import { logManager } from "./lib/logging";
 import { useAppLogging } from "./hooks/useAppLogging";
@@ -33,7 +34,12 @@ import {
 import type { CityEntry } from "./lib/cityCatalog";
 import { buildInspectorPayload, type InspectorWmsRow } from "./layers/inspection";
 import { buildRenderPlan } from "./layers/renderPlan";
+import { parseWmsTimeDimension } from "./time/wmsTime";
+import type { SatelliteCompositeLoadingState } from "./layers/renderers/satelliteComposite";
 import { exportGif, downloadGif } from "./lib/gifExport";
+import { EMPTY_ARCHIVE_SUMMARY, getArchiveSummary } from "./lib/archiveIndex";
+import { buildSourceContractViews } from "./lib/planetaryCatalog";
+import type { ArchiveSummary } from "./types/planetary";
 import type {
   AlertFeature,
   DataSource,
@@ -58,14 +64,29 @@ function writeViewMode(mode: ViewMode) {
 }
 
 const BASEMAP_STORAGE_KEY = "canwxlab.basemap.v3";
+const TERMINATOR_VISIBLE_STORAGE_KEY = "canwxlab.terminator.visible.v1";
+const TERMINATOR_INTENSITY_STORAGE_KEY = "canwxlab.terminator.intensity.v1";
 const LOCAL_STATE_PREFIX = "canwxlab.";
 const INITIAL_OBSERVATION_LIMIT = 1000;
+const TIMELINE_FRAME_INTERVAL_MS = 5 * 60 * 1000;
 
 function readBasemap(): BasemapId {
   if (typeof window === "undefined") return "blue_marble";
   const raw = window.localStorage.getItem(BASEMAP_STORAGE_KEY);
   if (raw && BASEMAP_OPTIONS.some((o) => o.id === raw)) return raw as BasemapId;
   return "blue_marble";
+}
+
+function readTerminatorVisible(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(TERMINATOR_VISIBLE_STORAGE_KEY) === "true";
+}
+
+function readTerminatorIntensity(): number {
+  if (typeof window === "undefined") return 0.45;
+  const raw = Number(window.localStorage.getItem(TERMINATOR_INTENSITY_STORAGE_KEY));
+  if (!Number.isFinite(raw)) return 0.45;
+  return Math.max(0, Math.min(1, raw));
 }
 
 function sourceStatusSummary(sources: DataSource[]): SourceStatus {
@@ -122,6 +143,132 @@ export function statusMessage(
   return notices;
 }
 
+function buildTimelineWarningRanges(input: {
+  layers: LayerDefinition[];
+  runtimeState: Record<string, LayerRuntimeState>;
+  windowStartMs: number;
+  frameCount: number;
+}): TimelineWarningRange[] {
+  const maxFrame = Math.max(1, input.frameCount - 1);
+  const windowEndMs = input.windowStartMs + maxFrame * TIMELINE_FRAME_INTERVAL_MS;
+  const ranges: TimelineWarningRange[] = [];
+
+  const frameAt = (ms: number) => (ms - input.windowStartMs) / TIMELINE_FRAME_INTERVAL_MS;
+
+  for (const layer of input.layers) {
+    const runtime = input.runtimeState[layer.id];
+    if (!runtime?.enabled) continue;
+
+    if (layer.status === "unavailable" || layer.status === "mock") {
+      ranges.push({
+        startFrame: 0,
+        endFrame: maxFrame,
+        severity: "error",
+        label: `${layer.title} is not loadable from its selected source.`,
+      });
+      continue;
+    }
+
+    if (layer.status === "stale" || layer.status === "fallback") {
+      ranges.push({
+        startFrame: 0,
+        endFrame: maxFrame,
+        severity: "warning",
+        label: `${layer.title} is using ${layer.status} data.`,
+      });
+    }
+
+    const policy = runtime.wmsTimePolicy ?? "timeline";
+    if (layer.rendererType !== "wms-raster" || policy === "latest" || policy === "fixed") continue;
+
+    if (!layer.wmsBaseUrl || !layer.wmsLayerName) {
+      ranges.push({
+        startFrame: 0,
+        endFrame: maxFrame,
+        severity: "error",
+        label: `${layer.title} is missing WMS configuration.`,
+      });
+      continue;
+    }
+
+    const extent = typeof layer.metadata?.time_extent === "string" ? layer.metadata.time_extent : "";
+    const times = parseWmsTimeDimension(extent);
+    if (times.length === 0) {
+      ranges.push({
+        startFrame: 0,
+        endFrame: maxFrame,
+        severity: "warning",
+        label: `${layer.title} has no usable timeline extent.`,
+      });
+      continue;
+    }
+
+    const availableStart = times[0];
+    const availableEnd = times[times.length - 1];
+    if (availableStart > input.windowStartMs) {
+      ranges.push({
+        startFrame: 0,
+        endFrame: Math.max(0, Math.min(maxFrame, frameAt(Math.min(availableStart, windowEndMs)))),
+        severity: "warning",
+        label: `${layer.title} has no frames before ${new Date(availableStart).toISOString()}.`,
+      });
+    }
+    if (availableEnd < windowEndMs) {
+      ranges.push({
+        startFrame: Math.max(0, Math.min(maxFrame, frameAt(Math.max(availableEnd, input.windowStartMs)))),
+        endFrame: maxFrame,
+        severity: "warning",
+        label: `${layer.title} has no frames after ${new Date(availableEnd).toISOString()}.`,
+      });
+    }
+
+    // Detect internal data gaps (e.g. nighttime for visible satellite).
+    // Only flags gaps fully enclosed by the visible window — leading/trailing
+    // boundary checks above handle gaps that extend past window edges.
+    if (times.length >= 2) {
+      let windowStartIdx = -1;
+      let windowEndIdx = -1;
+      for (let i = 0; i < times.length; i++) {
+        if (times[i] >= input.windowStartMs && times[i] <= windowEndMs) {
+          if (windowStartIdx < 0) windowStartIdx = i;
+          windowEndIdx = i;
+        }
+      }
+
+      if (windowStartIdx >= 0 && windowEndIdx > windowStartIdx) {
+        const windowIntervals: number[] = [];
+        for (let i = windowStartIdx + 1; i <= windowEndIdx; i++) {
+          const gap = times[i] - times[i - 1];
+          if (gap > 0) windowIntervals.push(gap);
+        }
+        windowIntervals.sort((a, b) => a - b);
+        const medianInterval = windowIntervals.length > 0
+          ? windowIntervals[Math.floor(windowIntervals.length / 2)]
+          : TIMELINE_FRAME_INTERVAL_MS;
+        const gapThreshold = Math.max(medianInterval * 3, 30 * 60 * 1000);
+
+        for (let i = windowStartIdx + 1; i <= windowEndIdx; i++) {
+          const gap = times[i] - times[i - 1];
+          if (gap <= gapThreshold) continue;
+          const gapStartMs = times[i - 1];
+          const gapEndMs = times[i];
+          const startFrame = Math.max(0, Math.min(maxFrame, frameAt(gapStartMs)));
+          const endFrame = Math.max(0, Math.min(maxFrame, frameAt(gapEndMs)));
+          if (endFrame <= startFrame) continue;
+          ranges.push({
+            startFrame,
+            endFrame,
+            severity: "warning",
+            label: `${layer.title} has no data from ${new Date(gapStartMs).toISOString()} to ${new Date(gapEndMs).toISOString()}.`,
+          });
+        }
+      }
+    }
+  }
+
+  return ranges.filter((range) => range.endFrame > range.startFrame);
+}
+
 export default function App() {
   useAppLogging();
 
@@ -145,9 +292,10 @@ export default function App() {
   cameraStateRef.current = cameraState;
   const [cameraTarget, setCameraTarget] = useState<CameraState | null>(null);
   const [dynamicLayers, setDynamicLayers] = useState<WeatherLayer[]>([]);
-  const [timelineMode, setTimelineMode] = useState("live");
   const [viewMode, setViewMode] = useState<ViewMode>(readViewMode);
   const [basemap, setBasemap] = useState<BasemapId>(readBasemap);
+  const [terminatorVisible, setTerminatorVisible] = useState(readTerminatorVisible);
+  const [terminatorIntensity, setTerminatorIntensity] = useState(readTerminatorIntensity);
   const [globeSupported, setGlobeSupported] = useState(false);
   const [globeCapabilityChecked, setGlobeCapabilityChecked] = useState(false);
   const [inspectorState, setInspectorState] = useState<{
@@ -182,6 +330,11 @@ export default function App() {
     warnings: [],
   });
 
+  // Ref that MapView populates with a setter that writes directly to the
+  // satellite compositor layer. The animation rAF calls this synchronously,
+  // bypassing React's render cycle for zero-latency GPU timeProgress updates.
+  const satelliteProgressRef = useRef<(progress: number, timelineMs: number) => void>(() => {});
+
   const {
     playbackState,
     setFrame,
@@ -191,17 +344,24 @@ export default function App() {
     shiftWindowDays,
     toggle,
     reset,
-  } = useAnimationTimeline();
+    returnLive,
+    setForecastEnabled,
+  } = useAnimationTimeline({
+    onProgress: (progress, timelineMs) => satelliteProgressRef.current(progress, timelineMs),
+  });
 
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
+  const [hourlyForecastOpen, setHourlyForecastOpen] = useState(false);
   const [selectedCity, setSelectedCity] = useState<CityEntry | null>(null);
   const [gifExportOpen, setGifExportOpen] = useState(false);
   const [gifExportProgress, setGifExportProgress] = useState<[number, number] | null>(null);
   const mapCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [satelliteLoadingState, setSatelliteLoadingState] = useState<SatelliteCompositeLoadingState | null>(null);
   const [timeZone, setTimeZone] = useState<string>(() => getStoredTimeZone());
+  const [archiveSummary, setArchiveSummary] = useState<ArchiveSummary>(EMPTY_ARCHIVE_SUMMARY);
 
   const leftSidebar = useResizableWidth({
     storageKey: "leftSidebarWidth",
@@ -231,6 +391,19 @@ export default function App() {
     backendLayers: combinedLayers,
     plugins,
   });
+  const sourceContracts = useMemo(() => buildSourceContractViews(sources), [sources]);
+
+  const refreshArchiveSummary = useCallback(async () => {
+    setArchiveSummary(await getArchiveSummary());
+  }, []);
+
+  useEffect(() => {
+    void refreshArchiveSummary();
+    const id = window.setInterval(() => {
+      void refreshArchiveSummary();
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, [refreshArchiveSummary]);
 
   useEffect(() => {
     writeViewMode(viewMode);
@@ -239,6 +412,50 @@ export default function App() {
   useEffect(() => {
     try { window.localStorage.setItem(BASEMAP_STORAGE_KEY, basemap); } catch {/* ignore */}
   }, [basemap]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(TERMINATOR_VISIBLE_STORAGE_KEY, String(terminatorVisible)); } catch {/* ignore */}
+  }, [terminatorVisible]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem(TERMINATOR_INTENSITY_STORAGE_KEY, String(terminatorIntensity)); } catch {/* ignore */}
+  }, [terminatorIntensity]);
+
+  const handleSatelliteLoadingState = useCallback((state: SatelliteCompositeLoadingState | null) => {
+    setSatelliteLoadingState(state);
+  }, []);
+
+  const satelliteLoadingPercent = useMemo(() => {
+    if (!satelliteLoadingState || satelliteLoadingState.totalSatellites === 0) return 0;
+    if (satelliteLoadingState.phase === "ready") return 100;
+    const required = Math.max(1, satelliteLoadingState.requiredFrames);
+    const readyRatio = satelliteLoadingState.readySatellites / satelliteLoadingState.totalSatellites;
+    const frameRatio = Math.min(1, satelliteLoadingState.bufferedFrames / required);
+    return Math.round(Math.max(0, Math.min(1, readyRatio * frameRatio)) * 100);
+  }, [satelliteLoadingState]);
+
+  const satelliteLoadingMessage = useMemo(() => {
+    if (!satelliteLoadingState || satelliteLoadingState.phase === "ready") return null;
+    const { phase, inFlightFrames, pendingFlows, estimatedSecondsRemaining, readySatellites, totalSatellites, bufferedFrames, requiredFrames } = satelliteLoadingState;
+    const remaining = estimatedSecondsRemaining !== null ? ` (~${estimatedSecondsRemaining}s)` : "";
+    if (phase === "fetching" && inFlightFrames > 0) {
+      return `Downloading satellite frames${remaining} — ${inFlightFrames} in flight, ${bufferedFrames}/${requiredFrames} buffered`;
+    }
+    if (phase === "computing-flow" && pendingFlows > 0) {
+      return `Validating satellite motion${remaining} — ${pendingFlows} pair(s) remaining (client fallback, not server AMV/WV)`;
+    }
+    if (phase === "idle" && readySatellites < totalSatellites) {
+      return `Waiting for satellite data — ${readySatellites}/${totalSatellites} satellites ready${remaining}`;
+    }
+    return `Loading satellite imagery — ${satelliteLoadingPercent}%`;
+  }, [satelliteLoadingState, satelliteLoadingPercent]);
+
+  const showSatelliteLoading = Boolean(
+    satelliteLoadingState
+      && satelliteLoadingState.totalSatellites > 0
+      && satelliteLoadingState.phase !== "ready"
+      && !playbackState.isPlaying,
+  );
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -373,6 +590,18 @@ export default function App() {
     const canvas = mapCanvasRef.current;
     if (!canvas) return;
 
+    // MapLibre canvas sits inside the map container alongside deck.gl's overlay
+    // canvas (MapboxOverlay with interleaved:false). Query all canvases in the
+    // container and composite them so station markers, alert polygons, satellite
+    // compositor, and terminator appear in the export.
+    const container = canvas.parentElement;
+    const allCanvases = container
+      ? Array.from(container.querySelectorAll("canvas"))
+      : [];
+    const overlayCanvases = allCanvases.filter(
+      (c) => c !== canvas && c.width > 0 && c.height > 0,
+    );
+
     setGifExportProgress([0, range.endFrame - range.startFrame + 1]);
 
     // Pause playback during export so WMS layers don't fight the frame-stepping
@@ -382,15 +611,13 @@ export default function App() {
     try {
       const result = await exportGif({
         canvas,
+        overlayCanvases,
         totalFrames: playbackState.frameCount,
         startFrame: range.startFrame,
         endFrame: range.endFrame,
         frameDelay: range.frameDelay,
         onRequestFrame: async (frame) => {
           setFrame(frame);
-          // Wait for render: rAF × 2 gives WMS double-buffer time to promote
-          await new Promise((resolve) => requestAnimationFrame(resolve));
-          await new Promise((resolve) => requestAnimationFrame(resolve));
         },
         onProgress: (current, total) => {
           setGifExportProgress([current, total]);
@@ -521,6 +748,7 @@ export default function App() {
       frame: playbackState.frame,
       activeLayers: layerEngine.activeLayers,
       renderPlan,
+      runtimeState: layerEngine.runtimeState,
       observations,
       alerts,
       sampledRgb: null,
@@ -564,6 +792,16 @@ export default function App() {
 
   const sourceHealth = useMemo(() => sourceStatusSummary(sources), [sources]);
   const activeLayerForLegend = layerEngine.activeLayers[layerEngine.activeLayers.length - 1] ?? null;
+  const timelineWindowStartMs = playbackState.timelineState.replayStartMs;
+  const timelineWarningRanges = useMemo(
+    () => buildTimelineWarningRanges({
+      layers: layerEngine.activeLayers,
+      runtimeState: layerEngine.runtimeState,
+      windowStartMs: timelineWindowStartMs,
+      frameCount: playbackState.frameCount,
+    }),
+    [layerEngine.activeLayers, layerEngine.runtimeState, playbackState.frameCount, timelineWindowStartMs],
+  );
 
   return (
     <main className="wb-app">
@@ -574,16 +812,17 @@ export default function App() {
         globeCapabilityChecked={globeCapabilityChecked}
         onSetViewMode={setViewMode}
         playback={playbackState}
+        timelineState={playbackState.timelineState}
         onTogglePlay={toggle}
         onSpeedChange={setSpeedMultiplier}
         onResetAnimation={reset}
+        onReturnLive={returnLive}
+        onSetForecastEnabled={setForecastEnabled}
         sourceHealthStatus={sourceHealth}
         isRefreshing={isRefreshing}
         onRefresh={refreshData}
         isResettingExperience={isResettingExperience}
         onFreshStart={freshStart}
-        timelineMode={timelineMode}
-        onSetTimelineMode={setTimelineMode}
         onToggleLeftPanel={() => setLeftCollapsed(cur => !cur)}
         onToggleRightPanel={() => setRightCollapsed(cur => !cur)}
         leftPanelOpen={!leftCollapsed}
@@ -591,6 +830,12 @@ export default function App() {
         timeZone={timeZone}
         onSetTimeZone={setTimeZone}
         onOpenCityPicker={() => setCityPickerOpen(true)}
+        onToggleHourlyForecast={() => setHourlyForecastOpen(cur => !cur)}
+        hourlyForecastOpen={hourlyForecastOpen}
+        terminatorVisible={terminatorVisible}
+        terminatorIntensity={terminatorIntensity}
+        onSetTerminatorVisible={setTerminatorVisible}
+        onSetTerminatorIntensity={setTerminatorIntensity}
       />
 
       <section
@@ -628,6 +873,10 @@ export default function App() {
           onApplyPreset={applyPreset}
           onSetWmsTimePolicy={layerEngine.setWmsTimePolicy}
           onDiffOverlay={setDiffOverlay}
+          selectedValidTime={playbackState.selectedValidTime}
+          timelineState={playbackState.timelineState}
+          sourceContracts={sourceContracts}
+          archiveSummary={archiveSummary}
         />
 
         {!leftCollapsed && (
@@ -642,6 +891,31 @@ export default function App() {
         )}
 
         <section className="wb-map-area">
+          {showSatelliteLoading && satelliteLoadingState && (
+            <div className="wb-satellite-loading" role="status" aria-live="polite">
+              <div
+                className="wb-satellite-loading-track"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={satelliteLoadingPercent}
+                role="progressbar"
+              >
+                <div
+                  className="wb-satellite-loading-fill"
+                  style={{ width: `${satelliteLoadingPercent}%` }}
+                />
+              </div>
+              <div className="wb-satellite-loading-meta">
+                <span>{satelliteLoadingMessage ?? `Loading satellite imagery — ${satelliteLoadingPercent}%`}</span>
+                <span className="wb-satellite-loading-detail">
+                  {satelliteLoadingState.readySatellites}/{satelliteLoadingState.totalSatellites} satellites, {satelliteLoadingState.bufferedFrames}/{satelliteLoadingState.requiredFrames} frames
+                  {satelliteLoadingState.estimatedSecondsRemaining !== null && (
+                    <> &middot; ~{satelliteLoadingState.estimatedSecondsRemaining}s remaining</>
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
           {(notices.length > 0 || isRefreshing) && (
             <div className="wb-notice-row">
               {isRefreshing && <p className="wb-notice">Refreshing data…</p>}
@@ -658,8 +932,7 @@ export default function App() {
             alerts={alerts}
             viewMode={viewMode}
             animationFrame={playbackState.frame}
-            subFrameProgress={playbackState.subFrameProgress}
-            globalTimeMs={new Date(playbackState.selectedValidTime).getTime()}
+            globalTimeMs={new Date(playbackState.selectedContinuousTime).getTime()}
             onInspect={handleInspect}
             onDiagnostics={(partial) => setDiagnostics((current) => ({
               ...current,
@@ -671,13 +944,22 @@ export default function App() {
             onCameraChange={setCameraState}
             basemap={basemap}
             photorealisticGlobe={layerEngine.uiPreferences.photorealisticGlobe ?? false}
+            globePhotoGrade={layerEngine.uiPreferences.globePhotoGrade ?? true}
+            terminatorVisible={terminatorVisible}
+            terminatorIntensity={terminatorIntensity}
             diffOverlay={diffOverlay}
             starExposure={layerEngine.uiPreferences.starExposure}
             starMaxDistanceLy={layerEngine.uiPreferences.starMaxDistanceLy}
+            renderQuality={layerEngine.uiPreferences.renderQuality ?? "balanced"}
             timelinePlaying={playbackState.isPlaying}
             timelineSpeedMultiplier={playbackState.speedMultiplier}
+            satelliteSubFrameProgress={playbackState.subFrameProgress}
+            satelliteTimelineMs={new Date(playbackState.selectedContinuousTime).getTime()}
+            satelliteProgressRef={satelliteProgressRef}
+            onSatelliteLoadingState={handleSatelliteLoadingState}
             onCanvasReady={(canvas) => { mapCanvasRef.current = canvas; }}
           />
+
 
           <LayersPicker
             basemap={basemap}
@@ -701,6 +983,8 @@ export default function App() {
             onShiftWindowDays={shiftWindowDays}
             timeZone={timeZone}
             onOpenGifExport={() => setGifExportOpen(true)}
+            warningRanges={timelineWarningRanges}
+            timelineState={playbackState.timelineState}
           />
         </section>
 
@@ -733,6 +1017,15 @@ export default function App() {
           runtimeState={layerEngine.runtimeState}
           timeZone={timeZone}
         />
+
+        {hourlyForecastOpen && (
+          <HourlyForecastPanel
+            latitude={inspectorState.latitude}
+            longitude={inspectorState.longitude}
+            timeZone={timeZone}
+            onClose={() => setHourlyForecastOpen(false)}
+          />
+        )}
 
         {cityPickerOpen && (
           <CityPicker

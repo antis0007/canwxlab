@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseWmsTimeDimension,
   nearestTime,
+  floorTime,
   isTimeInRange,
   resolveWmsTimeForTimeline,
   formatWmsUtcSecond,
@@ -39,6 +40,14 @@ describe('wmsTime utilities', () => {
     expect(nearestTime(4000, times)).toBe(3000);
   });
 
+  it('floorTime', () => {
+    const times = [1000, 2000, 3000];
+    expect(floorTime(500, times)).toBeNull();
+    expect(floorTime(1400, times)).toBe(1000);
+    expect(floorTime(2000, times)).toBe(2000);
+    expect(floorTime(4000, times)).toBe(3000);
+  });
+
   it('isTimeInRange', () => {
     const times = [1000, 2000, 3000];
     expect(isTimeInRange(1500, times)).toBe(true);
@@ -49,7 +58,7 @@ describe('wmsTime utilities', () => {
   it('resolveWmsTimeForTimeline - global', () => {
     const times = [1000, 2000, 3000];
     const resolved = resolveWmsTimeForTimeline(1600, times, 'global');
-    expect(resolved).toBe(formatWmsUtcSecond(2000));
+    expect(resolved).toBe(formatWmsUtcSecond(1000));
   });
 
   it('resolveWmsTimeForTimeline - latest', () => {
@@ -67,7 +76,7 @@ describe('wmsTime utilities', () => {
   it('formats WMS TIME without milliseconds for GeoMet', () => {
     const times = parseWmsTimeDimension('2026-05-16T00:00:00Z/2026-05-16T06:00:00Z/PT3H');
     expect(resolveWmsTimeForTimeline(Date.parse('2026-05-16T05:59:59.999Z'), times, 'global'))
-      .toBe('2026-05-16T06:00:00Z');
+      .toBe('2026-05-16T03:00:00Z');
     expect(formatWmsUtcSecond(Date.parse('2026-05-16T06:00:00.000Z')))
       .toBe('2026-05-16T06:00:00Z');
   });

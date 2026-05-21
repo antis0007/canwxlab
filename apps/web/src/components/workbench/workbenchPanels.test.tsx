@@ -2,12 +2,16 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { LeftSidebar } from "./LeftSidebar";
+import { buildTicks, clampTimelineInputFrame, timelineMaxFrame } from "./BottomTimeline";
 import { TopBar } from "./TopBar";
+import { EMPTY_ARCHIVE_SUMMARY } from "../../lib/archiveIndex";
+import { buildSourceContractViews } from "../../lib/planetaryCatalog";
 import type {
   AnimationPlaybackState,
   LayerDefinition,
   LayerRuntimeState,
 } from "../../layers/types";
+import type { PlanetaryTimelineState } from "../../types/planetary";
 import type {
   DataSource,
   PluginCatalogItem,
@@ -17,13 +21,26 @@ import type {
 const playback: AnimationPlaybackState = {
   isPlaying: true,
   speedMultiplier: 1,
-  playheadFrame: 10,
-  frame: 10,
-  frameCount: 240,
+  playheadFrame: 288,
+  frame: 288,
+  frameCount: 865,
   selectedValidTime: new Date().toISOString(),
+  selectedContinuousTime: new Date().toISOString(),
   loopStart: 0,
-  loopEnd: 239,
+  loopEnd: 288,
   subFrameProgress: 0,
+  liveFrame: 288,
+  forecastFrame: 864,
+  timelineState: {
+    mode: "live",
+    isTrackingLive: true,
+    forecastEnabled: false,
+    selectedTimeMs: Date.parse("2026-05-20T00:00:00.000Z"),
+    liveTimeMs: Date.parse("2026-05-20T00:00:00.000Z"),
+    replayStartMs: Date.parse("2026-05-19T00:00:00.000Z"),
+    replayEndMs: Date.parse("2026-05-20T00:00:00.000Z"),
+    forecastEndMs: Date.parse("2026-05-22T00:00:00.000Z"),
+  },
 };
 
 const layer: LayerDefinition = {
@@ -122,8 +139,30 @@ const source: DataSource = {
 };
 
 const metrics: VerificationMetric[] = [];
+const timelineState: PlanetaryTimelineState = playback.timelineState;
+const sourceContracts = buildSourceContractViews([source]);
 
 describe("workbench components", () => {
+  it("aligns timeline tick labels to the selected local time zone", () => {
+    const startMs = Date.parse("2026-05-15T00:00:00Z");
+    const frameCount = 24 * 12 + 1;
+    const utcTicks = buildTicks(startMs, frameCount, "UTC");
+    const edmontonTicks = buildTicks(startMs, frameCount, "America/Edmonton");
+
+    expect(utcTicks.find((tick) => tick.label === "06:00Z")?.pct).toBeCloseTo(25, 4);
+    expect(edmontonTicks.find((tick) => tick.label === "06:00")?.pct).toBeCloseTo(50, 4);
+  });
+
+  it("blocks future timeline input unless forecast is enabled", () => {
+    const locked = { ...timelineState, forecastEnabled: false };
+    const unlocked = { ...timelineState, forecastEnabled: true };
+
+    expect(timelineMaxFrame(playback, locked)).toBe(playback.liveFrame);
+    expect(clampTimelineInputFrame(playback.forecastFrame, playback, locked)).toBe(playback.liveFrame);
+    expect(timelineMaxFrame(playback, unlocked)).toBe(playback.forecastFrame);
+    expect(clampTimelineInputFrame(playback.forecastFrame, playback, unlocked)).toBe(playback.forecastFrame);
+  });
+
   it("renders map/globe toggle and animation controls", () => {
     const html = renderToStaticMarkup(
       <TopBar
@@ -133,15 +172,16 @@ describe("workbench components", () => {
         globeCapabilityChecked
         onSetViewMode={() => undefined}
         playback={playback}
+        timelineState={timelineState}
         onTogglePlay={() => undefined}
         onSpeedChange={() => undefined}
         onResetAnimation={() => undefined}
+        onReturnLive={() => undefined}
+        onSetForecastEnabled={() => undefined}
         sourceHealthStatus="live"
         isRefreshing={false}
         onRefresh={() => undefined}
         onFreshStart={() => undefined}
-        timelineMode="live"
-        onSetTimelineMode={() => undefined}
         onToggleLeftPanel={() => undefined}
         onToggleRightPanel={() => undefined}
         leftPanelOpen
@@ -149,11 +189,20 @@ describe("workbench components", () => {
         timeZone="UTC"
         onSetTimeZone={() => undefined}
         onOpenCityPicker={() => undefined}
+        onToggleHourlyForecast={() => undefined}
+        hourlyForecastOpen={false}
+        terminatorVisible={false}
+        terminatorIntensity={0.45}
+        onSetTerminatorVisible={() => undefined}
+        onSetTerminatorIntensity={() => undefined}
       />
     );
 
     expect(html).toContain("MAP");
     expect(html).toContain("GLOBE");
+    expect(html).toContain("NIGHT");
+    expect(html).toContain("LIVE");
+    expect(html).toContain("FCST");
     expect(html).toContain("CanWxLab");
   });
 
@@ -195,6 +244,10 @@ describe("workbench components", () => {
         onSetUiPreferences={() => undefined}
         cameraState={{ longitude: 0, latitude: 0, zoom: 0, bearing: 0, pitch: 0 }}
         onCameraTarget={() => undefined}
+        selectedValidTime="2026-05-20T00:00:00.000Z"
+        timelineState={timelineState}
+        sourceContracts={sourceContracts}
+        archiveSummary={EMPTY_ARCHIVE_SUMMARY}
       />
     );
 
@@ -238,11 +291,66 @@ describe("workbench components", () => {
         onSetUiPreferences={() => undefined}
         cameraState={{ longitude: 0, latitude: 0, zoom: 0, bearing: 0, pitch: 0 }}
         onCameraTarget={() => undefined}
+        selectedValidTime="2026-05-20T00:00:00.000Z"
+        timelineState={timelineState}
+        sourceContracts={sourceContracts}
+        archiveSummary={EMPTY_ARCHIVE_SUMMARY}
       />
     );
 
     expect(pluginHtml).toContain("Radar Layer Renderer");
     expect(pluginHtml).toContain("BUILT-IN");
     expect(pluginHtml).toContain("Install Plugin (Planned)");
+  });
+
+  it("renders planetary timeline, source contract, and archive state", () => {
+    const html = renderToStaticMarkup(
+      <LeftSidebar
+        activeTab="planetary"
+        onTabChange={() => undefined}
+        layers={[layer]}
+        runtimeState={runtimeState}
+        onToggleLayer={() => undefined}
+        onSetLayerOpacity={() => undefined}
+        onSetLayerRamp={() => undefined}
+        onSetLayerControl={() => undefined}
+        onMoveLayer={() => undefined}
+        onReorderLayer={() => undefined}
+        onResetLayer={() => undefined}
+        plugins={[plugin]}
+        pluginEnabled={{ core_radar_layer: true }}
+        onSetPluginEnabled={() => undefined}
+        sources={[source]}
+        simulationRun={null}
+        isRunningSimulation={false}
+        onRunSimulation={() => undefined}
+        metrics={metrics}
+        uiPreferences={{
+          compactMode: true,
+          theme: "dark",
+          accentColor: "#58d0bf",
+          mapBackgroundStyle: "default",
+          photorealisticGlobe: false,
+          units: {
+            temperature: "C",
+            wind: "m/s",
+            pressure: "hPa",
+            precipitation: "mm",
+          },
+        }}
+        onSetUiPreferences={() => undefined}
+        cameraState={{ longitude: 0, latitude: 0, zoom: 0, bearing: 0, pitch: 0 }}
+        onCameraTarget={() => undefined}
+        selectedValidTime="2026-05-20T00:00:00.000Z"
+        timelineState={timelineState}
+        sourceContracts={sourceContracts}
+        archiveSummary={{ ...EMPTY_ARCHIVE_SUMMARY, assetCount: 2, allowedCount: 1, unknownCount: 1 }}
+      />
+    );
+
+    expect(html).toContain("Timeline state");
+    expect(html).toContain("Local archive");
+    expect(html).toContain("MSC GeoMet");
+    expect(html).toContain("Costed Weather Archive");
   });
 });

@@ -17,13 +17,10 @@ const WMS_SETTLED_REQUEST_TILE_SIZE = 384;
 // loading, we keep showing the (stale) current frame — stale is better than
 // flashing.
 const WMS_PENDING_OPACITY = 0.001;
-// 50 ms crossfade smooths tile swaps without the prolonged ghosting of longer
-// fades. The old 0-ms value made every tile transition a hard pop.
-const WMS_RASTER_FADE_MS = 50;
 const WMS_RASTER_PAINT = {
   "raster-opacity": 1,
   "raster-resampling": "linear",
-  "raster-fade-duration": WMS_RASTER_FADE_MS,
+  "raster-fade-duration": 0,
 } as const;
 
 // During playback, skip requesting a new WMS frame until the current one has
@@ -39,6 +36,8 @@ interface WmsTileSetState {
   layerId: string;
   requestedAt: number;
   failed?: boolean;
+  tolerateTileErrors?: boolean;
+  tileErrorCount?: number;
   detach?: () => void;
 }
 
@@ -119,54 +118,24 @@ function scheduleWmsCleanup(map: maplibregl.Map, layerId: string, sourceId: stri
   });
 }
 
-function setRasterLayerOpacity(map: maplibregl.Map, layerId: string, opacity: number) {
+function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, value));
+}
+
+function setRasterLayerPaint(map: maplibregl.Map, layerId: string, plan: Pick<RenderLayerPlan, "opacity" | "visualFilters">) {
   if (!map.getLayer(layerId)) return;
-  map.setPaintProperty(layerId, "raster-opacity", opacity);
-  map.setPaintProperty(layerId, "raster-resampling", "linear");
+  const filters = plan.visualFilters;
+  const brightness = clamp(filters?.rasterBrightness ?? 0, -1, 1);
+  map.setPaintProperty(layerId, "raster-opacity", plan.opacity);
+  map.setPaintProperty(layerId, "raster-resampling", filters?.rasterSmoothing === "nearest" ? "nearest" : "linear");
+  map.setPaintProperty(layerId, "raster-contrast", clamp(filters?.rasterContrast ?? 0, -1, 1));
+  map.setPaintProperty(layerId, "raster-saturation", clamp(filters?.rasterSaturation ?? 0, -1, 1));
+  map.setPaintProperty(layerId, "raster-brightness-min", brightness > 0 ? brightness : 0);
+  map.setPaintProperty(layerId, "raster-brightness-max", brightness < 0 ? 1 + brightness : 1);
   map.setPaintProperty(layerId, "raster-fade-duration", 0);
 }
 
-function crossFadeRaster(
-  map: maplibregl.Map,
-  fromLayerId: string | undefined,
-  toLayerId: string,
-  targetOpacity: number,
-  durationMs: number,
-  onDone: () => void,
-) {
-  const start = performance.now();
-
-  function tick(now: number) {
-    const elapsed = now - start;
-    const raw = Math.min(1, elapsed / durationMs);
-    // easeInOutQuad — gentle start, gentle end
-    const t = raw < 0.5 ? 2 * raw * raw : -1 + (4 - 2 * raw) * raw;
-    const fadeIn = targetOpacity * t;
-    // Only fade out the old layer if it still exists
-    if (fromLayerId && map.getLayer(fromLayerId)) {
-      // Fade from current to 0; we don't track the exact start opacity so just
-      // drive both ends of the cross-fade symmetrically.
-      map.setPaintProperty(fromLayerId, "raster-opacity", targetOpacity * (1 - t));
-    }
-    if (map.getLayer(toLayerId)) {
-      map.setPaintProperty(toLayerId, "raster-opacity", fadeIn);
-    }
-    if (raw < 1) {
-      requestAnimationFrame(tick);
-    } else {
-      // Finalize: ensure exact values
-      if (fromLayerId && map.getLayer(fromLayerId)) {
-        map.setPaintProperty(fromLayerId, "raster-opacity", 0);
-      }
-      if (map.getLayer(toLayerId)) {
-        map.setPaintProperty(toLayerId, "raster-opacity", targetOpacity);
-      }
-      onDone();
-    }
-  }
-
-  requestAnimationFrame(tick);
-}
 
 function cleanupTileSet(map: maplibregl.Map, tileSet?: WmsTileSetState) {
   tileSet?.detach?.();
@@ -211,7 +180,7 @@ function wmsDefinitionForPlan(plan: RenderLayerPlan): WmsLayerDefinition | null 
   };
 }
 
-function promotePendingWms(map: maplibregl.Map, layerBaseId: string, opacity: number, isPlaying?: boolean) {
+function promotePendingWms(map: maplibregl.Map, layerBaseId: string, plan: RenderLayerPlan, isPlaying?: boolean) {
   const state = wmsState(map)[layerBaseId];
   const pending = state?.pending;
   if (!state || !pending) return;
@@ -231,23 +200,14 @@ function promotePendingWms(map: maplibregl.Map, layerBaseId: string, opacity: nu
 
   if (previous && previous.sourceId !== pending.sourceId) {
     previous.detach?.();
-    // Cross-fade: shorter during playback so frames don't stack, longer when
-    // paused so the transition is visually comfortable.
-    const fadeMs = isPlaying ? 50 : 100;
-    crossFadeRaster(
-      map,
-      previous.layerId,
-      pending.layerId,
-      opacity,
-      fadeMs,
-      () => scheduleWmsCleanup(map, previous.layerId, previous.sourceId, isPlaying),
-    );
+    setRasterLayerPaint(map, pending.layerId, plan);
+    scheduleWmsCleanup(map, previous.layerId, previous.sourceId, isPlaying);
   } else {
-    setRasterLayerOpacity(map, pending.layerId, opacity);
+    setRasterLayerPaint(map, pending.layerId, plan);
   }
 }
 
-function watchPendingWms(map: maplibregl.Map, layerBaseId: string, tileSet: WmsTileSetState, opacity: number, isPlaying?: boolean) {
+function watchPendingWms(map: maplibregl.Map, layerBaseId: string, tileSet: WmsTileSetState, plan: RenderLayerPlan, isPlaying?: boolean) {
   if (tileSet.detach) return;
   let detached = false;
   // Safety-net timeout: if the WMS server never delivers all tiles, give up
@@ -283,7 +243,7 @@ function watchPendingWms(map: maplibregl.Map, layerBaseId: string, tileSet: WmsT
     }
     if (loaded) {
       detach();
-      promotePendingWms(map, layerBaseId, opacity, isPlaying);
+      promotePendingWms(map, layerBaseId, plan, isPlaying);
     }
   };
 
@@ -299,8 +259,8 @@ function watchPendingWms(map: maplibregl.Map, layerBaseId: string, tileSet: WmsT
     // forever when the WMS server is reachable but never finishes loading
     // every viewport tile (e.g. partial tile errors).
     detach();
-    promotePendingWms(map, layerBaseId, opacity, isPlaying);
-  }, 20_000);
+    promotePendingWms(map, layerBaseId, plan, isPlaying);
+  }, tileSet.tolerateTileErrors ? 3500 : 20_000);
   check();
 }
 
@@ -342,18 +302,24 @@ function ensureWmsErrorHook(map: maplibregl.Map) {
     telemetry.lastSourceError = e.error?.message ?? "unknown WMS tile error";
     for (const [layerId, entry] of Object.entries(wmsState(map))) {
       let matched = false;
+      let tolerant = false;
       for (const tileSet of [entry.current, entry.pending]) {
         if (tileSet?.sourceId === sid) {
-          tileSet.failed = true;
+          tileSet.tileErrorCount = (tileSet.tileErrorCount ?? 0) + 1;
+          if (tileSet.tolerateTileErrors) {
+            tolerant = true;
+          } else {
+            tileSet.failed = true;
+          }
           matched = true;
         }
       }
-      if (entry.pending?.sourceId === sid) {
+      if (entry.pending?.sourceId === sid && !entry.pending.tolerateTileErrors) {
         entry.pending.detach?.();
         cleanupTileSet(map, entry.pending);
         entry.pending = undefined;
       }
-      if (matched) {
+      if (matched && !tolerant) {
         logManager.warn("wms", `WMS tile error on ${layerId}: ${telemetry.lastSourceError}`, {
           layerId,
           sourceId: sid,
@@ -420,12 +386,15 @@ export function syncWmsLayers(options: {
     }
 
     const isGibs = isGibsWmtsLayer(definition);
+    const gibsDate = plan.resolvedTime
+      ? plan.resolvedTime.slice(0, 10)
+      : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const source = isGibs
       ? buildMapLibreWmtsSource({
           tileUrl: buildGibsWmtsTileUrl({
             baseUrl: definition.wmsBaseUrl,
             product: definition.wmsLayerName ?? "",
-            date: plan.resolvedTime ? plan.resolvedTime.slice(0, 10) : new Date().toISOString().slice(0, 10),
+            date: gibsDate,
             tileMatrixSet: typeof plan.source.metadata.gibs_tile_matrix === "string"
               ? plan.source.metadata.gibs_tile_matrix
               : undefined,
@@ -448,7 +417,7 @@ export function syncWmsLayers(options: {
 
     if (currentTile?.url === url) {
       if (options.map.getSource(currentTile.sourceId) && options.map.getLayer(currentTile.layerId)) {
-        setRasterLayerOpacity(options.map, currentTile.layerId, plan.opacity);
+        setRasterLayerPaint(options.map, currentTile.layerId, plan);
         if (pendingTile && pendingTile.url !== url && !options.isPlaying) {
           cleanupTileSet(options.map, pendingTile);
           current.pending = undefined;
@@ -461,7 +430,7 @@ export function syncWmsLayers(options: {
 
     if (pendingTile?.url === url) {
       if (options.map.getSource(pendingTile.sourceId) && options.map.getLayer(pendingTile.layerId)) {
-        watchPendingWms(options.map, plan.id, pendingTile, plan.opacity, options.isPlaying);
+        watchPendingWms(options.map, plan.id, pendingTile, plan, options.isPlaying);
         return;
       }
       cleanupTileSet(options.map, pendingTile);
@@ -515,15 +484,16 @@ export function syncWmsLayers(options: {
       sourceId,
       layerId: mapLayerId,
       requestedAt: performance.now(),
+      tolerateTileErrors: true,
     };
     if (!state[plan.id]) state[plan.id] = {};
     if (state[plan.id].current) {
       state[plan.id].pending = nextTileSet;
       telemetry.pendingRasterFrames = Object.values(state).filter((entry) => entry.pending).length;
-      watchPendingWms(options.map, plan.id, nextTileSet, plan.opacity, options.isPlaying);
+      watchPendingWms(options.map, plan.id, nextTileSet, plan, options.isPlaying);
     } else {
       state[plan.id].current = nextTileSet;
-      setRasterLayerOpacity(options.map, mapLayerId, plan.opacity);
+      setRasterLayerPaint(options.map, mapLayerId, plan);
     }
   });
 

@@ -159,8 +159,7 @@ export function RightInspector({
           </div>
         ) : hasCursor ? (
           <div className="wb-hero-empty wb-hero-empty-noobs">
-            No live station observation near this point. Enable live observations
-            or inspect closer to a station.
+            No observation data at this point. Check API connection or data sources.
           </div>
         ) : null}
       </section>
@@ -256,7 +255,7 @@ export function RightInspector({
         <SectionHeader label="Legend" />
         <div className="wb-section-body">
           {activeLayer ? (
-            <LegendPanel activeLayer={activeLayer} />
+            <LegendPanel activeLayer={activeLayer} runtimeState={runtimeState} />
           ) : (
             <p className="wb-muted" style={{ margin: 0 }}>No active layer selected.</p>
           )}

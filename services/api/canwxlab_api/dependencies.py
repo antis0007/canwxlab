@@ -6,6 +6,7 @@ from canwxlab_api.adapters.composite import CompositeWeatherSourceAdapter
 from canwxlab_api.adapters.eccc_geomet import EcccGeoMetSourceAdapter
 from canwxlab_api.adapters.gibs_wmts import GibsWmtsSourceAdapter
 from canwxlab_api.adapters.mock import MockWeatherSourceAdapter
+from canwxlab_api.adapters.open_meteo import OpenMeteoAdapter
 from canwxlab_api.config import get_settings
 from canwxlab_api.core.event_store import EventStore
 
@@ -35,6 +36,20 @@ def _build_source_adapter() -> WeatherSourceAdapter:
 
 def get_source_adapter() -> WeatherSourceAdapter:
     return _build_source_adapter()
+
+
+@lru_cache
+def _build_open_meteo_adapter() -> OpenMeteoAdapter:
+    settings = get_settings()
+    return OpenMeteoAdapter(
+        cache_dir=Path(settings.cache_dir) / "open_meteo",
+        timeout_seconds=settings.http_timeout_seconds,
+        user_agent=settings.http_user_agent,
+    )
+
+
+def get_open_meteo_adapter() -> OpenMeteoAdapter:
+    return _build_open_meteo_adapter()
 
 
 _event_store: EventStore | None = None

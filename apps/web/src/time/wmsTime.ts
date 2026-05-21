@@ -80,6 +80,21 @@ export function nearestTime(targetTime: number, availableTimes: number[]): numbe
 }
 
 /**
+ * Finds the closest available time at or before targetTime.
+ * Returns null when all available times are after targetTime.
+ */
+export function floorTime(targetTime: number, availableTimes: number[]): number | null {
+  if (!availableTimes || availableTimes.length === 0) return null;
+  let best: number | null = null;
+  for (let i = 0; i < availableTimes.length; i += 1) {
+    const candidate = availableTimes[i];
+    if (candidate > targetTime) break;
+    best = candidate;
+  }
+  return best;
+}
+
+/**
  * Checks if targetTime is exactly in the availableTimes or within range.
  */
 export function isTimeInRange(targetTime: number, availableTimes: number[]): boolean {
@@ -147,10 +162,10 @@ export function resolveWmsTimeForTimelineDetailed(
   if (policy === 'latest') {
     resolvedMs = availableTimes[availableTimes.length - 1];
   } else if (policy === 'fixed' && fixedTime !== undefined) {
-    resolvedMs = nearestTime(fixedTime, availableTimes);
+    resolvedMs = floorTime(fixedTime, availableTimes) ?? nearestTime(fixedTime, availableTimes);
   } else {
     // policy === 'timeline' or historical 'global'
-    resolvedMs = nearestTime(globalTime, availableTimes);
+    resolvedMs = floorTime(globalTime, availableTimes) ?? nearestTime(globalTime, availableTimes);
   }
 
   const rangeStart = availableTimes[0] ?? null;

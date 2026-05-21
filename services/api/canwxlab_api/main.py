@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from canwxlab_api.config import get_settings
 from canwxlab_api.logging_config import configure_logging
 from canwxlab_api.routes import (
+    aircraft,
     alerts,
     cosmic,
     eccc,
@@ -18,6 +19,7 @@ from canwxlab_api.routes import (
     simulations,
     sources,
     verification,
+    weather,
 )
 
 # ── Phase A routes ────────────────────────────────────────────────────────
@@ -76,6 +78,7 @@ async def clear_cache() -> dict[str, str | bool]:
     return {"ok": True, "cleared": str(cache_path)}
 
 
+app.include_router(aircraft.router)
 app.include_router(sources.router)
 app.include_router(layers.router)
 app.include_router(observations.router)
@@ -86,3 +89,4 @@ app.include_router(plugins.router)
 app.include_router(simulations.router)
 app.include_router(verification.router)
 app.include_router(evidence.router)
+app.include_router(weather.router)

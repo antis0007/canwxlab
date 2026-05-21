@@ -5,6 +5,7 @@ import { colorRamps } from "../../layers/colorRamps";
 import { builtInPresets } from "../../layers/presets";
 import type { LayerCategory, LayerDefinition, LayerRuntimeState, UiPreferences } from "../../layers/types";
 import type { DataSource, PluginCatalogItem, VerificationMetric, SimulationRun, WeatherLayer } from "../../types/weather";
+import type { ArchiveSummary, PlanetaryTimelineState, SourceContractView } from "../../types/planetary";
 import type { DiffOverlayPayload } from "../../layers/renderers/diffBitmap";
 import type { CameraState } from "../../layers/types";
 import { MapControlsPanel } from "./MapControlsPanel";
@@ -12,6 +13,7 @@ import { WmsBrowser } from "./WmsBrowser";
 import { SimulationControlPanel } from "./SimulationControlPanel";
 import { DiffPanel } from "./DiffPanel";
 import { ConsolePanel } from "./ConsolePanel";
+import { PlanetaryIntelligencePanel } from "./PlanetaryIntelligencePanel";
 
 interface LeftSidebarProps {
   activeTab: string;
@@ -45,6 +47,10 @@ interface LeftSidebarProps {
   onSetWmsTimePolicy?: (layerId: string, policy: "timeline" | "latest" | "fixed", fixedTime?: number) => void;
   onApplyPreset?: (presetId: string) => void;
   onDiffOverlay?: (payload: DiffOverlayPayload | null) => void;
+  selectedValidTime: string;
+  timelineState: PlanetaryTimelineState;
+  sourceContracts: SourceContractView[];
+  archiveSummary: ArchiveSummary;
 }
 
 // ── Nav rail tab definitions ──────────────────────────────────────────────────
@@ -100,6 +106,19 @@ const NAV_TABS: NavTab[] = [
         <path d="M2.5 5c0-1.4 2.5-2.5 5.5-2.5s5.5 1.1 5.5 2.5-2.5 2.5-5.5 2.5S2.5 6.4 2.5 5Z" />
         <path d="M2.5 5v6c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5V5" />
         <path d="M2.5 8c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5" />
+      </svg>
+    ),
+  },
+  {
+    id: "planetary",
+    label: "Planetary",
+    icon: (
+      <svg {...ICON_PROPS}>
+        <circle cx="8" cy="8" r="5.5" />
+        <path d="M2.5 8h11" />
+        <path d="M8 2.5c1.6 1.7 2.4 3.5 2.4 5.5s-.8 3.8-2.4 5.5C6.4 11.8 5.6 10 5.6 8S6.4 4.2 8 2.5Z" />
+        <path d="M4.2 4.7c1 .7 2.3 1.1 3.8 1.1s2.8-.4 3.8-1.1" />
+        <path d="M4.2 11.3c1-.7 2.3-1.1 3.8-1.1s2.8.4 3.8 1.1" />
       </svg>
     ),
   },
@@ -175,10 +194,11 @@ const CATEGORY_META: Record<LayerCategory, { label: string; order: number }> = {
   satellite:    { label: "Satellite",    order: 3 },
   observation:  { label: "Observations", order: 4 },
   alert:        { label: "Alerts",       order: 5 },
-  simulation:   { label: "Simulation",   order: 6 },
-  diagnostic:   { label: "Diagnostics",  order: 7 },
-  plugin:       { label: "Plugins",      order: 8 },
-  experimental: { label: "Experimental", order: 9 },
+  infrastructure: { label: "Infrastructure", order: 6 },
+  simulation:   { label: "Simulation",   order: 7 },
+  diagnostic:   { label: "Diagnostics",  order: 8 },
+  plugin:       { label: "Plugins",      order: 9 },
+  experimental: { label: "Experimental", order: 10 },
 };
 
 // ── Layer row component (compact) ─────────────────────────────────────────────
@@ -213,6 +233,7 @@ function LayerRow({
   onSetWmsTimePolicy,
 }: LayerRowProps) {
   const rampDef = colorRamps.find((r) => r.id === state.colourRamp);
+  const isPowerGrid = layer.rendererType === "deck-power-grid";
 
   return (
     <>
@@ -298,12 +319,35 @@ function LayerRow({
             <div className="wb-advanced-grid">
               <label>Min<input type="number" value={state.controls.min} onChange={(e) => onSetControl("min", Number(e.target.value))} /></label>
               <label>Max<input type="number" value={state.controls.max} onChange={(e) => onSetControl("max", Number(e.target.value))} /></label>
-              <label>Smooth<input type="range" min={0} max={1} step={0.05} value={state.controls.smoothing} onChange={(e) => onSetControl("smoothing", Number(e.target.value))} /></label>
+              <label>{isPowerGrid ? "Warble" : "Smooth"}<input type="range" min={0} max={1} step={0.05} value={state.controls.smoothing} onChange={(e) => onSetControl("smoothing", Number(e.target.value))} /></label>
               <label>Particles<input type="number" min={100} max={8000} step={100} value={state.controls.particleCount} onChange={(e) => onSetControl("particleCount", Number(e.target.value))} /></label>
               <label>Wind ×<input type="number" min={0.1} max={4} step={0.1} value={state.controls.windScale} onChange={(e) => onSetControl("windScale", Number(e.target.value))} /></label>
               <label>Precip ×<input type="number" min={0.1} max={4} step={0.1} value={state.controls.precipitationIntensity} onChange={(e) => onSetControl("precipitationIntensity", Number(e.target.value))} /></label>
               <label>Cloud α<input type="range" min={0} max={1} step={0.05} value={state.controls.cloudOpacity} onChange={(e) => onSetControl("cloudOpacity", Number(e.target.value))} /></label>
               <label>Contour<input type="number" min={1} max={20} step={1} value={state.controls.contourInterval} onChange={(e) => onSetControl("contourInterval", Number(e.target.value))} /></label>
+              {(layer.rendererType === "wms-raster" || layer.rendererType === "maplibre-raster") && (
+                <>
+                  <label style={{ gridColumn: "1 / -1" }}>
+                    Resample
+                    <select value={state.controls.rasterSmoothing ?? "linear"} onChange={(e) => onSetControl("rasterSmoothing", e.target.value)}>
+                      <option value="linear">linear</option>
+                      <option value="nearest">nearest</option>
+                    </select>
+                  </label>
+                  <label>
+                    Contrast
+                    <input type="range" min={-1} max={1} step={0.05} value={state.controls.rasterContrast ?? 0} onChange={(e) => onSetControl("rasterContrast", Number(e.target.value))} />
+                  </label>
+                  <label>
+                    Saturation
+                    <input type="range" min={-1} max={1} step={0.05} value={state.controls.rasterSaturation ?? 0} onChange={(e) => onSetControl("rasterSaturation", Number(e.target.value))} />
+                  </label>
+                  <label>
+                    Bright
+                    <input type="range" min={-1} max={1} step={0.05} value={state.controls.rasterBrightness ?? 0} onChange={(e) => onSetControl("rasterBrightness", Number(e.target.value))} />
+                  </label>
+                </>
+              )}
               <label style={{ gridColumn: "1 / -1" }}>
                 Blend
                 <select value={state.controls.blendMode} onChange={(e) => onSetControl("blendMode", e.target.value)}>
@@ -722,6 +766,8 @@ function SourceTab({ sources }: Pick<LeftSidebarProps, "sources">) {
 function PreferencesTab({ uiPreferences, onSetUiPreferences }: Pick<LeftSidebarProps, "uiPreferences" | "onSetUiPreferences">) {
   const prefs = uiPreferences;
   const set = (patch: Partial<typeof prefs>) => onSetUiPreferences({ ...prefs, ...patch });
+  const renderQuality = prefs.renderQuality ?? "balanced";
+  const starDistance = Number.isFinite(prefs.starMaxDistanceLy) ? Math.max(50, Math.min(5000, Math.round(prefs.starMaxDistanceLy as number))) : 500;
 
   return (
     <div className="wb-scroll-panel">
@@ -733,7 +779,16 @@ function PreferencesTab({ uiPreferences, onSetUiPreferences }: Pick<LeftSidebarP
         </label>
         <label className="wb-inline-toggle" style={{ marginTop: 6 }}>
           <input type="checkbox" checked={prefs.photorealisticGlobe ?? false} onChange={(e) => set({ photorealisticGlobe: e.target.checked })} />
-          Experimental space backdrop
+          Photorealistic orbital globe
+        </label>
+        <label className="wb-inline-toggle" style={{ marginTop: 6, opacity: prefs.photorealisticGlobe ? 1 : 0.55 }}>
+          <input
+            type="checkbox"
+            checked={prefs.globePhotoGrade ?? true}
+            disabled={!prefs.photorealisticGlobe}
+            onChange={(e) => set({ globePhotoGrade: e.target.checked })}
+          />
+          Space-photo colour grade
         </label>
         <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
@@ -756,6 +811,49 @@ function PreferencesTab({ uiPreferences, onSetUiPreferences }: Pick<LeftSidebarP
               <option value="high-contrast">High Contrast</option>
             </select>
           </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+            Star exposure
+            <select value={prefs.starExposure ?? "realistic"} onChange={(e) => set({ starExposure: e.target.value as typeof prefs.starExposure })} style={{ flex: 1 }}>
+              <option value="dim">Dim</option>
+              <option value="realistic">Realistic</option>
+              <option value="bright">Bright</option>
+              <option value="extreme">Extreme</option>
+            </select>
+          </label>
+          <label style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6, alignItems: "center", fontSize: 11 }}>
+            <span>Max star distance</span>
+            <strong>{starDistance} ly</strong>
+            <input
+              type="range"
+              min={50}
+              max={5000}
+              step={50}
+              value={starDistance}
+              onChange={(e) => set({ starMaxDistanceLy: Number(e.target.value) })}
+              style={{ gridColumn: "1 / span 2" }}
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className="wb-panel-block">
+        <strong style={{ fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--wb-muted)" }}>Quality</strong>
+        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+            Rendering profile
+            <select
+              value={renderQuality}
+              onChange={(e) => set({ renderQuality: e.target.value as typeof renderQuality })}
+              style={{ flex: 1 }}
+            >
+              <option value="performance">Performance</option>
+              <option value="balanced">Balanced</option>
+              <option value="quality">Quality</option>
+            </select>
+          </label>
+          <p className="wb-muted" style={{ margin: "2px 0 0 0" }}>
+            Controls satellite compositor load, texture resolution, pixel ratio cap, and starfield FPS.
+          </p>
         </div>
       </div>
 
@@ -793,6 +891,7 @@ const TAB_TITLES: Record<string, string> = {
   layers:       "Layers",
   plugins:      "Plugin Manager",
   sources:      "Data Sources",
+  planetary:    "Planetary Intelligence",
   wms:          "WMS Browser",
   camera:       "Camera & Navigation",
   simulation:   "Simulation",
@@ -858,6 +957,17 @@ export function LeftSidebar(props: LeftSidebarProps) {
 
         {props.activeTab === "sources" && (
           <SourceTab sources={props.sources} />
+        )}
+
+        {props.activeTab === "planetary" && (
+          <PlanetaryIntelligencePanel
+            cameraState={props.cameraState}
+            selectedValidTime={props.selectedValidTime}
+            activeLayerCount={props.layers.filter((layer) => props.runtimeState[layer.id]?.enabled).length}
+            timelineState={props.timelineState}
+            sourceContracts={props.sourceContracts}
+            archiveSummary={props.archiveSummary}
+          />
         )}
 
         {props.activeTab === "wms" && props.onAddDynamicLayer && (

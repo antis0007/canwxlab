@@ -99,8 +99,15 @@ to the photorealistic globe and tracks the live timeline.
 
 Near-term OSINT Earth additions after Phase A provenance/event hardening:
 
-- non-weather source/provenance registry and privacy-class badges
-- mode switcher for Weather, Earth, Cyberspace, Hyperreality, Infrastructure, and Space
-- first public live layers: OpenSky aircraft, GTFS Realtime transit, USGS/Earthquakes Canada
-  seismic events, GDACS disasters, GDELT news events, Wikimedia EventStreams, Cloudflare Radar
-  outages, RIPE RIS Live BGP updates, and PeeringDB facilities/IXPs
+- Source/Event/Layer model: formal source registry, shared `WorldEvent` schema, provenance,
+  source health/freshness overlay, privacy-class badges, and public-data replay archive.
+- Decontamination before expansion: fix mock-mode live leakage, source-status drift, and
+  blocking simulation paths before adding broad OSINT adapters.
+- Mode switcher for Weather, Earth, Cyberspace, Hyperreality, Infrastructure, and Space.
+- First public live layers should be civic-operational: Canadian NPAS/CAP alerts, generic CAP
+  feeds, 511 road conditions/cameras/incidents, CBSA/CBP border wait times, Canada/openFDA
+  recalls, GTFS Realtime transit, energy demand/outages, water advisories, WHO/CDC public-health
+  signals, USGS/Earthquakes Canada seismic events, OpenAQ, and radiation monitors.
+- Later public live layers: AIS vessels/ports/logistics, GDELT/ReliefWeb/GDACS/Wikimedia/GitHub
+  public-information streams, Cloudflare Radar outages, RIPE RIS Live BGP updates, PeeringDB,
+  RDAP, CISA KEV, NVD, FIRST EPSS, NASA Black Marble, and orbital/celestial sources.

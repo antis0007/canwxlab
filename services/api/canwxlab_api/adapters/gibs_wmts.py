@@ -169,6 +169,7 @@ class GibsWmtsSourceAdapter(WeatherSourceAdapter):
                     "gibs_product": entry["product"],
                     "gibs_tile_matrix": GIBS_TILE_MATRIX,
                     "gibs_image_format": GIBS_IMAGE_FORMAT,
+                    "time_extent": time_extent,
                     "satellite_orbit_type": "polar",
                     "satellite_sub_point_lonlat": None,  # polar = no fixed sub-point
                     "satellite_coverage_radius_deg": POLAR_COVERAGE_RADIUS_DEG,

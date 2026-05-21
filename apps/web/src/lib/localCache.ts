@@ -1,3 +1,5 @@
+import { buildArchiveAssetRecord, recordArchiveAsset, shouldCacheUrl } from "./archiveIndex";
+
 const API_CACHE_NAME = "canwxlab-api-v1";
 const IMAGE_CACHE_NAME = "canwxlab-images-v1";
 const META_PREFIX = "canwxlab.cache.meta.";
@@ -60,9 +62,16 @@ async function cachedResponse(
 
   try {
     const response = await fetch(url, init);
-    if (response.ok) {
+    if (response.ok && shouldCacheUrl(url)) {
+      const nextExpiresAt = now + policy.ttlMs;
       await cache.put(request, response.clone());
-      writeExpiry(url, now + policy.ttlMs);
+      writeExpiry(url, nextExpiresAt);
+      void recordArchiveAsset(buildArchiveAssetRecord({
+        cacheName,
+        url,
+        response: response.clone(),
+        expiresAt: nextExpiresAt,
+      }));
     }
     return response;
   } catch (err) {
@@ -89,6 +98,6 @@ export async function cachedGetImageBlob(
   return cachedResponse(IMAGE_CACHE_NAME, url, policy, {
     signal,
     mode: "cors",
-    cache: "force-cache",
+    cache: "no-store",
   });
 }

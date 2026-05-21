@@ -29,7 +29,12 @@ export function normalizeWmsTimePolicy(policy: WmsTimePolicy | undefined): Rende
 
 function rendererTypeForLayer(layer: LayerDefinition): RenderLayerType {
   if (layer.rendererType === "wms-raster") return "wms-raster";
-  if (layer.rendererType === "deck-scatter" || layer.rendererType === "deck-polygon" || layer.rendererType === "deck-line") {
+  if (
+    layer.rendererType === "deck-scatter"
+    || layer.rendererType === "deck-polygon"
+    || layer.rendererType === "deck-line"
+    || layer.rendererType === "deck-power-grid"
+  ) {
     return "deck-vector";
   }
   if (layer.rendererType === "maplibre-raster") return "native-raster";
@@ -43,11 +48,18 @@ function normalizeBlendMode(value: unknown): RenderBlendMode {
   return "normal";
 }
 
+function clamp(value: unknown, min: number, max: number, fallback = 0): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(min, Math.min(max, numeric));
+}
+
 function priorityForLayer(layer: LayerDefinition): number {
   if (layer.category === "alert") return 1000;
   if (layer.category === "observation") return 900;
   if (layer.category === "radar") return 800;
   if (layer.category === "satellite") return 700;
+  if (layer.category === "infrastructure") return 650;
   if (layer.category === "forecast") return 600;
   return 500;
 }
@@ -185,6 +197,12 @@ export function buildRenderPlan(input: {
           },
         },
         blendMode: normalizeBlendMode(runtime?.controls.blendMode),
+        visualFilters: {
+          rasterSmoothing: runtime?.controls.rasterSmoothing === "nearest" ? "nearest" : "linear",
+          rasterContrast: clamp(runtime?.controls.rasterContrast, -1, 1),
+          rasterSaturation: clamp(runtime?.controls.rasterSaturation, -1, 1),
+          rasterBrightness: clamp(runtime?.controls.rasterBrightness, -1, 1),
+        },
         priority: priorityForLayer(layer),
       };
     })

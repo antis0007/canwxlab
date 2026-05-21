@@ -12,7 +12,7 @@ import {
   windSpeedFromUV,
 } from "./weatherAnalysis";
 import { detectPressureSystems, type PressureSystem } from "./pressureSystems";
-import type { LayerDefinition, RendererFeatureValue, RenderLayerPlan } from "./types";
+import type { LayerDefinition, LayerRuntimeState, RendererFeatureValue, RenderLayerPlan } from "./types";
 
 export interface HeroMetric {
   /** Stable id so the UI can key elements and apply consistent colour. */
@@ -37,6 +37,7 @@ export interface InspectorBuildInput {
   frame: number;
   activeLayers: LayerDefinition[];
   renderPlan: RenderLayerPlan[];
+  runtimeState?: Record<string, LayerRuntimeState>;
   observations: Observation[];
   alerts: AlertFeature[];
   sampledRgb?: [number, number, number] | null;
@@ -257,6 +258,15 @@ function readNumber(values: Record<string, number>, key: string): number | null 
 function buildHeroMetrics(input: InspectorBuildInput): HeroMetric[] {
   const metrics: HeroMetric[] = [];
   const nearest = nearestMeasuredObservation(input.observations, input.longitude, input.latitude);
+  const sampledTemperature = sampledLayerValue(input, (layer, plan) => {
+    const haystack = `${layer.title} ${layer.variable ?? ""} ${plan.source.wmsLayerName ?? ""}`.toLowerCase();
+    return (
+      haystack.includes("surface temp")
+      || haystack.includes("temperature")
+      || haystack.includes("tmp")
+      || haystack.includes("t2m")
+    );
+  });
 
   const stationTemp = nearest ? readNumber(nearest.values, "temperature_2m") : null;
   const stationPressure = nearest ? readNumber(nearest.values, "pressure_msl") : null;
@@ -282,7 +292,19 @@ function buildHeroMetrics(input: InspectorBuildInput): HeroMetric[] {
   const derivedDir = stationWindDir
     ?? (stationWindU !== null && stationWindV !== null ? windDirectionFromUVDeg(stationWindU, stationWindV) : null);
 
-  if (stationTemp !== null) {
+  if (sampledTemperature) {
+    metrics.push({
+      id: "temperature",
+      label: "SFC TEMP",
+      value: sampledTemperature.value.toFixed(1),
+      unit: sampledTemperature.unit ?? "deg",
+      status: "derived",
+      caption: sampledTemperature.confidence >= 0.7
+        ? `canvas sample - ${sampledTemperature.layerTitle}`
+        : `approx canvas sample - ${sampledTemperature.layerTitle}`,
+      source: sampledTemperature.layerId,
+    });
+  } else if (stationTemp !== null) {
     metrics.push({
       id: "temperature",
       label: "TEMP",
@@ -378,6 +400,67 @@ function buildHeroMetrics(input: InspectorBuildInput): HeroMetric[] {
   return metrics;
 }
 
+function layerRampId(input: InspectorBuildInput, layer: LayerDefinition): string {
+  return input.runtimeState?.[layer.id]?.colourRamp ?? layer.colourRamp;
+}
+
+function isServerRendered(layer: LayerDefinition): boolean {
+  return layer.serviceType === "wms" || layer.serviceType === "wmts";
+}
+
+function layerSupportsNumericCanvasSampling(layer: LayerDefinition): boolean {
+  if (!isServerRendered(layer)) return true;
+  return typeof layer.metadata?.legend_sampling_ramp === "string";
+}
+
+function samplingRampId(input: InspectorBuildInput, layer: LayerDefinition): string {
+  return typeof layer.metadata?.legend_sampling_ramp === "string"
+    ? layer.metadata.legend_sampling_ramp
+    : layerRampId(input, layer);
+}
+
+function sampledLayerValue(
+  input: InspectorBuildInput,
+  predicate?: (layer: LayerDefinition, plan: RenderLayerPlan) => boolean,
+): {
+  layerId: string;
+  layerTitle: string;
+  value: number;
+  unit?: string;
+  confidence: number;
+} | null {
+  if (!input.sampledRgb) return null;
+  const candidates = input.renderPlan
+    .filter((plan) => plan.visible)
+    .slice()
+    .sort((a, b) => b.order - a.order)
+    .map((plan) => ({
+      plan,
+      layer: input.activeLayers.find((candidate) => candidate.id === plan.source.layerId),
+    }))
+    .filter((entry): entry is { plan: RenderLayerPlan; layer: LayerDefinition } => Boolean(entry.layer))
+    .filter(({ layer, plan }) => {
+      if (predicate && !predicate(layer, plan)) return false;
+      if (!layerSupportsNumericCanvasSampling(layer)) return false;
+      if (layer.category === "satellite" || layer.category === "radar") return false;
+      if (layer.legend.unit === "category") return false;
+      return true;
+    });
+
+  for (const { layer } of candidates) {
+    const derived = valueForRampColor(samplingRampId(input, layer), input.sampledRgb);
+    if (!derived) continue;
+    return {
+      layerId: layer.id,
+      layerTitle: layer.title,
+      value: derived.value,
+      unit: layer.legend.unit ?? layer.unit ?? undefined,
+      confidence: derived.confidence,
+    };
+  }
+  return null;
+}
+
 function buildAnalysisRows(input: InspectorBuildInput): RendererFeatureValue[] {
   const values: RendererFeatureValue[] = [];
   const topQueryableLayer = input.renderPlan
@@ -392,7 +475,8 @@ function buildAnalysisRows(input: InspectorBuildInput): RendererFeatureValue[] {
       if (!layer) return false;
       const variable = `${layer.variable ?? ""} ${layer.title}`.toLowerCase();
       return (
-        layer.category !== "satellite"
+        layerSupportsNumericCanvasSampling(layer)
+        && layer.category !== "satellite"
         && layer.category !== "radar"
         && layer.legend.unit !== "category"
         && !variable.includes("alert")
@@ -401,7 +485,7 @@ function buildAnalysisRows(input: InspectorBuildInput): RendererFeatureValue[] {
 
   if (topQueryableLayer?.layer) {
     if (input.sampledRgb) {
-      const derived = valueForRampColor(topQueryableLayer.layer.colourRamp, input.sampledRgb);
+      const derived = valueForRampColor(samplingRampId(input, topQueryableLayer.layer), input.sampledRgb);
       if (derived) {
         const prefix = derived.confidence >= 0.7 ? "" : "approx ";
         values.push({
@@ -495,10 +579,10 @@ export function buildInspectorPayload(input: InspectorBuildInput): InspectorPayl
   const heroMetrics = buildHeroMetrics(input);
   const values = buildAnalysisRows(input);
   const wmsLayers = buildWmsRows(input.renderPlan);
-  const observationPool = input.observations.filter(isMeasuredObservation);
+  const measuredPool = input.observations.filter(isMeasuredObservation);
   const alertPool = input.alerts.filter((alert) => alert.source_status === "live" || alert.source_status === "stale");
-  const pressureSystems = detectPressureSystems(observationPool);
-  const nearest = nearestObservation(observationPool, input.longitude, input.latitude);
+  const pressureSystems = detectPressureSystems(measuredPool);
+  const nearest = nearestMeasuredObservation(input.observations, input.longitude, input.latitude);
   const nearestStationKm = nearest
     ? haversineKm(input.longitude, input.latitude, nearest.longitude, nearest.latitude)
     : null;
@@ -508,7 +592,7 @@ export function buildInspectorPayload(input: InspectorBuildInput): InspectorPayl
     latitude: input.latitude,
     heroMetrics,
     values,
-    nearestStation: nearestStationName(observationPool, input.longitude, input.latitude),
+    nearestStation: nearest ? `${nearest.station_name} (${nearest.station_id})` : null,
     nearestStationKm,
     activeAlert: activeAlertAtPoint(alertPool, input.longitude, input.latitude),
     pressureSystems,

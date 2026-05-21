@@ -1,10 +1,11 @@
 import asyncio
 import hashlib
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import unquote, urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -20,11 +21,17 @@ from canwxlab_api.dependencies import get_source_adapter
 from canwxlab_api.models import WmsCapabilitiesSummaryResponse, WmsCapabilityLayerSummary
 from canwxlab_api.routes.params import parse_bbox_param
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/eccc", tags=["eccc"])
 
 _WMS_IMAGE_LOCKS: dict[str, asyncio.Lock] = {}
-_WMS_IMAGE_FAILURES: dict[str, tuple[datetime, str]] = {}
-_WMS_IMAGE_FAILURE_TTL_SECONDS = 5 * 60
+_FALLBACK_TIME_STEPS_MINUTES = (10, 20, 30, 60)
+_WMS_UPSTREAM_GATE_LOCK = asyncio.Lock()
+_WMS_UPSTREAM_NEXT_AT = 0.0
+_WMS_UPSTREAM_COOLDOWN_UNTIL: datetime | None = None
+_WMS_UPSTREAM_SEMAPHORE: asyncio.Semaphore | None = None
+_WMS_UPSTREAM_SEMAPHORE_LIMIT: int | None = None
 
 
 def _adapter_wms_base(adapter: WeatherSourceAdapter) -> str:
@@ -49,13 +56,14 @@ def _build_wms_params(
     format: str,
     transparent: bool,
 ) -> dict[str, str]:
+    normalized_bbox = _normalize_wms_bbox(bbox)
     params = {
         "service": "WMS",
         "version": "1.3.0",
         "request": "GetMap",
         "layers": layer_name,
         "crs": crs,
-        "bbox": bbox,
+        "bbox": normalized_bbox,
         "width": str(width),
         "height": str(height),
         "format": format,
@@ -64,8 +72,55 @@ def _build_wms_params(
     if style is not None:
         params["styles"] = style
     if time:
+        try:
+            t = datetime.fromisoformat(time.replace("Z", "+00:00"))
+            time = t.strftime("%Y-%m-%dT%H:%M:%SZ")
+        except (ValueError, TypeError):
+            pass
         params["time"] = time
     return params
+
+
+def _normalize_wms_bbox(value: str) -> str:
+    decoded = unquote(value).strip()
+    parts = [part.strip() for part in decoded.split(",")]
+    if len(parts) != 4:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason": "invalid_bbox",
+                "message": "WMS BBOX must contain exactly four comma-separated numbers.",
+                "bbox": value,
+                "decoded_bbox": decoded,
+                "part_count": len(parts),
+            },
+        )
+    numbers: list[float] = []
+    for part in parts:
+        try:
+            numbers.append(float(part))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "reason": "invalid_bbox",
+                    "message": "WMS BBOX values must be numeric.",
+                    "bbox": value,
+                    "decoded_bbox": decoded,
+                    "invalid_part": part,
+                },
+            ) from exc
+    if numbers[0] >= numbers[2] or numbers[1] >= numbers[3]:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason": "invalid_bbox",
+                "message": "WMS BBOX must be minx,miny,maxx,maxy.",
+                "bbox": value,
+                "decoded_bbox": decoded,
+            },
+        )
+    return ",".join(f"{number:.1f}" for number in numbers)
 
 
 def _wms_image_cache_key(base_url: str, params: dict[str, str]) -> str:
@@ -156,6 +211,100 @@ def _upstream_headers(accept: str) -> dict[str, str]:
         "User-Agent": settings.http_user_agent,
         "Accept": accept,
     }
+
+
+def _wms_upstream_semaphore() -> asyncio.Semaphore:
+    global _WMS_UPSTREAM_SEMAPHORE, _WMS_UPSTREAM_SEMAPHORE_LIMIT
+    limit = max(1, get_settings().eccc_wms_upstream_max_concurrency)
+    if _WMS_UPSTREAM_SEMAPHORE is None or _WMS_UPSTREAM_SEMAPHORE_LIMIT != limit:
+        _WMS_UPSTREAM_SEMAPHORE = asyncio.Semaphore(limit)
+        _WMS_UPSTREAM_SEMAPHORE_LIMIT = limit
+    return _WMS_UPSTREAM_SEMAPHORE
+
+
+def _retry_after_seconds(now: datetime) -> int | None:
+    if _WMS_UPSTREAM_COOLDOWN_UNTIL is None:
+        return None
+    remaining = int((_WMS_UPSTREAM_COOLDOWN_UNTIL - now).total_seconds())
+    return remaining if remaining > 0 else None
+
+
+def _parse_retry_after(value: str | None) -> int | None:
+    if not value:
+        return None
+    try:
+        seconds = int(value)
+    except ValueError:
+        return None
+    return seconds if seconds > 0 else None
+
+
+async def _wait_for_wms_upstream_slot() -> None:
+    global _WMS_UPSTREAM_NEXT_AT
+    min_interval = max(0.0, get_settings().eccc_wms_upstream_min_interval_seconds)
+    async with _WMS_UPSTREAM_GATE_LOCK:
+        loop = asyncio.get_running_loop()
+        now = loop.time()
+        wait_seconds = max(0.0, _WMS_UPSTREAM_NEXT_AT - now)
+        _WMS_UPSTREAM_NEXT_AT = max(now, _WMS_UPSTREAM_NEXT_AT) + min_interval
+    if wait_seconds > 0:
+        await asyncio.sleep(wait_seconds)
+
+
+def _start_wms_upstream_cooldown(seconds: int | None = None) -> None:
+    global _WMS_UPSTREAM_COOLDOWN_UNTIL
+    settings = get_settings()
+    duration = seconds if seconds is not None else settings.eccc_wms_upstream_cooldown_seconds
+    duration = max(60, duration)
+    until = datetime.now(UTC) + timedelta(seconds=duration)
+    if _WMS_UPSTREAM_COOLDOWN_UNTIL is None or until > _WMS_UPSTREAM_COOLDOWN_UNTIL:
+        _WMS_UPSTREAM_COOLDOWN_UNTIL = until
+
+
+def _clear_wms_upstream_cooldown() -> None:
+    global _WMS_UPSTREAM_COOLDOWN_UNTIL
+    _WMS_UPSTREAM_COOLDOWN_UNTIL = None
+
+
+async def _fetch_wms_upstream_image(
+    base_url: str,
+    params: dict[str, str],
+    accept: str,
+) -> httpx.Response:
+    logger.info(
+        "ECCC WMS upstream request",
+        extra={
+            "event": "eccc_wms_upstream_request",
+            "layer": params.get("layers"),
+            "time": params.get("time"),
+            "bbox": params.get("bbox"),
+            "crs": params.get("crs") or params.get("srs"),
+            "width": params.get("width"),
+            "height": params.get("height"),
+            "format": params.get("format"),
+            "upstream_base_url": base_url,
+        },
+    )
+    async with _wms_upstream_semaphore():
+        await _wait_for_wms_upstream_slot()
+        async with httpx.AsyncClient(
+            timeout=get_settings().http_timeout_seconds,
+            headers=_upstream_headers(accept),
+        ) as client:
+            response = await client.get(base_url, params=params)
+            logger.info(
+                "ECCC WMS upstream response",
+                extra={
+                    "event": "eccc_wms_upstream_response",
+                    "layer": params.get("layers"),
+                    "time": params.get("time"),
+                    "status_code": response.status_code,
+                    "content_type": response.headers.get("content-type"),
+                    "retry_after": response.headers.get("retry-after"),
+                    "upstream_url": str(response.request.url),
+                },
+            )
+            return response
 
 
 @router.get("/collections")
@@ -281,6 +430,84 @@ async def build_wms_url(
     return {"url": f"{base_url}?{urlencode(params)}"}
 
 
+def _build_fallback_params(
+    params: dict[str, str], time_str: str, step_back_minutes: int
+) -> dict[str, str] | None:
+    """Return a copy of *params* with *time* stepped back by *step_back_minutes*."""
+    try:
+        t = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    earlier = t - timedelta(minutes=step_back_minutes)
+    new = dict(params)
+    new["time"] = earlier.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return new
+
+
+def _find_cached_fallback(
+    base_url: str,
+    params: dict[str, str],
+    time_str: str | None,
+    cache_dir: str,
+) -> tuple[bytes, str, datetime, datetime] | None:
+    """Search disk cache for a frame at progressively earlier times.
+
+    Returns the first valid (unexpired or expired) cached frame found, or None.
+    """
+    if not time_str:
+        return None
+    for step in _FALLBACK_TIME_STEPS_MINUTES:
+        fallback_params = _build_fallback_params(params, time_str, step)
+        if fallback_params is None:
+            continue
+        key = _wms_image_cache_key(base_url, fallback_params)
+        entry = _read_wms_image_cache(cache_dir, key)
+        if entry is not None:
+            return entry
+    return None
+
+
+def _cached_or_fallback_wms_response(
+    cached: tuple[bytes, str, datetime, datetime] | None,
+    base_url: str,
+    params: dict[str, str],
+    time_str: str | None,
+    cache_dir: str,
+) -> Response | None:
+    if cached is not None:
+        content, content_type, _retrieved_at, expires_at = cached
+        return _cached_wms_response(content, content_type, expires_at, "stale")
+    fallback = _find_cached_fallback(base_url, params, time_str, cache_dir)
+    if fallback is not None:
+        fb_content, fb_type, _fb_ret, fb_expires = fallback
+        return _cached_wms_response(fb_content, fb_type, fb_expires, "fallback")
+    return None
+
+
+def _wms_cooldown_exception(
+    retry_after: int,
+    layer_name: str,
+    reason: str = "wms_upstream_cooldown",
+    upstream_status: int | None = None,
+) -> HTTPException:
+    detail: dict[str, Any] = {
+        "reason": reason,
+        "retry_after_seconds": retry_after,
+        "layer": layer_name,
+    }
+    if upstream_status is not None:
+        detail["upstream_status"] = upstream_status
+    return HTTPException(
+        status_code=503,
+        detail=detail,
+        headers={
+            "Retry-After": str(retry_after),
+            "cache-control": f"public, max-age={min(retry_after, 300)}",
+            "x-canwxlab-cache": "upstream-cooldown",
+        },
+    )
+
+
 @router.get("/wms/image")
 async def get_wms_image(
     layer_name: str = Query(...),
@@ -306,17 +533,14 @@ async def get_wms_image(
         content, content_type, _retrieved_at, expires_at = cached
         if expires_at > now:
             return _cached_wms_response(content, content_type, expires_at, "hit")
-    failure = _WMS_IMAGE_FAILURES.get(cache_key)
-    if failure is not None:
-        failed_at, detail = failure
-        if (now - failed_at).total_seconds() < _WMS_IMAGE_FAILURE_TTL_SECONDS:
-            raise HTTPException(
-                status_code=502,
-                detail=detail,
-                headers={"cache-control": "public, max-age=300", "x-canwxlab-cache": "failure-hit"},
-            )
-        _WMS_IMAGE_FAILURES.pop(cache_key, None)
-
+    retry_after = _retry_after_seconds(now)
+    if retry_after is not None:
+        cached_response = _cached_or_fallback_wms_response(
+            cached, base_url, params, time, settings.cache_dir
+        )
+        if cached_response is not None:
+            return cached_response
+        raise _wms_cooldown_exception(retry_after, layer_name)
     lock = _WMS_IMAGE_LOCKS.setdefault(cache_key, asyncio.Lock())
     async with lock:
         cached = _read_wms_image_cache(settings.cache_dir, cache_key)
@@ -325,37 +549,113 @@ async def get_wms_image(
             content, content_type, _retrieved_at, expires_at = cached
             if expires_at > now:
                 return _cached_wms_response(content, content_type, expires_at, "hit")
-        failure = _WMS_IMAGE_FAILURES.get(cache_key)
-        if failure is not None:
-            failed_at, detail = failure
-            if (now - failed_at).total_seconds() < _WMS_IMAGE_FAILURE_TTL_SECONDS:
-                raise HTTPException(
-                    status_code=502,
-                    detail=detail,
-                    headers={"cache-control": "public, max-age=300", "x-canwxlab-cache": "failure-hit"},
-                )
-            _WMS_IMAGE_FAILURES.pop(cache_key, None)
-
+        retry_after = _retry_after_seconds(now)
+        if retry_after is not None:
+            cached_response = _cached_or_fallback_wms_response(
+                cached, base_url, params, time, settings.cache_dir
+            )
+            if cached_response is not None:
+                return cached_response
+            raise _wms_cooldown_exception(retry_after, layer_name)
         try:
-            async with httpx.AsyncClient(
-                timeout=settings.http_timeout_seconds,
-                headers=_upstream_headers(format),
-            ) as client:
-                upstream = await client.get(base_url, params=params)
-                upstream.raise_for_status()
+            upstream = await _fetch_wms_upstream_image(base_url, params, format)
+            if upstream.status_code in {403, 429, 503}:
+                _start_wms_upstream_cooldown(
+                    _parse_retry_after(upstream.headers.get("Retry-After"))
+                )
+            upstream.raise_for_status()
+            _clear_wms_upstream_cooldown()
         except httpx.HTTPError as exc:
+            throttled_status = None
+            upstream_status = None
+            upstream_content_type = None
+            upstream_body = None
+            if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in {403, 429, 503}:
+                throttled_status = exc.response.status_code
+                _start_wms_upstream_cooldown(
+                    _parse_retry_after(exc.response.headers.get("Retry-After"))
+                )
+            if isinstance(exc, httpx.HTTPStatusError):
+                upstream_status = exc.response.status_code
+                upstream_content_type = exc.response.headers.get("content-type")
+                upstream_body = exc.response.text[:1000] if exc.response.text else ""
+                logger.warning(
+                    "ECCC WMS upstream HTTP error",
+                    extra={
+                        "event": "eccc_wms_upstream_http_error",
+                        "layer": layer_name,
+                        "time": time,
+                        "status_code": upstream_status,
+                        "content_type": upstream_content_type,
+                        "retry_after": exc.response.headers.get("retry-after"),
+                        "body": upstream_body,
+                        "upstream_url": str(exc.response.request.url),
+                    },
+                )
             if cached is not None:
                 content, content_type, _retrieved_at, expires_at = cached
                 return _cached_wms_response(content, content_type, expires_at, "stale")
-            detail = f"WMS image fetch failed: {exc}"
-            _WMS_IMAGE_FAILURES[cache_key] = (datetime.now(UTC), detail)
-            raise HTTPException(status_code=502, detail=detail) from exc
+            fallback = _find_cached_fallback(base_url, params, time, settings.cache_dir)
+            if fallback is not None:
+                fb_content, fb_type, _fb_ret, fb_expires = fallback
+                logger.info("WMS fallback: %s -> %s (upstream error: %s)", time, "cached-earlier", exc)
+                return _cached_wms_response(fb_content, fb_type, fb_expires, "fallback")
+            if throttled_status is not None:
+                retry_after = _retry_after_seconds(datetime.now(UTC)) or 60
+                raise _wms_cooldown_exception(
+                    retry_after,
+                    layer_name,
+                    reason="wms_upstream_throttled",
+                    upstream_status=throttled_status,
+                ) from exc
+            logger.warning("WMS frame not available for %s layer=%s: %s", time, layer_name, exc)
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "reason": "frame_not_available",
+                    "time": time,
+                    "layer": layer_name,
+                    "upstream_status": upstream_status,
+                    "upstream_content_type": upstream_content_type,
+                    "upstream_body": upstream_body,
+                    "upstream_error": str(exc),
+                },
+            ) from exc
 
         content_type = upstream.headers.get("content-type", format)
         if not content_type.lower().startswith("image/"):
-            detail = upstream.text[:300] if upstream.text else "WMS returned a non-image response"
-            _WMS_IMAGE_FAILURES[cache_key] = (datetime.now(UTC), detail)
-            raise HTTPException(status_code=502, detail=detail)
+            if cached is not None:
+                content, content_type, _retrieved_at, expires_at = cached
+                return _cached_wms_response(content, content_type, expires_at, "stale")
+            fallback = _find_cached_fallback(base_url, params, time, settings.cache_dir)
+            if fallback is not None:
+                fb_content, fb_type, _fb_ret, fb_expires = fallback
+                logger.info("WMS fallback: %s -> %s (non-image response)", time, "cached-earlier")
+                return _cached_wms_response(fb_content, fb_type, fb_expires, "fallback")
+            detail = upstream.text[:1000] if upstream.text else "WMS returned a non-image response"
+            logger.warning(
+                "ECCC WMS non-image upstream response",
+                extra={
+                    "event": "eccc_wms_non_image_response",
+                    "layer": layer_name,
+                    "time": time,
+                    "status_code": upstream.status_code,
+                    "content_type": content_type,
+                    "body": detail,
+                    "upstream_url": str(upstream.request.url),
+                },
+            )
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "reason": "frame_not_available",
+                    "time": time,
+                    "layer": layer_name,
+                    "upstream_status": upstream.status_code,
+                    "upstream_content_type": content_type,
+                    "upstream_body": detail,
+                },
+            )
 
         retrieved_at = datetime.now(UTC)
         expires_at = retrieved_at + timedelta(seconds=_wms_image_ttl_seconds(time))

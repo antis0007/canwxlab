@@ -25,6 +25,14 @@ The detailed non-weather layer backlog is tracked in
 
 | Source | Coverage | Data | Interface | Cadence | First adapter target |
 | --- | --- | --- | --- | --- | --- |
+| Canada NPAS / CAP-CP | Canada | Public emergency alerts, alert polygons, issue/update/cancel state | CAP/CAP-CP XML feeds via alerting ecosystem | Near realtime | Canadian emergency alert adapter |
+| Provincial 511 / Open511 | AB/ON/BC first, then more provinces | Road conditions, events, construction, cameras, ferries, alerts, weather stations | 511 REST APIs, Open511 | Near realtime to operational cadence | Road/traveler information adapters |
+| CBSA / CBP border waits | Canada/US border crossings | Passenger and commercial wait times | Public web/API endpoints and datasets | Frequent public updates | Border wait adapter |
+| Canada/openFDA recalls | Canada/US | Food, drug, device, product, vehicle, and health safety alerts | CSV/JSON/API | Daily to event-driven | Recall/safety event adapter |
+| GTFS / GTFS Realtime / GBFS | Global by agency/system | Transit routes, vehicle positions, trip updates, service alerts, bikeshare/scooter availability | Feed URLs; protocol buffers for GTFS Realtime; JSON for GBFS | Seconds to minutes for realtime feeds | Mobility discovery and transit adapters |
+| AESO / IESO / Hydro-Quebec / EIA | Canada/US | Demand, forecast demand, generation mix, interties, price, grid status | Public APIs, reports, open datasets | 5-60 min depending source | Energy system event adapters |
+| WHO / CDC public health | Global/US first | Outbreak reports, emergency events, aggregate wastewater surveillance | Public pages/APIs/datasets | Event-driven to weekly | Health event adapters |
+| ECCC freshwater quality / DataStream | Canada | Freshwater quality and community water observations | Public APIs/downloads | Hourly to dataset-specific | Water quality adapters |
 | NASA GIBS | Global | MODIS/VIIRS corrected reflectance, fires, aerosols, snow, clouds, night lights | WMTS, WMS, TWMS | Daily to sub-daily depending product | Global true-colour basemap and hazard overlays |
 | NOAA GOES-R on AWS | Americas, Atlantic, Pacific | ABI L1b/L2, CMI, GLM lightning | Public S3, NetCDF | 5-15 min products | GOES East/West full-disk/CONUS compositor |
 | EUMETSAT Data Store/EUMETView | Europe, Africa, Indian Ocean, global products | Meteosat, MTG, Metop, Sentinel products | APIs, OGC services, Data Tailor | Near realtime for operational streams | Meteosat/MTG imagery adapter |
@@ -108,28 +116,65 @@ The detailed non-weather layer backlog is tracked in
 
 ## Adapter Backlog
 
-1. `gibs_wmts.py`: capabilities parser, layer metadata, time index, REST tile template generator.
-2. `goes_aws.py`: bucket inventory, ABI product selector, latest-time resolver, server-side thumbnail/COG tiler.
-3. `firms.py`: WMS/WFS active-fire source with confidence filters.
-4. `openaq.py`: station/measurement paging, provider provenance, spatial bounding queries.
-5. `copernicus_stac.py`: STAC search, cloud filter, quicklook/COG asset selection.
-6. `nexrad_aws.py`: Level II inventory only at first; rendering requires a radar decode service.
-7. `ecmwf_open_data.py`: GRIB index reader and model-field tiler.
-8. `cosmic_horizons.py`, `cosmic_celestrak.py`, `cosmic_sbdb.py`: orbital cache sources.
-9. `opensky_aircraft.py`: aircraft state-vector event adapter with short-track replay.
-10. `gtfs_realtime.py`: provider-configured transit vehicle/service-alert adapter.
-11. `usgs_earthquakes.py` and `earthquakes_canada.py`: seismic event adapters.
-12. `gdacs.py`, `reliefweb.py`, `gdelt.py`: disaster/hyperreality event adapters.
-13. `ripe_ris_live.py`, `routeviews.py`, `ripestat.py`, `peeringdb.py`, `rdap.py`:
-    cyberspace topology and routing adapters.
-14. `cloudflare_radar.py` and `ihr.py`: outage and internet-health adapters.
-15. `cisa_kev.py`, `nvd_cve.py`, `first_epss.py`: vulnerability-context adapters for
-    aggregate or user-owned asset views.
-16. `aeso_grid.py`, `ieso_grid.py`, `hydroquebec_demand.py`, `eia_grid.py`: energy system
-    adapters.
+1. Core: `source_registry.py`, `world_events.py`, source health/freshness/provenance overlay,
+   public-data replay archive, and adapter test harness.
+2. Alerts: `npas_cap.py`, `cap_generic.py`, `canada_recalls.py`,
+   `openfda_food_recalls.py`, `openfda_drug_recalls.py`, `openfda_device_recalls.py`,
+   `municipal_rss.py`.
+3. Roads and borders: `alberta_511.py`, `ontario_511.py`, `drivebc_open511.py`,
+   `cbsa_border_waits.py`, `cbp_waittimes.py`, optional `tomtom_traffic.py`,
+   optional `waze_for_cities.py`.
+4. Transit: `mobility_database.py`, `gtfs_static.py`, `gtfs_realtime.py`, `gbfs.py`,
+   `transit_alerts.py`.
+5. Energy: `aeso_grid.py`, `ieso_grid.py`, `hydroquebec_demand.py`,
+   `bc_hydro_interties.py`, `eia_grid.py`, `utility_outage_framework.py`.
+6. Health: `who_outbreaks.py`, `who_emergency_events.py`, `cdc_wastewater.py`,
+   `healthmap_optional.py`, plus shared recall adapters.
+7. Water: `eccc_freshwater_quality.py`, `datastream.py`, `drinking_water_advisories.py`,
+   `reservoir_levels.py`, `dam_status.py`, `water_outages.py`.
+8. Environment: `openaq.py`, `canada_radiation.py`, `epa_radnet.py`, `eurdep_radiation.py`,
+   `global_forest_watch.py`, `gbif_occurrence.py`, `nasa_black_marble.py`.
+9. Hazards: `usgs_earthquakes.py`, `earthquakes_canada.py`, `usgs_volcano.py`,
+   `smithsonian_gvp.py`, `tsunami_alerts.py`.
+10. Logistics: `aishub.py`, optional `aisstream.py`, optional `port_congestion.py`,
+    `un_comtrade.py`, `canada_rail_network.py`, optional user-owned `cn_customer_api.py`.
+11. Cyber and communications: `cloudflare_radar.py`, `ripe_ris_live.py`, `routeviews.py`,
+    `ripestat.py`, `peeringdb.py`, `rdap.py`, `cisa_kev.py`, `nvd_cve.py`,
+    `first_epss.py`, optional `censys_certificates.py`.
+12. Context: `statcan_wds.py`, `statcan_census_profile.py`, `worldbank_indicators.py`,
+    `oecd_sdmx.py`, `open_canada_ckan.py`, `municipal_open_data.py`, `overture_base.py`,
+    `osm_context.py`.
+13. Weather/EO/orbital carry-forward: `gibs_wmts.py`, `goes_aws.py`, `firms.py`,
+    `copernicus_stac.py`, `nexrad_aws.py`, `ecmwf_open_data.py`, `cosmic_horizons.py`,
+    `cosmic_celestrak.py`, `cosmic_sbdb.py`.
 
 ## Sources Checked For This Inventory
 
+- Public Safety Canada CAP-CP: https://www.publicsafety.gc.ca/cnt/mrgnc-mngmnt/mrgnc-prprdnss/npas/clf-en.aspx
+- 511 Alberta API docs: https://511.alberta.ca/developers/doc
+- Ontario 511 events API docs: https://511on.ca/help/endpoint/event
+- Ontario 511 road conditions API docs: https://511on.ca/help/endpoint/roadconditions
+- DriveBC Open511 API: https://api.open511.gov.bc.ca/help
+- CBSA border wait times: https://www.cbsa-asfc.gc.ca/bwt-taf/menu-eng.html
+- CBP advisories and wait times: https://www.cbp.gov/travel/advisories-wait-times
+- Mobility Database: https://mobilitydatabase.org/faq
+- WHO Disease Outbreak News: https://www.who.int/emergencies/disease-outbreak-news
+- CDC wastewater data: https://www.cdc.gov/wastewater/about-data/index.html
+- openFDA drug enforcement API: https://open.fda.gov/apis/drug/enforcement/
+- openFDA food API: https://open.fda.gov/apis/food/
+- DataStream platform: https://datastream.org/en-ca/platform
+- Health Canada radiation surveillance: https://www.canada.ca/en/health-canada/services/environmental-workplace-health/radiation/radiation-measurement.html
+- EPA RadNet near-real-time data: https://www.epa.gov/radnet/radnet-near-real-time-air-data
+- USGS Volcano API: https://volcanoes.usgs.gov/vsc/api/volcanoApi/
+- NASA Black Marble: https://ladsweb.modaps.eosdis.nasa.gov/missions-and-measurements/science-domain/nighttime-lights/
+- AISHub API: https://www.aishub.net/api
+- UN Comtrade developer portal: https://comtradedeveloper.un.org/
+- Canada National Railway Network dataset reference: https://www.cer-rec.gc.ca/en/applications-hearings/pipeline-abandonment/ace-calculation-method/open-government-datasets.html
+- CN customer APIs: https://www.cn.ca/en/customer-centre/tools/api/
+- Statistics Canada Web Data Service: https://www.statcan.gc.ca/en/microdata/api
+- World Bank Indicators API: https://datahelpdesk.worldbank.org/knowledgebase/articles/889392
+- OECD Data Explorer API: https://www.oecd.org/en/data/insights/data-explainers/2024/09/api.html
+- Open Canada CKAN API: https://open.canada.ca/data/en/api/
 - NASA GIBS API: https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api
 - GIBS access basics: https://nasa-gibs.github.io/gibs-api-docs/access-basics/
 - NOAA GOES-R on AWS: https://aws.amazon.com/blogs/publicsector/accessing-noaas-goes-r-series-satellite-weather-imagery-data-on-aws/

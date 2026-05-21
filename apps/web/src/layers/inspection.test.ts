@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import { buildLayerDefinitions } from "./registry";
 import { buildInspectorPayload } from "./inspection";
 import { buildRenderPlan } from "./renderPlan";
+import { legendFromRamp } from "./legends";
 import { fallbackLayers } from "../lib/layerRegistry";
-import type { LayerRuntimeState } from "./types";
+import type { LayerDefinition, LayerRuntimeState } from "./types";
 import type { Observation } from "../types/weather";
 
 function makeObs(overrides: Partial<Observation> & Pick<Observation, "station_id" | "station_name" | "longitude" | "latitude" | "values">): Observation {
@@ -174,5 +175,79 @@ describe("buildInspectorPayload", () => {
     expect(payload.nearestStationKm).toBeNull();
     expect(payload.heroMetrics).toEqual([]);
     expect(payload.pressureSystems).toEqual([]);
+  });
+
+  it("promotes calibrated surface-temperature canvas samples into hero metrics", () => {
+    const layer: LayerDefinition = {
+      id: "surface_temp_test",
+      title: "Surface Temperature",
+      description: "Test surface temperature layer.",
+      category: "forecast",
+      sourceId: "test",
+      status: "live",
+      isExperimental: false,
+      defaultVisible: true,
+      defaultOpacity: 1,
+      zIndex: 1,
+      colourRamp: "temperature-blue-red",
+      legend: legendFromRamp("Surface Temperature", "degC", "temperature-blue-red"),
+      rendererType: "deck-grid",
+      capabilities: {
+        supportsMap: true,
+        supportsGlobe: false,
+        supportsAnimation: true,
+        supportsPicking: true,
+        supportsShader: true,
+        supportsWms: false,
+        supportsCustomColorRamp: true,
+        supportsOpacity: true,
+      },
+      animation: { frameCount: 1 },
+      controls: {
+        min: -35,
+        max: 35,
+        smoothing: 0.5,
+        particleCount: 2000,
+        windScale: 1,
+        precipitationIntensity: 1,
+        cloudOpacity: 0.7,
+        contourInterval: 4,
+        blendMode: "normal",
+        edgeBlur: 0,
+      },
+      variable: "surface_temperature",
+      unit: "degC",
+    };
+    const runtimeState: Record<string, LayerRuntimeState> = {
+      [layer.id]: {
+        enabled: true,
+        opacity: 1,
+        colourRamp: "temperature-blue-red",
+        zIndex: 1,
+        controls: layer.controls,
+      },
+    };
+    const renderPlan = buildRenderPlan({
+      layers: [layer],
+      runtimeState,
+      globalTimeMs: Date.parse("2026-05-17T12:00:00Z"),
+      viewMode: "map",
+    });
+    const payload = buildInspectorPayload({
+      longitude: -113.58,
+      latitude: 53.31,
+      frame: 0,
+      activeLayers: [layer],
+      renderPlan,
+      runtimeState,
+      observations: [],
+      alerts: [],
+      sampledRgb: [254, 224, 139],
+      sampledAtMs: Date.parse("2026-05-17T12:00:00Z"),
+    });
+
+    expect(payload.heroMetrics[0]?.label).toBe("SFC TEMP");
+    expect(Number(payload.heroMetrics[0]?.value)).toBeGreaterThan(5);
+    expect(Number(payload.heroMetrics[0]?.value)).toBeLessThan(15);
   });
 });

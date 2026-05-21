@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from canwxlab_api.adapters.base import WeatherSourceAdapter
 from canwxlab_api.adapters.composite import CompositeWeatherSourceAdapter
 from canwxlab_api.adapters.eccc_geomet import EcccGeoMetSourceAdapter
+from canwxlab_api.adapters.gibs_wmts import GibsWmtsSourceAdapter
 from canwxlab_api.adapters.mock import MockWeatherSourceAdapter
 from canwxlab_api.dependencies import get_source_adapter
 from canwxlab_api.http_cache import FetchResult, JsonFileCacheClient
@@ -457,6 +458,15 @@ def test_layers_include_canwxsim() -> None:
     assert response.status_code == 200
     layer_ids = {layer["layer_id"] for layer in response.json()}
     assert "canwxsim_output" in layer_ids
+
+
+def test_gibs_layers_publish_time_extent_for_timeline_resolution() -> None:
+    layers = asyncio.run(GibsWmtsSourceAdapter().list_layers())
+
+    assert layers
+    assert all(layer.service_type == "wmts" for layer in layers)
+    assert all(isinstance(layer.metadata.get("time_extent"), str) for layer in layers)
+    assert all(layer.metadata["time_extent"].endswith("/P1D") for layer in layers)
 
 
 def test_cosmic_planning_routes_are_seed_labelled() -> None:

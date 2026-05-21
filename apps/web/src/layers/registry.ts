@@ -10,12 +10,19 @@ import {
   type LayerRendererType,
 } from "./types";
 
+const VALID_CATEGORY_HINTS = new Set<LayerCategory>(["base", "radar", "satellite", "alert", "observation", "forecast", "simulation", "infrastructure", "diagnostic", "plugin", "experimental"]);
+
 function categoryFromLayer(layer: WeatherLayer): LayerCategory {
   const product = layer.metadata?.intended_product_type;
   if (product === "radar") return "radar";
   if (product === "satellite") return "satellite";
   if (product === "alert") return "alert";
   if (product === "observation") return "observation";
+
+  const hint = layer.metadata?.category_hint;
+  if (typeof hint === "string" && VALID_CATEGORY_HINTS.has(hint as LayerCategory)) {
+    return hint as LayerCategory;
+  }
 
   if (layer.variable.includes("alert")) return "alert";
   if (layer.variable.includes("station") || layer.variable.includes("observation")) return "observation";
@@ -39,15 +46,15 @@ function capabilitiesForRenderer(rendererType: LayerRendererType): LayerRenderer
       supportsOpacity: true,
     };
   }
-  if (rendererType === "deck-grid" || rendererType === "deck-particles") {
+  if (rendererType === "deck-grid" || rendererType === "deck-particles" || rendererType === "deck-power-grid") {
     return {
       supportsMap: true,
       supportsGlobe: false,
       supportsAnimation: true,
-      supportsPicking: true,
+      supportsPicking: rendererType !== "deck-power-grid",
       supportsShader: true,
       supportsWms: false,
-      supportsCustomColorRamp: false,
+      supportsCustomColorRamp: rendererType === "deck-power-grid",
       supportsOpacity: true,
     };
   }
@@ -172,6 +179,58 @@ function pluginToLayer(plugin: PluginCatalogItem, zIndex: number): LayerDefiniti
   };
 }
 
+function powerGridLayerDefinition(zIndex: number): LayerDefinition {
+  const colourRamp = "electric-cyan";
+  return {
+    id: "energy.power_grid_flow",
+    title: "Power Grid Flow + Outage Zones",
+    description:
+      "Generated electrical-grid visual aid with transmission corridors, flowing arc shader, particles, and warning/dead outage zones. Outage geometry is placeholder until live utility outage adapters are connected.",
+    category: "infrastructure",
+    sourceId: "generated_power_grid_vfx",
+    status: "derived",
+    isExperimental: true,
+    defaultVisible: false,
+    defaultOpacity: 0.86,
+    zIndex,
+    colourRamp,
+    legend: {
+      title: "Power grid flow",
+      unit: "status",
+      gradient: "linear-gradient(90deg, #082f49 0%, #0891b2 34%, #67e8f9 68%, #ecfeff 100%)",
+      stops: [
+        { value: 0, color: "#67e8f9", label: "energized" },
+        { value: 1, color: "#facc15", label: "warning" },
+        { value: 2, color: "#ef4444", label: "dead zone" },
+      ],
+    },
+    rendererType: "deck-power-grid",
+    capabilities: capabilitiesForRenderer("deck-power-grid"),
+    animation: { frameCount: 240 },
+    controls: {
+      ...defaultLayerControls,
+      particleCount: 2800,
+      windScale: 1.1,
+      smoothing: 0.34,
+      precipitationIntensity: 1.25,
+      cloudOpacity: 0.78,
+      contourInterval: 3,
+      blendMode: "add",
+    },
+    serviceType: "generated",
+    variable: "power_grid_flow",
+    unit: "status",
+    message: "Generated visualization scaffold; not a live outage feed.",
+    metadata: {
+      category_hint: "infrastructure",
+      intended_product_type: "power_grid",
+      source_kind: "generated_visual_context",
+      privacy_class: "derived_estimate",
+      live_outage_feed_connected: false,
+    },
+  };
+}
+
 export function buildLayerDefinitions(input: {
   backendLayers: WeatherLayer[];
   plugins: PluginCatalogItem[];
@@ -187,8 +246,10 @@ export function buildLayerDefinitions(input: {
     .filter((plugin) => input.pluginEnabled[plugin.id] ?? plugin.enabled_default)
     .map((plugin, index) => pluginToLayer(plugin, index + 300));
 
+  const generatedLayers = [powerGridLayerDefinition(260)];
+
   const mergedById = new Map<string, LayerDefinition>();
-  [...backend, ...pluginLayers].forEach((layer) => {
+  [...backend, ...generatedLayers, ...pluginLayers].forEach((layer) => {
     mergedById.set(layer.id, layer);
   });
 

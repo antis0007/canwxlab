@@ -56,6 +56,49 @@ async function postJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+export interface WeatherPointResponse {
+  latitude: number;
+  longitude: number;
+  temperature_c: number | null;
+  apparent_temperature_c: number | null;
+  dewpoint_c: number | null;
+  relative_humidity_pct: number | null;
+  wind_speed_kmh: number | null;
+  wind_direction_deg: number | null;
+  wind_gusts_kmh: number | null;
+  surface_pressure_kpa: number | null;
+  precipitation_mm: number | null;
+  weather_code: number | null;
+  source: string;
+  retrieved_at: string;
+}
+
+export interface HourlySlot {
+  time: string;
+  temperature_c: number | null;
+  apparent_temperature_c: number | null;
+  dewpoint_c: number | null;
+  relative_humidity_pct: number | null;
+  wind_speed_kmh: number | null;
+  wind_direction_deg: number | null;
+  wind_gusts_kmh: number | null;
+  precipitation_probability_pct: number | null;
+  precipitation_mm: number | null;
+  weather_code: number | null;
+  cloud_cover_pct: number | null;
+  surface_pressure_kpa: number | null;
+  uv_index: number | null;
+  source: "observed" | "forecast";
+}
+
+export interface HourlyForecastResponse {
+  latitude: number;
+  longitude: number;
+  timezone: string;
+  slots: HourlySlot[];
+  retrieved_at: string;
+}
+
 export interface CollectionResponse {
   status: string;
   message?: string;
@@ -156,4 +199,9 @@ export const api = {
   queryEvents: (query: { bbox?: string; from?: string; to?: string; limit?: number }) =>
     getJson<SpatiotemporalEvent[]>("/api/events", query),
   // ─────────────────────────────────────────────────────────────────────
+
+  weatherPoint: (lat: number, lon: number) =>
+    getJson<WeatherPointResponse>("/api/weather/point", { lat, lon }),
+  hourlyForecast: (lat: number, lon: number, hours?: number) =>
+    getJson<HourlyForecastResponse>("/api/weather/hourly", { lat, lon, hours }),
 };

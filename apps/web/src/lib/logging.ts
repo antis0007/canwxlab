@@ -1,5 +1,5 @@
 export type LogSeverity = "debug" | "info" | "warn" | "error";
-export type LogSubsystem = "app" | "api" | "wms" | "layer" | "timeline" | "plugin" | "simulation" | "verification";
+export type LogSubsystem = "app" | "api" | "wms" | "layer" | "timeline" | "plugin" | "simulation" | "verification" | "satellite";
 
 export interface LogEntry {
   id: string;
@@ -47,10 +47,18 @@ class LogManager {
 
     this.listeners.forEach((listener) => listener(entry));
 
-    if (severity === "error" || severity === "warn") {
-      console[severity](`[${subsystem}] ${message}`, details);
+    if (details !== undefined) {
+      if (severity === "error" || severity === "warn") {
+        console[severity](`[${subsystem}] ${message}`, details);
+      } else {
+        console.log(`[${subsystem}] ${message}`, details);
+      }
     } else {
-      console.log(`[${subsystem}] ${message}`, details);
+      if (severity === "error" || severity === "warn") {
+        console[severity](`[${subsystem}] ${message}`);
+      } else {
+        console.log(`[${subsystem}] ${message}`);
+      }
     }
   }
 

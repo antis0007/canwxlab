@@ -25,6 +25,39 @@ export const colorRamps: ColorRamp[] = [
     recommendedVariables: ["temperature_2m", "temperature"],
   },
   {
+    id: "temperature-bicolor",
+    label: "Temperature Bicolor",
+    cssGradient: "linear-gradient(90deg, #0f7b8f 0%, #f7f7f2 50%, #c9342b 100%)",
+    stops: [
+      { value: -35, color: "#0f7b8f" },
+      { value: 0, color: "#f7f7f2" },
+      { value: 35, color: "#c9342b" },
+    ],
+    recommendedVariables: ["temperature_2m", "temperature", "surface_temperature"],
+  },
+  {
+    id: "temperature-mono-red",
+    label: "Temperature Mono Red",
+    cssGradient: "linear-gradient(90deg, #120709 0%, #6f1d1b 45%, #ffb4a2 100%)",
+    stops: [
+      { value: -35, color: "#120709" },
+      { value: 0, color: "#6f1d1b" },
+      { value: 35, color: "#ffb4a2" },
+    ],
+    recommendedVariables: ["temperature_2m", "temperature", "surface_temperature"],
+  },
+  {
+    id: "temperature-mono-blue",
+    label: "Temperature Mono Blue",
+    cssGradient: "linear-gradient(90deg, #06121f 0%, #1d4e89 45%, #b8e3ff 100%)",
+    stops: [
+      { value: -35, color: "#06121f" },
+      { value: 0, color: "#1d4e89" },
+      { value: 35, color: "#b8e3ff" },
+    ],
+    recommendedVariables: ["temperature_2m", "temperature", "surface_temperature"],
+  },
+  {
     id: "precipitation",
     label: "Precipitation",
     cssGradient: "linear-gradient(90deg, #1f7a8c 0%, #2ec4b6 30%, #8ac926 55%, #ffca3a 75%, #ff595e 100%)",
@@ -34,6 +67,17 @@ export const colorRamps: ColorRamp[] = [
       { value: 8, color: "#8ac926" },
       { value: 15, color: "#ffca3a" },
       { value: 30, color: "#ff595e" },
+    ],
+    recommendedVariables: ["precipitation_rate", "radar_precipitation"],
+  },
+  {
+    id: "precipitation-mono-teal",
+    label: "Precipitation Mono Teal",
+    cssGradient: "linear-gradient(90deg, #061a1c 0%, #0f766e 48%, #b7fff2 100%)",
+    stops: [
+      { value: 0, color: "#061a1c" },
+      { value: 5, color: "#0f766e" },
+      { value: 30, color: "#b7fff2" },
     ],
     recommendedVariables: ["precipitation_rate", "radar_precipitation"],
   },
@@ -102,6 +146,42 @@ export const colorRamps: ColorRamp[] = [
     recommendedVariables: ["wind_10m", "wind_speed_10m"],
   },
   {
+    id: "electric-cyan",
+    label: "Electric Cyan",
+    cssGradient: "linear-gradient(90deg, #082f49 0%, #0891b2 34%, #67e8f9 68%, #ecfeff 100%)",
+    stops: [
+      { value: 0, color: "#082f49" },
+      { value: 0.34, color: "#0891b2" },
+      { value: 0.68, color: "#67e8f9" },
+      { value: 1, color: "#ecfeff" },
+    ],
+    recommendedVariables: ["power_grid", "grid_flow", "electric"],
+  },
+  {
+    id: "electric-violet",
+    label: "Electric Violet",
+    cssGradient: "linear-gradient(90deg, #1e1b4b 0%, #6d28d9 38%, #c084fc 72%, #f5f3ff 100%)",
+    stops: [
+      { value: 0, color: "#1e1b4b" },
+      { value: 0.38, color: "#6d28d9" },
+      { value: 0.72, color: "#c084fc" },
+      { value: 1, color: "#f5f3ff" },
+    ],
+    recommendedVariables: ["power_grid", "grid_flow", "electric"],
+  },
+  {
+    id: "electric-amber",
+    label: "Electric Amber",
+    cssGradient: "linear-gradient(90deg, #3b1f06 0%, #f59e0b 42%, #fde68a 76%, #fff7ed 100%)",
+    stops: [
+      { value: 0, color: "#3b1f06" },
+      { value: 0.42, color: "#f59e0b" },
+      { value: 0.76, color: "#fde68a" },
+      { value: 1, color: "#fff7ed" },
+    ],
+    recommendedVariables: ["power_grid", "grid_flow", "electric"],
+  },
+  {
     id: "pressure",
     label: "Mean Sea Level Pressure",
     cssGradient: "linear-gradient(90deg, #3b2f7f 0%, #2677a8 28%, #eef4f8 50%, #d78b36 72%, #8f2d24 100%)",
@@ -128,6 +208,16 @@ export const colorRamps: ColorRamp[] = [
     recommendedVariables: ["anomaly", "bias"],
   },
   {
+    id: "binary-blue-red",
+    label: "Binary Blue-Red",
+    cssGradient: "linear-gradient(90deg, #1d4ed8 0%, #1d4ed8 49%, #ef4444 51%, #ef4444 100%)",
+    stops: [
+      { value: 0, color: "#1d4ed8" },
+      { value: 1, color: "#ef4444" },
+    ],
+    recommendedVariables: ["mask", "threshold", "alert", "classification"],
+  },
+  {
     id: "grayscale",
     label: "Grayscale",
     cssGradient: "linear-gradient(90deg, #111827 0%, #374151 35%, #9ca3af 70%, #f9fafb 100%)",
@@ -147,6 +237,7 @@ export const defaultRampByCategory: Record<string, string> = {
   observation: "viridis-like",
   forecast: "temperature-blue-red",
   simulation: "plasma-like",
+  infrastructure: "electric-cyan",
   alert: "anomaly-blue-red",
 };
 

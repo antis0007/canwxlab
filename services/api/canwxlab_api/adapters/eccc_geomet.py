@@ -1046,6 +1046,8 @@ def _derive_display_properties(layer_id: str, properties: dict[str, Any]) -> dic
         station = first("stn_nam-value", "stn_nam", "station_name")
         air_temp = first("air_temp-value", "air_temp", "temperature")
         wind_spd = first("wnd_spd-value", "wnd_spd", "wind_speed")
+        wind_dir = first("wnd_dir-value", "wnd_dir", "wind_direction")
+        visibility = first("vis-value", "visibility", "visib-value")
         when = first("date_tm-value", "date_tm", "datetime")
         if station:
             display["_display_title"] = str(station)
@@ -1053,7 +1055,16 @@ def _derive_display_properties(layer_id: str, properties: dict[str, Any]) -> dic
         if air_temp is not None:
             bits.append(f"Temp {air_temp} °C")
         if wind_spd is not None:
-            bits.append(f"Wind {wind_spd} km/h")
+            if wind_dir is not None:
+                bits.append(f"Wind {wind_dir}° @ {wind_spd} km/h")
+            else:
+                bits.append(f"Wind {wind_spd} km/h")
+        if visibility is not None:
+            try:
+                vis_km = round(float(visibility) / 1000, 1)
+                bits.append(f"Vis {vis_km} km")
+            except (ValueError, TypeError):
+                pass
         if bits:
             display["_display_subtitle"] = " · ".join(bits)
         if when:
@@ -1218,6 +1229,14 @@ def _extract_observation_values(
             ("wind_direction", "deg"),
             ("wind_dir", "deg"),
         ],
+        "wind_gust_10m": [
+            ("wnd_gust_spd-value", "km/h"),
+            ("max_wnd_spd-value", "km/h"),
+            ("gust_spd-value", "km/h"),
+            ("wind_gust_speed", "km/h"),
+            ("peak_wind_speed", "km/h"),
+            ("gust_speed", "km/h"),
+        ],
         "pressure_msl": [
             ("mslp-value", "hPa"),
             ("sea_level_pressure-value", "hPa"),
@@ -1226,15 +1245,46 @@ def _extract_observation_values(
             ("station_pressure", "kPa"),
             ("stn_pres-value", "kPa"),
         ],
-        "relative_humidity": [
+        "relative_humidity_2m": [
             ("rel_hum-value", "%"),
             ("relative_humidity", "%"),
             ("rel_hum", "%"),
         ],
         "dewpoint_2m": [
             ("dew_point-value", "degC"),
+            ("dwpt_temp-value", "degC"),
             ("dewpoint", "degC"),
             ("dew_point", "degC"),
+        ],
+        "precipitation_1h": [
+            ("pcpn_amt_pst1hr-value", "mm"),
+            ("precipitation_amount_past_1_hour", "mm"),
+            ("rnfl_amt_pst1hr-value", "mm"),
+            ("rain_amt_pst1hr-value", "mm"),
+            ("precip_1hr", "mm"),
+        ],
+        "precipitation_24h": [
+            ("pcpn_amt_pst24hr-value", "mm"),
+            ("precipitation_amount_past_24_hours", "mm"),
+            ("rnfl_amt_pst24hr-value", "mm"),
+            ("precip_24hr", "mm"),
+        ],
+        "snow_depth": [
+            ("snow_dpth-value", "cm"),
+            ("snow_depth", "cm"),
+            ("snw_dpth-value", "cm"),
+            ("SNOW_GRND", "cm"),
+        ],
+        "visibility": [
+            ("vis-value", "m"),
+            ("visibility", "m"),
+            ("visib-value", "m"),
+            ("VISIBILITY", "m"),
+        ],
+        "air_quality_index": [
+            ("aqhi", "index"),
+            ("aqhi_value", "index"),
+            ("air_quality_health_index", "index"),
         ],
     }
 
@@ -1243,7 +1293,7 @@ def _extract_observation_values(
             value = _to_float(_get(key))
             if value is None:
                 continue
-            if target == "wind_speed_10m" and raw_unit == "km/h":
+            if target in {"wind_speed_10m", "wind_gust_10m"} and raw_unit == "km/h":
                 value = value / 3.6
                 units[target] = "m/s"
             elif target == "pressure_msl" and raw_unit == "kPa":

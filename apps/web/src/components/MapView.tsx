@@ -11,6 +11,7 @@ import type {
   LayerRuntimeState,
   RendererFeatureValue,
   RenderLayerPlan,
+  RenderQualityPreset,
   ViewMode,
   CameraState,
 } from "../layers/types";
@@ -29,7 +30,16 @@ import { StarInfoCard } from "./StarInfoCard";
 import type { Star } from "../lib/celestialSphere";
 import type { StarExposure } from "../layers/types";
 import { createDiffBitmapLayer, type DiffOverlayPayload } from "../layers/renderers/diffBitmap";
-import { createSatelliteCompositeLayer, getSatelliteDiskParams, isGeostationarySatellite, type SatelliteCompositeLayer } from "../layers/renderers/satelliteComposite";
+import {
+  createSatelliteCompositeLayer,
+  getSatelliteDiskParams,
+  isGeostationarySatellite,
+  type SatelliteCompositeLayer,
+  type SatelliteCompositeLoadingState,
+} from "../layers/renderers/satelliteComposite";
+import { createTerminatorLayer, TerminatorLayer } from "../layers/renderers/terminator";
+import { createAtmosphereLayer, AtmosphereLayer } from "../layers/renderers/atmosphere";
+import { createPowerGridLayer, PowerGridLayer } from "../layers/renderers/powerGrid";
 import { detectPressureSystems } from "../layers/pressureSystems";
 import { createPressureSystemLayers } from "../layers/renderers/pressureSystemMarkers";
 
@@ -75,7 +85,6 @@ interface MapViewProps {
   alerts: AlertFeature[];
   viewMode: ViewMode;
   animationFrame: number;
-  subFrameProgress?: number;
   onInspect: (payload: MapInspectPayload) => void;
   onDiagnostics: (diagnostics: Partial<LayerDiagnostics>) => void;
   onGlobeSupportDetected: (supported: boolean) => void;
@@ -84,11 +93,22 @@ interface MapViewProps {
   globalTimeMs: number;
   basemap: BasemapId;
   photorealisticGlobe: boolean;
+  globePhotoGrade: boolean;
+  terminatorVisible: boolean;
+  terminatorIntensity: number;
   diffOverlay?: DiffOverlayPayload | null;
   starExposure?: StarExposure;
   starMaxDistanceLy?: number;
+  renderQuality?: RenderQualityPreset;
   timelinePlaying: boolean;
   timelineSpeedMultiplier: number;
+  satelliteSubFrameProgress: number;
+  satelliteTimelineMs: number;
+  /** Ref whose .current is called from the animation rAF tick with the latest
+   *  continuous timeline sample. MapView wires this to the satellite layer so
+   *  the GPU compositor receives zero-latency updates, bypassing React. */
+  satelliteProgressRef?: React.MutableRefObject<(progress: number, timelineMs: number) => void>;
+  onSatelliteLoadingState?: (state: SatelliteCompositeLoadingState | null) => void;
   onCanvasReady?: (canvas: HTMLCanvasElement) => void;
 }
 
@@ -105,11 +125,26 @@ const NORMALIZED_OBSERVATION_LAYER_IDS = new Set([
 // Performance cap. 2.0 would render 4× the pixels on a Retina display which
 // crushes mid-range GPUs when multiple WMS rasters and deck overlays are
 // active simultaneously. 1.5 keeps text crisp without exploding fill cost.
-const MAX_RENDER_PIXEL_RATIO = 1.5;
+const MAX_RENDER_PIXEL_RATIO_BY_QUALITY: Record<RenderQualityPreset, number> = {
+  performance: 1.0,
+  balanced: 1.35,
+  quality: 1.5,
+};
+const STARFIELD_MAX_FPS_BY_QUALITY: Record<RenderQualityPreset, { playing: number; idle: number }> = {
+  performance: { playing: 30, idle: 45 },
+  balanced: { playing: 45, idle: 60 },
+  quality: { playing: 60, idle: 75 },
+};
 
-function renderPixelRatio(): number {
+function renderPixelRatio(quality: RenderQualityPreset): number {
   if (typeof window === "undefined") return 1;
-  return Math.max(1, Math.min(window.devicePixelRatio || 1, MAX_RENDER_PIXEL_RATIO));
+  const cap = MAX_RENDER_PIXEL_RATIO_BY_QUALITY[quality] ?? MAX_RENDER_PIXEL_RATIO_BY_QUALITY.balanced;
+  return Math.max(1, Math.min(window.devicePixelRatio || 1, cap));
+}
+
+function starfieldMaxFps(quality: RenderQualityPreset, isPlaying: boolean): number {
+  const profile = STARFIELD_MAX_FPS_BY_QUALITY[quality] ?? STARFIELD_MAX_FPS_BY_QUALITY.balanced;
+  return isPlaying ? profile.playing : profile.idle;
 }
 
 /**
@@ -356,10 +391,15 @@ function basemapStyleKey(id: BasemapId, timeMs: number): string {
 function applyGlobePresentation(
   map: maplibregl.Map,
   viewMode: ViewMode,
+  photorealisticGlobe: boolean,
 ) {
   try {
     if (map.getLayer("background")) {
-      map.setPaintProperty("background", "background-opacity", 1);
+      map.setPaintProperty(
+        "background",
+        "background-opacity",
+        viewMode === "globe" && photorealisticGlobe ? 0 : 1,
+      );
     }
   } catch { /* style not yet ready */ }
   if (viewMode === "globe") {
@@ -474,7 +514,6 @@ export function MapView({
   alerts,
   viewMode,
   animationFrame,
-  subFrameProgress,
   onInspect,
   onDiagnostics,
   onGlobeSupportDetected,
@@ -483,11 +522,19 @@ export function MapView({
   globalTimeMs,
   basemap,
   photorealisticGlobe,
+  globePhotoGrade,
+  terminatorVisible,
+  terminatorIntensity,
   diffOverlay,
   starExposure,
   starMaxDistanceLy,
+  renderQuality = "balanced",
   timelinePlaying,
   timelineSpeedMultiplier,
+  satelliteSubFrameProgress,
+  satelliteTimelineMs,
+  satelliteProgressRef,
+  onSatelliteLoadingState,
   onCanvasReady,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -607,34 +654,41 @@ export function MapView({
   useEffect(() => {
     let cancelled = false;
 
-    if (genericOgcLayerIds.length === 0) {
-      setOgcFeaturesByLayer({});
-      return () => {
-        cancelled = true;
-      };
-    }
-    if (!visibleBbox) {
-      setOgcFeaturesByLayer({});
-      return () => {
-        cancelled = true;
-      };
+    // Prune data for layers no longer active. Always preserve existing data for
+    // layers that are still in genericOgcLayerIds — stale data is better than
+    // a blank map while the refetch is in flight.
+    setOgcFeaturesByLayer((prev) => {
+      if (genericOgcLayerIds.length === 0) return {};
+      const activeSet = new Set(genericOgcLayerIds);
+      const next: Record<string, OgcFeatureCollection> = {};
+      for (const [key, value] of Object.entries(prev)) {
+        if (activeSet.has(key)) next[key] = value;
+      }
+      return next;
+    });
+
+    if (genericOgcLayerIds.length === 0 || !visibleBbox) {
+      return () => { cancelled = true; };
     }
 
-    Promise.all(
-      genericOgcLayerIds.map(async (layerId) => {
+    // Fetch each layer independently so results stream in as they arrive instead
+    // of all-or-nothing. On error keep the previous data so the layer doesn't
+    // flash empty while the server is slow.
+    for (const layerId of genericOgcLayerIds) {
+      (async () => {
         try {
-          return [layerId, await api.ogcLayerFeatures(layerId, { bbox: visibleBbox, limit: 250 })] as const;
+          const data = await api.ogcLayerFeatures(layerId, { bbox: visibleBbox, limit: 250 });
+          if (cancelled) return;
+          setOgcFeaturesByLayer((prev) => ({ ...prev, [layerId]: data }));
         } catch {
-          return [
-            layerId,
-            { type: "FeatureCollection", features: [] } as OgcFeatureCollection,
-          ] as const;
+          if (cancelled) return;
+          setOgcFeaturesByLayer((prev) => {
+            if (prev[layerId]) return prev;
+            return { ...prev, [layerId]: { type: "FeatureCollection", features: [] } as OgcFeatureCollection };
+          });
         }
-      }),
-    ).then((entries) => {
-      if (cancelled) return;
-      setOgcFeaturesByLayer(Object.fromEntries(entries));
-    });
+      })();
+    }
 
     return () => {
       cancelled = true;
@@ -672,13 +726,15 @@ export function MapView({
     const map = mapRef.current;
     if (!map || !point) return null;
     try {
+      const mapSample = sampleCanvasRgb(map.getCanvas(), point);
+      if (mapSample) return mapSample;
       const canvases = Array.from(containerRef.current?.querySelectorAll("canvas") ?? []);
       for (const canvas of canvases.slice().reverse()) {
+        if (canvas === map.getCanvas()) continue;
         const sampled = sampleCanvasRgb(canvas, point);
         if (sampled) return sampled;
       }
-      const canvas = map.getCanvas();
-      return sampleCanvasRgb(canvas, point);
+      return null;
     } catch {
       return null;
     }
@@ -691,6 +747,7 @@ export function MapView({
       frame: animationFrameRef.current,
       activeLayers: activeLayersRef.current,
       renderPlan: renderPlanRef.current,
+      runtimeState: layerState,
       observations: observationsRef.current,
       alerts: alertsRef.current,
       sampledRgb: sampleCompositeRgb(point),
@@ -717,6 +774,7 @@ export function MapView({
       frame: animationFrameRef.current,
       activeLayers: activeLayersRef.current,
       renderPlan: renderPlanRef.current,
+      runtimeState: layerState,
       observations: observationsRef.current,
       alerts: alertsRef.current,
       sampledRgb: sampleCompositeRgb(point),
@@ -898,14 +956,45 @@ export function MapView({
   // (visibility, WMS URL, opacity) actually change.
   const satelliteLayerRef = useRef<SatelliteCompositeLayer | null>(null);
 
+  // Layer rebuild signature: only structural changes (visibility, opacity,
+  // which satellites are active). Time-varying WMS URL templates are pushed
+  // imperatively via setWmsUrlTemplates() so the layer, textures, FBOs, and
+  // optical-flow state survive across timeline ticks.
   const satelliteSignature = useMemo(() => {
     let acc = "";
     for (const plan of renderPlan) {
       if (plan.rendererType !== "wms-raster" || !isGeostationarySatellite(plan.id)) continue;
-      acc += `${plan.id}|${plan.visible ? 1 : 0}|${plan.opacity.toFixed(3)}|${plan.source.urlTemplate ?? ""};`;
+      acc += `${plan.id}|${plan.visible ? 1 : 0}|${plan.opacity.toFixed(3)}|${plan.source.timeExtent ?? ""};`;
     }
     return acc;
   }, [renderPlan]);
+
+  const satelliteWmsSig = useMemo(() => {
+    let key = "";
+    for (const plan of renderPlan) {
+      if (plan.rendererType !== "wms-raster" || !isGeostationarySatellite(plan.id)) continue;
+      key += `${plan.id}=${plan.source.urlTemplate ?? ""};`;
+    }
+    return key;
+  }, [renderPlan]);
+
+  // Imperatively push WMS URL template changes into the satellite compositor
+  // so it fetches new frames without destroying GPU state.
+  useEffect(() => {
+    const layer = satelliteLayerRef.current;
+    if (!layer) return;
+    const templates: Record<string, string> = {};
+    for (const plan of renderPlan) {
+      if (plan.rendererType !== "wms-raster" || !isGeostationarySatellite(plan.id)) continue;
+      if (plan.source.urlTemplate) {
+        templates[plan.id] = plan.source.urlTemplate;
+      }
+    }
+    layer.setWmsUrlTemplates(templates);
+    // satelliteWmsSig intentionally captures only the WMS TIME parameters so
+    // the effect fires exactly when the timeline advances to a new frame slot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [satelliteWmsSig]);
 
   const satelliteCompositeLayer = useMemo(() => {
     const configs = renderPlan
@@ -919,6 +1008,7 @@ export function MapView({
           coverageRadiusDeg: params.coverageRadiusDeg,
           featherRadiusDeg: params.featherRadiusDeg,
           wmsUrlTemplate: plan.source.urlTemplate ?? "",
+          timeExtent: plan.source.timeExtent,
           opacity: plan.opacity,
         };
       })
@@ -926,23 +1016,143 @@ export function MapView({
 
     if (configs.length === 0) {
       satelliteLayerRef.current = null;
+      onSatelliteLoadingState?.(null);
       return null;
     }
-    const layer = createSatelliteCompositeLayer({ satellites: configs, timeProgress: 0 });
+    console.log("[MapView] Creating satellite composite layer with", configs.length, "satellite(s):", configs.map(c => c.id).join(", "));
+    const layer = createSatelliteCompositeLayer({
+      satellites: configs,
+      timeProgress: satelliteSubFrameProgress,
+      timelineMs: satelliteTimelineMs,
+      quality: renderQuality,
+      onLoadingStateChange: onSatelliteLoadingState,
+    });
     satelliteLayerRef.current = layer;
     return layer;
     // satelliteSignature intentionally captures only visibility, opacity, and URL-template changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [satelliteSignature]);
+  }, [satelliteSignature, renderQuality, onSatelliteLoadingState]);
 
-  // Imperative timeProgress update — no layer teardown, just one float write + redraw.
   useEffect(() => {
-    satelliteLayerRef.current?.setTimeProgress(subFrameProgress ?? 0);
-  }, [subFrameProgress]);
+    satelliteLayerRef.current?.setTimeProgress(satelliteSubFrameProgress);
+    mapRef.current?.triggerRepaint();
+  }, [satelliteSubFrameProgress]);
+
+  useEffect(() => {
+    satelliteLayerRef.current?.setTimelineMs(satelliteTimelineMs);
+    mapRef.current?.triggerRepaint();
+  }, [satelliteTimelineMs]);
+
+  // Register the satellite timeProgress setter on the shared ref so the
+  // animation rAF can push zero-latency updates straight to the GPU layer,
+  // bypassing React's render cycle entirely.
+  useEffect(() => {
+    if (satelliteProgressRef) {
+      satelliteProgressRef.current = (progress: number, timelineMs: number) => {
+        satelliteLayerRef.current?.setTimelineSample(progress, timelineMs);
+        // Ensure MapLibre repaints on every animation frame so deck.gl's
+        // draw() consumes the updated continuous timeline sample immediately.
+        mapRef.current?.triggerRepaint();
+      };
+    }
+    return () => {
+      if (satelliteProgressRef) {
+        satelliteProgressRef.current = () => {};
+      }
+    };
+  }, [satelliteProgressRef]);
+
+  // Photorealistic globe atmosphere. This is a lightweight screen-space
+  // scattering pass over MapLibre's globe, not a replacement map renderer.
+  const atmosphereLayerRef = useRef<AtmosphereLayer | null>(null);
+
+  const atmosphereSignature = `${viewMode}|${photorealisticGlobe ? 1 : 0}|${globePhotoGrade ? 1 : 0}`;
+  const atmosphereLayer = useMemo(() => {
+    if (viewMode !== "globe" || !photorealisticGlobe) {
+      atmosphereLayerRef.current = null;
+      return null;
+    }
+    const layer = createAtmosphereLayer({
+      timeMs: liveTimeRef.current,
+      photoGrade: globePhotoGrade,
+      intensity: 1,
+    });
+    atmosphereLayerRef.current = layer;
+    return layer;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atmosphereSignature]);
+
+  // Terminator held in a ref so setTimeMs() can drive smooth animation from
+  // the existing RAF loop (liveTimeRef) without recreating the WebGL layer.
+  const terminatorLayerRef = useRef<TerminatorLayer | null>(null);
+
+  const terminatorSignature = `${terminatorVisible ? 1 : 0}|${terminatorIntensity.toFixed(3)}`;
+  const terminatorLayer = useMemo(() => {
+    if (!terminatorVisible || terminatorIntensity <= 0) {
+      terminatorLayerRef.current = null;
+      return null;
+    }
+    const layer = createTerminatorLayer({
+      timeMs: liveTimeRef.current,
+      intensity: terminatorIntensity,
+    });
+    terminatorLayerRef.current = layer;
+    return layer;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terminatorSignature]);
+
+  const powerGridLayerRef = useRef<PowerGridLayer | null>(null);
+  const powerGridSignature = useMemo(() => {
+    const layer = activeLayers.find((item) => item.rendererType === "deck-power-grid");
+    const runtime = layer ? layerState[layer.id] : null;
+    if (!layer || !runtime || viewMode === "globe") return "off";
+    return [
+      layer.id,
+      runtime.opacity.toFixed(3),
+      runtime.colourRamp,
+      runtime.controls.smoothing,
+      runtime.controls.windScale,
+      runtime.controls.precipitationIntensity,
+      runtime.controls.cloudOpacity,
+      runtime.controls.contourInterval,
+      runtime.controls.particleCount,
+    ].join("|");
+  }, [activeLayers, layerState, viewMode]);
+
+  const powerGridLayer = useMemo(() => {
+    const layer = activeLayers.find((item) => item.rendererType === "deck-power-grid");
+    const runtime = layer ? layerState[layer.id] : null;
+    if (!layer || !runtime || viewMode === "globe") {
+      powerGridLayerRef.current = null;
+      return null;
+    }
+    const next = createPowerGridLayer({
+      id: "power-grid-flow-vfx",
+      runtime,
+      timeMs: liveTimeRef.current,
+    });
+    powerGridLayerRef.current = next;
+    return next;
+    // powerGridSignature captures runtime values that require rebuilding uniforms.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [powerGridSignature]);
+
+  // Push smooth liveTimeRef into the terminator every animation frame.
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      atmosphereLayerRef.current?.setTimeMs(liveTimeRef.current);
+      terminatorLayerRef.current?.setTimeMs(liveTimeRef.current);
+      powerGridLayerRef.current?.setTimeMs(liveTimeRef.current);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   const deckLayers = useMemo(
-    () => [...staticDeckLayers, satelliteCompositeLayer].filter(Boolean),
-    [staticDeckLayers, satelliteCompositeLayer],
+    () => [...staticDeckLayers, satelliteCompositeLayer, atmosphereLayer, terminatorLayer, powerGridLayer].filter(Boolean),
+    [staticDeckLayers, satelliteCompositeLayer, atmosphereLayer, terminatorLayer, powerGridLayer],
   );
   const currentBasemapStyleKey = useMemo(
     () => basemapStyleKey(basemap, globalTimeMs),
@@ -964,8 +1174,9 @@ export function MapView({
       refreshExpiredTiles: false,
       fadeDuration: 0,
       maxTileCacheSize: 8192,
-      pixelRatio: renderPixelRatio(),
+      pixelRatio: renderPixelRatio(renderQuality),
       attributionControl: false,
+      canvasContextAttributes: { preserveDrawingBuffer: true },
     });
     map.dragRotate.disable();
     (map.touchZoomRotate as any)?.disableRotation?.();
@@ -986,7 +1197,7 @@ export function MapView({
     const overlay = new MapboxOverlay({
       layers: [],
       interleaved: false,
-      useDevicePixels: renderPixelRatio(),
+      useDevicePixels: renderPixelRatio(renderQuality),
       getTooltip: ({ object, layer }: any) => {
         if (!object) return null;
         const html = buildFeatureTooltipHtml(object, layer?.id ?? "");
@@ -1184,14 +1395,18 @@ export function MapView({
   }, [deckLayers]);
 
   useEffect(() => {
+    overlayRef.current?.setProps({ useDevicePixels: renderPixelRatio(renderQuality) });
+  }, [renderQuality]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
     try {
-      applyGlobePresentation(map, viewMode);
+      applyGlobePresentation(map, viewMode, photorealisticGlobe);
     } catch {
       // Projection switch can throw on older builds; safe to ignore.
     }
-  }, [mapReady, viewMode]);
+  }, [mapReady, viewMode, photorealisticGlobe]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1208,7 +1423,7 @@ export function MapView({
     const next = getBasemapStyle(basemap, globalTimeMs);
     map.setStyle(next as any);
     const onStyle = () => {
-      applyGlobePresentation(map, viewMode);
+      applyGlobePresentation(map, viewMode, photorealisticGlobe);
       syncWmsLayers({ map, renderPlan, isPlaying: timelinePlaying, speedMultiplier: timelineSpeedMultiplier });
     };
     if (map.isStyleLoaded()) onStyle();
@@ -1290,7 +1505,7 @@ export function MapView({
           timeRef={liveTimeRef}
           exposure={starExposure}
           maxDistanceLy={starMaxDistanceLy}
-          maxFps={timelinePlaying ? 45 : 60}
+          maxFps={starfieldMaxFps(renderQuality, timelinePlaying)}
           projectionsRef={starProjectionsRef}
         />
       )}
@@ -1313,7 +1528,7 @@ export function MapView({
               {contextMenu.latitude.toFixed(4)}, {contextMenu.longitude.toFixed(4)}
             </div>
             <button type="button" role="menuitem" onClick={() => { inspectAtLocation(contextMenu.longitude, contextMenu.latitude, [contextMenu.x, contextMenu.y]); setContextMenu(null); }}>
-              Inspect here
+              Sample data here
             </button>
             <button type="button" role="menuitem" onClick={() => { inspectLayerStackAt(contextMenu.longitude, contextMenu.latitude, [contextMenu.x, contextMenu.y]); setContextMenu(null); }}>
               Show active layer stack

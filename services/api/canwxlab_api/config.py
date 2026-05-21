@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 300
     eccc_wms_image_cache_ttl_seconds: int = 600
     eccc_wms_timed_image_cache_ttl_seconds: int = 86400
+    eccc_wms_upstream_min_interval_seconds: float = 0.75
+    eccc_wms_upstream_max_concurrency: int = 2
+    eccc_wms_upstream_cooldown_seconds: int = 600
     cache_dir: str = ".canwxlab/cache"
 
     model_config = SettingsConfigDict(
