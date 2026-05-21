@@ -48,6 +48,14 @@ The long-term system can combine:
 Every feed must expose provenance. Operators should know whether a visual is live, cached, stale,
 interpolated, seed/planning, simulated, or unavailable.
 
+## Live Control
+
+The main time control should be a familiar app-style Live button/status pill, not a mandatory red
+warning element. When the timeline is tracking current observed time, the control is active and
+visually distinct. When the operator scrubs into history or forecast time, it becomes secondary;
+clicking it jumps back to now and resumes live tracking. Forecast availability remains controlled
+by the forecast mode toggle, so returning live does not disable forecast mode.
+
 ## Public-Data Boundary
 
 The OSINT pivot is public-data planetary modelling, not surveillance. CanWxLab may ingest public,

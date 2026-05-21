@@ -2654,17 +2654,21 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 .wb-live-pill.is-live {
-  border-color: rgba(255, 72, 72, 0.65);
-  color: #ffdddd;
-  background: rgba(150, 24, 32, 0.72);
+  border-color: color-mix(in srgb, var(--wb-live) 70%, transparent);
+  color: var(--wb-live);
+  background: color-mix(in srgb, var(--wb-live) 16%, var(--wb-panel-hi));
 }
 
 .wb-live-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #ff5a5a;
-  box-shadow: 0 0 8px rgba(255, 72, 72, 0.75);
+  background: var(--wb-muted);
+}
+
+.wb-live-pill.is-live .wb-live-dot {
+  background: var(--wb-live);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--wb-live) 70%, transparent);
 }
 
 .wb-forecast-toggle input {
