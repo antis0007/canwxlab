@@ -198,9 +198,11 @@ void main() {
 }
 `;
 
-/** Forward-backward consistency → occlusion mask.
- * r: occlusion (1 where forward and backward flow disagree → cloud forming or
- * dissipating, must cross-dissolve instead of warp), g: min confidence. */
+/** Forward-backward consistency packed into the final flow texture.
+ * rg: forward flow, b: min(fwd, bwd) confidence, a: occlusion (1 where the
+ * two directions disagree → cloud forming/dissipating, must cross-dissolve
+ * instead of warp). Packing keeps the composite shader at one flow sampler
+ * per satellite slot. */
 const CONSISTENCY_FS = `\
 #version 300 es
 precision highp float;
@@ -221,7 +223,7 @@ void main() {
   float mismatch = length(f + b);
   float tolerance = max(0.01, 0.3 * length(f));
   float occlusion = smoothstep(tolerance, tolerance * 2.0, mismatch);
-  fragColor = vec4(occlusion, min(fwd.b, bwd.b), 0.0, 1.0);
+  fragColor = vec4(fwd.rg, min(fwd.b, bwd.b), occlusion);
 }
 `;
 
@@ -260,8 +262,10 @@ void main() {
 }
 `;
 
-/** Per-pixel cloud probability = frame departure from the background, with
- * hysteresis from the previous mask so edges don't flicker frame to frame. */
+/** Background + cloud probability packed into one texture: rgb = clear-sky
+ * background color (never advected — lakes and terrain stay pinned), a =
+ * per-pixel cloud probability with hysteresis from the previous mask so
+ * edges don't flicker frame to frame. */
 const CLOUDMASK_FS = `\
 #version 300 es
 precision highp float;
@@ -285,10 +289,10 @@ void main() {
   float chroma = length(frame.rgb - bg.rgb);
   float raw = smoothstep(0.030, 0.085, max(departure, chroma * 0.6)) * frame.a;
   if (uHasPrevMask > 0.5) {
-    float prev = texture(uPrevMaskTex, vUv).r;
+    float prev = texture(uPrevMaskTex, vUv).a;
     raw = max(raw, prev * 0.6 * frame.a);
   }
-  fragColor = vec4(raw, 0.0, 0.0, 1.0);
+  fragColor = vec4(bg.rgb, raw);
 }
 `;
 
@@ -316,10 +320,11 @@ export interface FlowPairRequest {
 }
 
 export interface FlowResult {
+  /** rg = flow, b = confidence, a = forward-backward occlusion. */
   flowTexture: Texture;
-  occlusionTexture: Texture | null;
-  cloudMaskTexture: Texture | null;
-  backgroundTexture: Texture | null;
+  /** rgb = clear-sky background (static), a = cloud probability. Null until
+   *  the sequence background has accumulated. */
+  bgMaskTexture: Texture | null;
   confidence: number;
 }
 
@@ -588,13 +593,14 @@ export class FlowPipeline {
 
   get(pairKey: string): FlowResult | null {
     const state = this.pairs.get(pairKey);
-    if (!state || state.status !== "ready" || !state.forward) return null;
-    const bg = this.backgrounds.get(state.request.sequenceKey);
+    if (!state || state.status !== "ready") return null;
+    // Occlusion target holds the final packed flow (rg flow, b conf, a occl);
+    // fall back to the forward target if consistency never ran.
+    const flow = state.occlusion ?? state.forward;
+    if (!flow) return null;
     return {
-      flowTexture: state.forward.texture,
-      occlusionTexture: state.occlusion?.texture ?? null,
-      cloudMaskTexture: state.cloudMask?.texture ?? null,
-      backgroundTexture: bg?.initialized ? bg.current.texture : null,
+      flowTexture: flow.texture,
+      bgMaskTexture: state.cloudMask?.texture ?? null,
       confidence: state.request.globalFlow[2],
     };
   }

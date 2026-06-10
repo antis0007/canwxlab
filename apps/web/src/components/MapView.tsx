@@ -538,6 +538,7 @@ export function MapView({
   satelliteTimelineMs,
   satelliteProgressRef,
   onSatelliteLoadingState,
+  onSatelliteBufferedRanges,
   onCanvasReady,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -1020,6 +1021,7 @@ export function MapView({
     if (configs.length === 0) {
       satelliteLayerRef.current = null;
       onSatelliteLoadingState?.(null);
+      onSatelliteBufferedRanges?.([]);
       return null;
     }
     const layer = createSatelliteCompositeLayer({
@@ -1028,12 +1030,13 @@ export function MapView({
       timelineMs: satelliteTimelineMs,
       quality: renderQuality,
       onLoadingStateChange: onSatelliteLoadingState,
+      onBufferedRangesChange: onSatelliteBufferedRanges,
     });
     satelliteLayerRef.current = layer;
     return layer;
     // satelliteSignature intentionally captures only visibility, opacity, and URL-template changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [satelliteSignature, renderQuality, onSatelliteLoadingState]);
+  }, [satelliteSignature, renderQuality, onSatelliteLoadingState, onSatelliteBufferedRanges]);
 
   useEffect(() => {
     satelliteLayerRef.current?.setTimeProgress(satelliteSubFrameProgress);

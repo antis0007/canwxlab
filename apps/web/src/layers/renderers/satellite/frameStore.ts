@@ -298,6 +298,10 @@ export class FrameStore {
     return this.currentGridKey;
   }
 
+  inFlightCount(): number {
+    return this.inFlight.size;
+  }
+
   setTemplate(template: string, availableTimesMs: number[]): void {
     // Frames are keyed by time; overlapping times across template refreshes
     // stay valid, so the buffer is intentionally NOT cleared.
