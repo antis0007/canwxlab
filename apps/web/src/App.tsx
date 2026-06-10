@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MapView } from "./components/MapView";
 import { LayersPicker, type BasemapId, BASEMAP_OPTIONS } from "./components/LayersPicker";
 import { CityPicker } from "./components/CityPicker";
-import { GifExportPanel } from "./components/workbench/GifExportPanel";
+import { ExportPanel, type ExportConfig } from "./components/workbench/ExportPanel";
 import { BottomTimeline, type TimelineWarningRange } from "./components/workbench/BottomTimeline";
 import { LeftSidebar } from "./components/workbench/LeftSidebar";
 import { RightInspector } from "./components/workbench/RightInspector";
@@ -37,7 +37,14 @@ import { buildRenderPlan } from "./layers/renderPlan";
 import { parseWmsTimeDimension } from "./time/wmsTime";
 import type { SatelliteCompositeLoadingState } from "./layers/renderers/satelliteComposite";
 import type { BufferedRange } from "./layers/renderers/satellite/frameGrid";
-import { exportGif, downloadGif } from "./lib/gifExport";
+import { captureComposite } from "./lib/gifExport";
+import { CaptureController } from "./lib/export/captureController";
+import { exportAnimation, downloadBlob } from "./lib/export/exportAnimation";
+import type { FrameSink } from "./lib/export/frameSink";
+import { GifSink } from "./lib/export/gifSink";
+import { VideoSink } from "./lib/export/videoSink";
+import { FRAME_INTERVAL_MS } from "./time/timelineWindow";
+import type maplibregl from "maplibre-gl";
 import { EMPTY_ARCHIVE_SUMMARY, getArchiveSummary } from "./lib/archiveIndex";
 import { buildSourceContractViews } from "./lib/planetaryCatalog";
 import type { ArchiveSummary } from "./types/planetary";
@@ -364,6 +371,14 @@ export default function App() {
   const mapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [satelliteLoadingState, setSatelliteLoadingState] = useState<SatelliteCompositeLoadingState | null>(null);
   const satelliteBufferedRangesRef = useRef<BufferedRange[]>([]);
+  const mapInstanceRef = useRef<maplibregl.Map | null>(null);
+  const exportAbortRef = useRef<AbortController | null>(null);
+  const exportCropRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const satelliteReadinessRef = useRef<(timeMs: number) => Promise<void>>(() => Promise.resolve());
+  const [areaSelectMode, setAreaSelectMode] = useState(false);
+  const [areaSelected, setAreaSelected] = useState(false);
+  const areaDragRef = useRef<{ startX: number; startY: number } | null>(null);
+  const [areaDragRect, setAreaDragRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [satelliteBufferedRanges, setSatelliteBufferedRanges] = useState<BufferedRange[]>([]);
   const handleSatelliteBufferedRanges = useCallback((ranges: BufferedRange[]) => {
     satelliteBufferedRangesRef.current = ranges;
@@ -631,55 +646,91 @@ export default function App() {
     });
   }, [layerEngine]);
 
-  const handleGifExport = useCallback(async (range: { startFrame: number; endFrame: number; frameDelay: number }) => {
+  const handleExport = useCallback(async (config: ExportConfig) => {
     const canvas = mapCanvasRef.current;
-    if (!canvas) return;
+    const map = mapInstanceRef.current;
+    if (!canvas || !map) return;
 
     // MapLibre canvas sits inside the map container alongside deck.gl's overlay
-    // canvas (MapboxOverlay with interleaved:false). Query all canvases in the
-    // container and composite them so station markers, alert polygons, satellite
-    // compositor, and terminator appear in the export.
+    // canvas (MapboxOverlay with interleaved:false). Composite them all so
+    // station markers, alerts, satellite compositor, and terminator export.
     const container = canvas.parentElement;
-    const allCanvases = container
-      ? Array.from(container.querySelectorAll("canvas"))
-      : [];
-    const overlayCanvases = allCanvases.filter(
-      (c) => c !== canvas && c.width > 0 && c.height > 0,
-    );
+    const overlayCanvases = (container ? Array.from(container.querySelectorAll("canvas")) : [])
+      .filter((c) => c !== canvas && c.width > 0 && c.height > 0);
 
-    setGifExportProgress([0, range.endFrame - range.startFrame + 1]);
+    const crop = exportCropRef.current ?? { x: 0, y: 0, width: canvas.width, height: canvas.height };
+    const targetWidth = config.resolution === "480" ? 854 : config.resolution === "720" ? 1280 : crop.width;
+    const scale = Math.min(1, targetWidth / Math.max(1, crop.width));
+    const outWidth = Math.max(2, Math.round(crop.width * scale));
+    const outHeight = Math.max(2, Math.round(crop.height * scale));
 
-    // Pause playback during export so WMS layers don't fight the frame-stepping
+    const windowStartMs = playbackState.timelineState.replayStartMs;
+    const startMs = windowStartMs + config.startFrame * FRAME_INTERVAL_MS;
+    const endMs = windowStartMs + config.endFrame * FRAME_INTERVAL_MS;
+
+    const abort = new AbortController();
+    exportAbortRef.current = abort;
+    setGifExportProgress([0, 1]);
+
     const wasPlaying = playbackState.isPlaying;
     if (wasPlaying) toggle();
 
+    const capture = new CaptureController({
+      map,
+      readPixels: () => captureComposite(canvas, overlayCanvases as HTMLCanvasElement[], crop, outWidth, outHeight),
+    });
+
+    const sink: FrameSink = config.format === "gif"
+      ? new GifSink({ dither: config.dither, palette: config.globalPalette ? "global" : "per-frame" })
+      : new VideoSink(config.format);
+
     try {
-      const result = await exportGif({
-        canvas,
-        overlayCanvases,
-        totalFrames: playbackState.frameCount,
-        startFrame: range.startFrame,
-        endFrame: range.endFrame,
-        frameDelay: range.frameDelay,
-        onRequestFrame: async (frame) => {
-          setFrame(frame);
+      const result = await exportAnimation({
+        sink,
+        capture,
+        startMs,
+        endMs,
+        fps: config.fps,
+        outputSecondsPerHour: config.outputSecondsPerHour,
+        width: outWidth,
+        height: outHeight,
+        seekTo: (timelineMs) => {
+          const frame = (timelineMs - windowStartMs) / FRAME_INTERVAL_MS;
+          satelliteProgressRef.current(frame - Math.floor(frame), timelineMs);
+          setFrame(frame, { preserveLiveTracking: true });
         },
-        onProgress: (current, total) => {
-          setGifExportProgress([current, total]);
+        whenReady: async (timelineMs) => {
+          await satelliteReadinessRef.current(timelineMs);
+          await new Promise<void>((resolve) => {
+            if (map.loaded() && !map.isMoving()) {
+              resolve();
+              return;
+            }
+            map.once("idle", () => resolve());
+          });
         },
+        onProgress: (current, total) => setGifExportProgress([current, total]),
+        signal: abort.signal,
       });
 
-      const label = new Date(playbackState.selectedValidTime).toLocaleString("en-CA", {
-        year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
-      }).replace(/[^a-zA-Z0-9]/g, "-");
-      downloadGif(result.blob, `canwxlab-f${range.startFrame}-f${range.endFrame}-${label}.gif`);
+      const label = new Date(startMs).toISOString().slice(0, 16).replace(/[^a-zA-Z0-9]/g, "-");
+      downloadBlob(result.blob, `canwxlab-${label}.${result.extension}`);
     } catch (err) {
-      logManager.error("app", "GIF export failed", { error: String(err) });
+      if (err instanceof DOMException && err.name === "AbortError") {
+        logManager.info("app", "Export canceled");
+      } else {
+        logManager.error("app", "Animation export failed", { error: String(err) });
+      }
     } finally {
+      exportAbortRef.current = null;
       setGifExportProgress(null);
       setGifExportOpen(false);
     }
-  }, [playbackState.isPlaying, playbackState.frameCount, playbackState.selectedValidTime, toggle, setFrame]);
+  }, [playbackState.isPlaying, playbackState.timelineState.replayStartMs, toggle, setFrame]);
+
+  const handleExportCancel = useCallback(() => {
+    exportAbortRef.current?.abort();
+  }, []);
 
   const refreshData = useCallback(async () => {
     setIsRefreshing(true);
@@ -1011,7 +1062,80 @@ export default function App() {
             onSatelliteLoadingState={handleSatelliteLoadingState}
             onSatelliteBufferedRanges={handleSatelliteBufferedRanges}
             onCanvasReady={(canvas) => { mapCanvasRef.current = canvas; }}
+            onMapReady={(map) => { mapInstanceRef.current = map; }}
+            satelliteReadinessRef={satelliteReadinessRef}
           />
+
+          {areaSelectMode && (
+            <div
+              className="wb-export-area-overlay"
+              role="application"
+              aria-label="Drag to select export area; press Escape to cancel"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setAreaSelectMode(false);
+                  setAreaDragRect(null);
+                  areaDragRef.current = null;
+                }
+              }}
+              onPointerDown={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                areaDragRef.current = { startX: e.clientX - rect.left, startY: e.clientY - rect.top };
+                e.currentTarget.setPointerCapture(e.pointerId);
+              }}
+              onPointerMove={(e) => {
+                const drag = areaDragRef.current;
+                if (!drag) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                setAreaDragRect({
+                  left: Math.min(drag.startX, x),
+                  top: Math.min(drag.startY, y),
+                  width: Math.abs(x - drag.startX),
+                  height: Math.abs(y - drag.startY),
+                });
+              }}
+              onPointerUp={(e) => {
+                const drag = areaDragRef.current;
+                areaDragRef.current = null;
+                const canvas = mapCanvasRef.current;
+                if (!drag || !canvas || !areaDragRect || areaDragRect.width < 8 || areaDragRect.height < 8) {
+                  setAreaDragRect(null);
+                  setAreaSelectMode(false);
+                  return;
+                }
+                // CSS px → canvas device px (the canvas backing store can be
+                // larger than its CSS box on high-DPI displays).
+                const overlayRect = e.currentTarget.getBoundingClientRect();
+                const scaleX = canvas.width / overlayRect.width;
+                const scaleY = canvas.height / overlayRect.height;
+                exportCropRef.current = {
+                  x: Math.round(areaDragRect.left * scaleX),
+                  y: Math.round(areaDragRect.top * scaleY),
+                  width: Math.round(areaDragRect.width * scaleX),
+                  height: Math.round(areaDragRect.height * scaleY),
+                };
+                setAreaSelected(true);
+                setAreaDragRect(null);
+                setAreaSelectMode(false);
+              }}
+            >
+              {areaDragRect && (
+                <div
+                  className="wb-export-area-rect"
+                  style={{
+                    left: areaDragRect.left,
+                    top: areaDragRect.top,
+                    width: areaDragRect.width,
+                    height: areaDragRect.height,
+                  }}
+                />
+              )}
+              <div className="wb-export-area-hint">Drag to select export area · Esc to cancel</div>
+            </div>
+          )}
 
 
           <LayersPicker
@@ -1105,11 +1229,19 @@ export default function App() {
         )}
 
         {gifExportOpen && (
-          <GifExportPanel
+          <ExportPanel
             onClose={() => { if (!gifExportProgress) setGifExportOpen(false); }}
             totalFrames={playbackState.frameCount}
-            onExport={handleGifExport}
+            frameIntervalMs={FRAME_INTERVAL_MS}
+            onExport={handleExport}
+            onCancel={handleExportCancel}
             progress={gifExportProgress}
+            areaSelected={areaSelected}
+            onToggleAreaSelect={() => setAreaSelectMode(true)}
+            onClearArea={() => {
+              exportCropRef.current = null;
+              setAreaSelected(false);
+            }}
           />
         )}
       </section>

@@ -100,7 +100,7 @@ export class GifSink implements FrameSink {
     this.canceled = false;
   }
 
-  async addFrame(frame: ImageData): Promise<void> {
+  async addFrame(frame: ImageData, _timestampMs: number): Promise<void> {
     if (this.canceled) return;
     // GIF delay is centiseconds with an effective floor of ~2cs; many viewers
     // clamp below 7cs, so the fps cap is 15.

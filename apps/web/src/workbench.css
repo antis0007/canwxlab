@@ -1631,6 +1631,58 @@ details.wb-section[open] > summary .wb-section-chevron {
   pointer-events: none;
 }
 
+.wb-export-area-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  cursor: crosshair;
+  background: rgba(8, 12, 20, 0.25);
+}
+
+.wb-export-area-rect {
+  position: absolute;
+  border: 1.5px dashed rgba(120, 180, 255, 0.95);
+  background: rgba(120, 180, 255, 0.12);
+  pointer-events: none;
+}
+
+.wb-export-area-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: rgba(10, 14, 22, 0.85);
+  color: rgba(220, 230, 245, 0.95);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.wb-export-format-group {
+  display: flex;
+  gap: 12px;
+}
+
+.wb-export-format-group label,
+.wb-export-gif-options label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.wb-export-gif-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wb-export-area-controls {
+  display: flex;
+  gap: 8px;
+}
+
 .wb-tl-buffered-band {
   position: absolute;
   top: 1px;

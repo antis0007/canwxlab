@@ -56,7 +56,7 @@ export interface GifExportResult {
   height: number;
 }
 
-function captureComposite(
+export function captureComposite(
   baseCanvas: HTMLCanvasElement,
   overlayCanvases: HTMLCanvasElement[],
   crop: { x: number; y: number; width: number; height: number },

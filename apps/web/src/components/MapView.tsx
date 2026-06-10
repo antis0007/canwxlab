@@ -113,6 +113,10 @@ interface MapViewProps {
   /** Buffered satellite time ranges, reported whenever the frame buffer changes. */
   onSatelliteBufferedRanges?: (ranges: BufferedRange[]) => void;
   onCanvasReady?: (canvas: HTMLCanvasElement) => void;
+  /** Fires once the MapLibre map instance is ready (for export capture). */
+  onMapReady?: (map: maplibregl.Map) => void;
+  /** Ref filled with a readiness await for a timeline instant (export). */
+  satelliteReadinessRef?: React.MutableRefObject<(timeMs: number) => Promise<void>>;
 }
 
 interface BasemapPreset {
@@ -540,6 +544,8 @@ export function MapView({
   onSatelliteLoadingState,
   onSatelliteBufferedRanges,
   onCanvasReady,
+  onMapReady,
+  satelliteReadinessRef,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -1067,6 +1073,20 @@ export function MapView({
     };
   }, [satelliteProgressRef]);
 
+  // Export readiness: resolves when satellite imagery for the requested
+  // timeline instant is buffered (other layer types load via map idle).
+  useEffect(() => {
+    if (satelliteReadinessRef) {
+      satelliteReadinessRef.current = (timeMs: number) =>
+        satelliteLayerRef.current?.whenTimeBuffered(timeMs) ?? Promise.resolve();
+    }
+    return () => {
+      if (satelliteReadinessRef) {
+        satelliteReadinessRef.current = () => Promise.resolve();
+      }
+    };
+  }, [satelliteReadinessRef]);
+
   // Photorealistic globe atmosphere. This is a lightweight screen-space
   // scattering pass over MapLibre's globe, not a replacement map renderer.
   const atmosphereLayerRef = useRef<AtmosphereLayer | null>(null);
@@ -1259,6 +1279,7 @@ export function MapView({
       const globeCapable = typeof (map as any).setProjection === "function";
       onGlobeSupportDetectedRef.current(globeCapable);
       onCanvasReady?.(map.getCanvas());
+      onMapReady?.(map);
     });
 
     const updateLiveCamera = () => {
