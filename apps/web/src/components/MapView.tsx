@@ -37,6 +37,7 @@ import {
   type SatelliteCompositeLayer,
   type SatelliteCompositeLoadingState,
 } from "../layers/renderers/satelliteComposite";
+import type { BufferedRange } from "../layers/renderers/satellite/frameGrid";
 import { createTerminatorLayer, TerminatorLayer } from "../layers/renderers/terminator";
 import { createAtmosphereLayer, AtmosphereLayer } from "../layers/renderers/atmosphere";
 import { createPowerGridLayer, PowerGridLayer } from "../layers/renderers/powerGrid";
@@ -109,6 +110,8 @@ interface MapViewProps {
    *  the GPU compositor receives zero-latency updates, bypassing React. */
   satelliteProgressRef?: React.MutableRefObject<(progress: number, timelineMs: number) => void>;
   onSatelliteLoadingState?: (state: SatelliteCompositeLoadingState | null) => void;
+  /** Buffered satellite time ranges, reported whenever the frame buffer changes. */
+  onSatelliteBufferedRanges?: (ranges: BufferedRange[]) => void;
   onCanvasReady?: (canvas: HTMLCanvasElement) => void;
 }
 

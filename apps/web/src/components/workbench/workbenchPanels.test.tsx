@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { LeftSidebar } from "./LeftSidebar";
-import { buildTicks, clampTimelineInputFrame, timelineMaxFrame } from "./BottomTimeline";
+import { bufferedBandsForTesting, buildTicks, clampTimelineInputFrame, timelineMaxFrame } from "./BottomTimeline";
 import { TopBar } from "./TopBar";
 import { EMPTY_ARCHIVE_SUMMARY } from "../../lib/archiveIndex";
 import { buildSourceContractViews } from "../../lib/planetaryCatalog";
@@ -365,5 +365,37 @@ describe("workbench components", () => {
     expect(html).toContain("Local archive");
     expect(html).toContain("MSC GeoMet");
     expect(html).toContain("Costed Weather Archive");
+  });
+});
+
+describe("bufferedBandsForTesting", () => {
+  const FRAME_MS = 5 * 60 * 1000;
+
+  it("maps buffered ranges to percentage bands", () => {
+    const frameCount = 101; // window = 100 frames
+    const windowStartMs = 0;
+    const bands = bufferedBandsForTesting(
+      [{ startMs: 25 * FRAME_MS, endMs: 50 * FRAME_MS }],
+      windowStartMs,
+      frameCount,
+    );
+    expect(bands).toHaveLength(1);
+    expect(bands[0].leftPct).toBeCloseTo(25);
+    expect(bands[0].widthPct).toBeCloseTo(25);
+  });
+
+  it("clips bands to the visible window and drops empty ones", () => {
+    const frameCount = 101;
+    const bands = bufferedBandsForTesting(
+      [
+        { startMs: -10 * FRAME_MS, endMs: 10 * FRAME_MS },
+        { startMs: 200 * FRAME_MS, endMs: 300 * FRAME_MS },
+      ],
+      0,
+      frameCount,
+    );
+    expect(bands).toHaveLength(1);
+    expect(bands[0].leftPct).toBe(0);
+    expect(bands[0].widthPct).toBeCloseTo(10);
   });
 });

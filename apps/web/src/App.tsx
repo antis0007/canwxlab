@@ -36,6 +36,7 @@ import { buildInspectorPayload, type InspectorWmsRow } from "./layers/inspection
 import { buildRenderPlan } from "./layers/renderPlan";
 import { parseWmsTimeDimension } from "./time/wmsTime";
 import type { SatelliteCompositeLoadingState } from "./layers/renderers/satelliteComposite";
+import type { BufferedRange } from "./layers/renderers/satellite/frameGrid";
 import { exportGif, downloadGif } from "./lib/gifExport";
 import { EMPTY_ARCHIVE_SUMMARY, getArchiveSummary } from "./lib/archiveIndex";
 import { buildSourceContractViews } from "./lib/planetaryCatalog";
@@ -349,6 +350,7 @@ export default function App() {
     setVisibleDays,
   } = useAnimationTimeline({
     onProgress: (progress, timelineMs) => satelliteProgressRef.current(progress, timelineMs),
+    getBufferedRanges: () => satelliteBufferedRangesRef.current,
   });
 
   const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -361,6 +363,12 @@ export default function App() {
   const [gifExportProgress, setGifExportProgress] = useState<[number, number] | null>(null);
   const mapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [satelliteLoadingState, setSatelliteLoadingState] = useState<SatelliteCompositeLoadingState | null>(null);
+  const satelliteBufferedRangesRef = useRef<BufferedRange[]>([]);
+  const [satelliteBufferedRanges, setSatelliteBufferedRanges] = useState<BufferedRange[]>([]);
+  const handleSatelliteBufferedRanges = useCallback((ranges: BufferedRange[]) => {
+    satelliteBufferedRangesRef.current = ranges;
+    setSatelliteBufferedRanges(ranges);
+  }, []);
   const satelliteLoadingPendingRef = useRef<SatelliteCompositeLoadingState | null>(null);
   const satelliteLoadingTimerRef = useRef<number | null>(null);
   const satelliteLoadingLastCommitAtRef = useRef(0);
@@ -1001,6 +1009,7 @@ export default function App() {
             satelliteTimelineMs={new Date(playbackState.selectedContinuousTime).getTime()}
             satelliteProgressRef={satelliteProgressRef}
             onSatelliteLoadingState={handleSatelliteLoadingState}
+            onSatelliteBufferedRanges={handleSatelliteBufferedRanges}
             onCanvasReady={(canvas) => { mapCanvasRef.current = canvas; }}
           />
 
@@ -1030,6 +1039,7 @@ export default function App() {
             timeZone={timeZone}
             onOpenGifExport={() => setGifExportOpen(true)}
             warningRanges={timelineWarningRanges}
+            bufferedRanges={satelliteBufferedRanges}
             timelineState={playbackState.timelineState}
             solarReference={timelineSolarReference}
           />

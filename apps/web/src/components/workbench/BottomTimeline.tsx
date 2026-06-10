@@ -18,6 +18,30 @@ export interface TimelineWarningRange {
   label: string;
 }
 
+export interface TimelineBufferedRange {
+  startMs: number;
+  endMs: number;
+}
+
+/** Buffered satellite ranges → percentage bands on the timeline track. */
+export function bufferedBandsForTesting(
+  ranges: TimelineBufferedRange[],
+  windowStartMs: number,
+  frameCount: number,
+): Array<{ leftPct: number; widthPct: number }> {
+  const windowDurationMs = Math.max(1, (frameCount - 1) * FRAME_INTERVAL_MS);
+  const bands: Array<{ leftPct: number; widthPct: number }> = [];
+  for (const range of ranges) {
+    const left = ((range.startMs - windowStartMs) / windowDurationMs) * 100;
+    const right = ((range.endMs - windowStartMs) / windowDurationMs) * 100;
+    const leftPct = Math.max(0, Math.min(100, left));
+    const widthPct = Math.max(0, Math.min(100, right) - leftPct);
+    if (widthPct <= 0 || !Number.isFinite(leftPct) || !Number.isFinite(widthPct)) continue;
+    bands.push({ leftPct, widthPct });
+  }
+  return bands;
+}
+
 interface BottomTimelineProps {
   playback: AnimationPlaybackState;
   onSetFrame: (frame: number) => void;
@@ -34,6 +58,8 @@ interface BottomTimelineProps {
   onOpenGifExport?: () => void;
   /** Timeline spans where selected layer data is outside loadable coverage. */
   warningRanges?: TimelineWarningRange[];
+  /** Buffered satellite time ranges (video-player style shading). */
+  bufferedRanges?: TimelineBufferedRange[];
   timelineState: PlanetaryTimelineState;
   solarReference?: {
     latitude: number;
@@ -343,6 +369,7 @@ export function BottomTimeline({
   timeZone = "UTC",
   onOpenGifExport,
   warningRanges = [],
+  bufferedRanges = [],
   timelineState,
   solarReference,
 }: BottomTimelineProps) {
@@ -468,9 +495,9 @@ export function BottomTimeline({
         </button>
         <button
           type="button"
-          className={`wb-tl-btn wb-tl-play${playback.isPlaying ? " is-playing" : ""}`}
+          className={`wb-tl-btn wb-tl-play${playback.isPlaying ? " is-playing" : ""}${playback.isBuffering ? " is-buffering" : ""}`}
           onClick={onTogglePlay}
-          title={playback.isPlaying ? "Pause (Space)" : "Play (Space)"}
+          title={playback.isBuffering ? "Buffering satellite imagery…" : playback.isPlaying ? "Pause (Space)" : "Play (Space)"}
           aria-label={playback.isPlaying ? "Pause" : "Play"}
         >
           {playback.isPlaying ? (
@@ -601,6 +628,15 @@ export function BottomTimeline({
         </div>
 
         <div ref={trackRef} className={`wb-tl-track${isScrubbing ? " is-scrubbing" : ""}`}>
+          {bufferedBandsForTesting(bufferedRanges, startMs, playback.frameCount).map((band, i) => (
+            <div
+              key={`buffered-${i}-${band.leftPct}`}
+              data-testid="timeline-buffered-band"
+              className="wb-tl-buffered-band"
+              style={{ left: `${band.leftPct}%`, width: `${band.widthPct}%` }}
+              aria-hidden="true"
+            />
+          ))}
           {warningRanges.map((range, i) => {
             const maxFrame = Math.max(1, playback.frameCount - 1);
             const startFrame = Math.max(0, Math.min(maxFrame, range.startFrame));

@@ -1631,6 +1631,24 @@ details.wb-section[open] > summary .wb-section-chevron {
   pointer-events: none;
 }
 
+.wb-tl-buffered-band {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  pointer-events: none;
+  z-index: 0;
+  background-color: rgba(120, 180, 255, 0.18);
+}
+
+.wb-tl-play.is-buffering {
+  animation: wb-tl-buffering-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes wb-tl-buffering-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 0.45; }
+}
+
 .wb-tl-warning-range {
   position: absolute;
   top: 1px;
