@@ -342,8 +342,14 @@ interface PairState {
   status: PairStatus;
   levels: number[];
   nextLevelIndex: number;
+  /** Output of the last completed pyramid level (read-only seed for the next). */
   forward: RenderTarget | null;
+  /** LK output before smoothing. */
   scratch: RenderTarget | null;
+  /** Smoothing output; rotated into `forward` after each level so a pass never
+   * samples the texture it renders into (WebGL feedback loop) and the seed is
+   * never destroyed mid-level. */
+  scratch2: RenderTarget | null;
   backward: RenderTarget | null;
   occlusion: RenderTarget | null;
   cloudMask: RenderTarget | null;
@@ -407,6 +413,7 @@ export class FlowPipeline {
           nextLevelIndex: 0,
           forward: null,
           scratch: null,
+          scratch2: null,
           backward: null,
           occlusion: null,
           cloudMask: null,
@@ -487,33 +494,48 @@ export class FlowPipeline {
     const w = level;
     const h = Math.max(16, Math.round(level * aspect));
 
-    const slot = backward ? "backward" : "forward";
-    const seed = backward ? null : state.forward; // previous level output
-    const target = this.ensureTarget(state, slot, w, h);
-    const scratch = this.ensureTarget(state, "scratch", w, h);
+    // Three-buffer rotation: the previous level's output stays alive as the
+    // read-only seed while LK writes `scratch` and smoothing writes `scratch2`.
+    // Sampling a texture bound to the active framebuffer is a WebGL feedback
+    // loop, and destroying the seed mid-level binds a deleted object.
+    const seed = backward ? null : state.forward;
+    const lkOut = this.ensureTarget(state, "scratch", w, h);
+    const smoothOut = this.ensureTarget(state, "scratch2", w, h);
 
     const prevTex = backward ? state.request.nextTexture : state.request.prevTexture;
     const nextTex = backward ? state.request.prevTexture : state.request.nextTexture;
     const [gu, gv, gc] = state.request.globalFlow;
 
-    this.drawPass(models.lk, scratch, {
+    this.drawPass(models.lk, lkOut, {
       uTexelSize: [1 / w, 1 / h],
       uFlowEncodeScale: MAX_FLOW_UV,
-      uHasInitialFlow: seed && seed.width > 0 && !backward && state.nextLevelIndex > 0 ? 1 : 0,
+      uHasInitialFlow: seed && !backward && state.nextLevelIndex > 0 ? 1 : 0,
       uGlobalInitialFlow: backward ? [-gu, -gv] : [gu, gv],
       uGlobalInitialConfidence: gc,
     }, {
       uFlowPrevTex: prevTex,
       uFlowNextTex: nextTex,
-      uInitialFlowTex: seed?.texture ?? scratch.texture,
+      uInitialFlowTex: seed?.texture ?? lkOut.texture,
     });
 
-    this.drawPass(models.smooth, target, {
+    this.drawPass(models.smooth, smoothOut, {
       uTexelSize: [1 / w, 1 / h],
       uFlowEncodeScale: MAX_FLOW_UV,
     }, {
-      uFlowTex: scratch.texture,
+      uFlowTex: lkOut.texture,
     });
+
+    if (backward) {
+      this.destroyTarget(state.backward);
+      state.backward = smoothOut;
+      state.scratch2 = null;
+    } else {
+      // Rotate: smoothed output becomes the new forward; the old forward is
+      // recycled as next level's scratch2 (resized by ensureTarget).
+      const oldForward = state.forward;
+      state.forward = smoothOut;
+      state.scratch2 = oldForward;
+    }
   }
 
   private runConsistency(state: PairState, level: number): void {
@@ -697,7 +719,7 @@ export class FlowPipeline {
 
   private ensureTarget(
     state: PairState,
-    slot: "forward" | "scratch" | "backward" | "occlusion" | "cloudMask",
+    slot: "forward" | "scratch" | "scratch2" | "backward" | "occlusion" | "cloudMask",
     width: number,
     height: number,
   ): RenderTarget {
@@ -735,11 +757,13 @@ export class FlowPipeline {
   private destroyPair(state: PairState, opts: { keepRecord?: boolean } = {}): void {
     this.destroyTarget(state.forward);
     this.destroyTarget(state.scratch);
+    this.destroyTarget(state.scratch2);
     this.destroyTarget(state.backward);
     this.destroyTarget(state.occlusion);
     this.destroyTarget(state.cloudMask);
     state.forward = null;
     state.scratch = null;
+    state.scratch2 = null;
     state.backward = null;
     state.occlusion = null;
     state.cloudMask = null;

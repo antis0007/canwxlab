@@ -1026,8 +1026,11 @@ export function MapView({
 
     if (configs.length === 0) {
       satelliteLayerRef.current = null;
-      onSatelliteLoadingState?.(null);
-      onSatelliteBufferedRanges?.([]);
+      // Defer: this memo runs during render; parent setState must not.
+      queueMicrotask(() => {
+        onSatelliteLoadingState?.(null);
+        onSatelliteBufferedRanges?.([]);
+      });
       return null;
     }
     const layer = createSatelliteCompositeLayer({
