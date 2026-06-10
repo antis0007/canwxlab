@@ -1,0 +1,122 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { FrameStore, type FrameStoreOptions } from "./frameStore";
+
+const MIN10 = 600_000;
+const T0 = Date.parse("2026-06-09T00:00:00Z");
+const times = Array.from({ length: 18 }, (_, i) => T0 + i * MIN10);
+
+function makeStore(overrides: Partial<FrameStoreOptions> = {}) {
+  const fetchFrame = vi.fn(async () => ({ width: 64, height: 64, destroy: vi.fn() }));
+  const store = new FrameStore({
+    satelliteId: "eccc_goes_east_natural",
+    wmsUrlTemplate:
+      "https://geo.weather.gc.ca/geomet?SERVICE=WMS&LAYERS=GOES-East_1km_NaturalColor&CRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=512&HEIGHT=512&FORMAT=image/png&TIME=2026-06-09T00:00:00Z",
+    availableTimesMs: times,
+    frameIntervalMs: MIN10,
+    fetchFrame,
+    ...overrides,
+  });
+  return { store, fetchFrame };
+}
+
+const baseUpdate = {
+  playheadMs: times[0],
+  loopStartMs: times[0],
+  loopEndMs: times[17],
+  texSize: [512, 512] as [number, number],
+};
+
+describe("FrameStore", () => {
+  it("fetches outward from the playhead within in-flight limits", async () => {
+    const { store, fetchFrame } = makeStore();
+    store.update({
+      ...baseUpdate,
+      viewBounds: [-9e6, 4e6, -7e6, 5.5e6],
+      playheadMs: times[9],
+    });
+    expect(fetchFrame.mock.calls.length).toBeLessThanOrEqual(4);
+    expect(fetchFrame.mock.calls[0][0].timeMs).toBe(times[9]);
+    await vi.waitFor(() => expect(store.getBufferedRanges().length).toBeGreaterThan(0));
+  });
+
+  it("reports buffered ranges and resolves whenTimeBuffered", async () => {
+    const { store } = makeStore();
+    store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
+    await store.whenTimeBuffered(times[0]);
+    const ranges = store.getBufferedRanges();
+    expect(ranges[0].startMs).toBe(times[0]);
+  });
+
+  it("keeps fetching after completions until the half-window ahead is buffered", async () => {
+    const { store, fetchFrame } = makeStore();
+    store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
+    // Playhead at times[0]: prefetch covers playhead + LOOP_BUFFER_SPAN/2 = 1.5 h
+    // = frames 0..9. Frames beyond the half-window arrive as the playhead moves.
+    await vi.waitFor(() => {
+      const ranges = store.getBufferedRanges();
+      expect(ranges.length).toBe(1);
+      expect(ranges[0].endMs).toBe(times[9]);
+    });
+    expect(fetchFrame.mock.calls.length).toBe(10);
+  });
+
+  it("framesAt returns the bracketing pair for a mid-interval time", async () => {
+    const { store } = makeStore();
+    store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
+    await store.whenTimeBuffered(times[1]);
+    await vi.waitFor(() => expect(store.framesAt(times[0] + MIN10 / 2)?.next.timeMs).toBe(times[1]));
+    const pair = store.framesAt(times[0] + MIN10 / 2);
+    expect(pair?.prev.timeMs).toBe(times[0]);
+    expect(pair?.next.timeMs).toBe(times[1]);
+  });
+
+  it("does not invalidate buffered frames for pans inside the same grid cell", async () => {
+    const { store, fetchFrame } = makeStore();
+    store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
+    await store.whenTimeBuffered(times[0]);
+    const callsBefore = fetchFrame.mock.calls.length;
+    store.update({ ...baseUpdate, viewBounds: [-8.9e6, 4.1e6, -6.9e6, 5.6e6] });
+    expect(store.framesAt(times[0])).not.toBeNull();
+    const refetched = fetchFrame.mock.calls
+      .slice(callsBefore)
+      .filter((c) => c[0].timeMs === times[0]);
+    expect(refetched).toHaveLength(0);
+  });
+
+  it("keeps old-grid frames drawable after a zoom-band change", async () => {
+    const { store } = makeStore();
+    store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
+    await store.whenTimeBuffered(times[0]);
+    // Much smaller viewport → different zoom band → new grid.
+    store.update({ ...baseUpdate, viewBounds: [-8.05e6, 4.5e6, -8.0e6, 4.54e6] });
+    expect(store.framesAt(times[0])).not.toBeNull();
+  });
+
+  it("records failures and does not retry inside the cooldown", async () => {
+    const fetchFrame = vi.fn(async () => {
+      throw new Error("boom");
+    });
+    const { store } = makeStore({ fetchFrame });
+    store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
+    // All 10 times in the prefetch window fail once, then go on cooldown.
+    await vi.waitFor(() => expect(fetchFrame.mock.calls.length).toBe(10));
+    await new Promise((r) => setTimeout(r, 10));
+    const callsAfterFailure = fetchFrame.mock.calls.length;
+    expect(callsAfterFailure).toBe(10);
+    store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(fetchFrame.mock.calls.length).toBe(callsAfterFailure);
+  });
+
+  it("destroy aborts in-flight fetches and destroys textures", async () => {
+    const destroySpy = vi.fn();
+    const fetchFrame = vi.fn(async () => ({ width: 64, height: 64, destroy: destroySpy }));
+    const { store } = makeStore({ fetchFrame });
+    store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
+    await store.whenTimeBuffered(times[0]);
+    store.destroy();
+    expect(destroySpy).toHaveBeenCalled();
+    expect(store.getBufferedRanges()).toEqual([]);
+  });
+});
