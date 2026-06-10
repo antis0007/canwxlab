@@ -788,6 +788,21 @@ export default function App() {
     void refreshData();
   }, [refreshData]);
 
+  // WMS time extents are sliding windows (radar advertises only the last ~3 h
+  // at PT6M). A layer catalog fetched once at mount goes stale within the
+  // hour: the client then clamps TIME requests into a window upstream has
+  // already purged, every tile 404s, and radar appears broken. Re-fetch the
+  // catalog on the server's capabilities cache cadence so extents track
+  // upstream retention.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      api.layers()
+        .then((layers) => setBackendLayers(layers))
+        .catch(() => { /* transient; next tick retries */ });
+    }, 5 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const runSimulation = useCallback(async () => {
     setIsRunningSimulation(true);
     try {
