@@ -2,10 +2,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { LeftSidebar } from "./LeftSidebar";
-import { buildTicks, clampTimelineInputFrame, timelineMaxFrame } from "./BottomTimeline";
+import { bufferedBandsForTesting, buildTicks, clampTimelineInputFrame, timelineMaxFrame } from "./BottomTimeline";
 import { TopBar } from "./TopBar";
 import { EMPTY_ARCHIVE_SUMMARY } from "../../lib/archiveIndex";
 import { buildSourceContractViews } from "../../lib/planetaryCatalog";
+import { frameFromTimelinePct } from "../../time/timelineWindow";
 import type {
   AnimationPlaybackState,
   LayerDefinition,
@@ -20,10 +21,12 @@ import type {
 
 const playback: AnimationPlaybackState = {
   isPlaying: true,
+  isBuffering: false,
   speedMultiplier: 1,
   playheadFrame: 288,
   frame: 288,
   frameCount: 865,
+  visibleDays: 3,
   selectedValidTime: new Date().toISOString(),
   selectedContinuousTime: new Date().toISOString(),
   loopStart: 0,
@@ -161,6 +164,16 @@ describe("workbench components", () => {
     expect(clampTimelineInputFrame(playback.forecastFrame, playback, locked)).toBe(playback.liveFrame);
     expect(timelineMaxFrame(playback, unlocked)).toBe(playback.forecastFrame);
     expect(clampTimelineInputFrame(playback.forecastFrame, playback, unlocked)).toBe(playback.forecastFrame);
+  });
+
+  it("maps timeline clicks through the displayed span before clamping future time", () => {
+    const locked = { ...timelineState, forecastEnabled: false };
+    const fullWidthFrame = frameFromTimelinePct(100, playback.frameCount);
+    const livePct = (playback.liveFrame / (playback.frameCount - 1)) * 100;
+
+    expect(fullWidthFrame).toBe(playback.forecastFrame);
+    expect(frameFromTimelinePct(livePct, playback.frameCount)).toBeCloseTo(playback.liveFrame, 4);
+    expect(clampTimelineInputFrame(fullWidthFrame, playback, locked)).toBe(playback.liveFrame);
   });
 
   it("renders map/globe toggle and animation controls", () => {
@@ -352,5 +365,37 @@ describe("workbench components", () => {
     expect(html).toContain("Local archive");
     expect(html).toContain("MSC GeoMet");
     expect(html).toContain("Costed Weather Archive");
+  });
+});
+
+describe("bufferedBandsForTesting", () => {
+  const FRAME_MS = 5 * 60 * 1000;
+
+  it("maps buffered ranges to percentage bands", () => {
+    const frameCount = 101; // window = 100 frames
+    const windowStartMs = 0;
+    const bands = bufferedBandsForTesting(
+      [{ startMs: 25 * FRAME_MS, endMs: 50 * FRAME_MS }],
+      windowStartMs,
+      frameCount,
+    );
+    expect(bands).toHaveLength(1);
+    expect(bands[0].leftPct).toBeCloseTo(25);
+    expect(bands[0].widthPct).toBeCloseTo(25);
+  });
+
+  it("clips bands to the visible window and drops empty ones", () => {
+    const frameCount = 101;
+    const bands = bufferedBandsForTesting(
+      [
+        { startMs: -10 * FRAME_MS, endMs: 10 * FRAME_MS },
+        { startMs: 200 * FRAME_MS, endMs: 300 * FRAME_MS },
+      ],
+      0,
+      frameCount,
+    );
+    expect(bands).toHaveLength(1);
+    expect(bands[0].leftPct).toBe(0);
+    expect(bands[0].widthPct).toBeCloseTo(10);
   });
 });

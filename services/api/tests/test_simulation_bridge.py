@@ -3,6 +3,7 @@ import os
 from fastapi.testclient import TestClient
 
 from canwxlab_api.main import app
+from canwxlab_api.routes import simulations
 
 client = TestClient(app)
 
@@ -21,6 +22,7 @@ def test_stub_mode_returns_completed(monkeypatch):
     body = r.json()
     assert body["status"] == "completed"
     assert body["provenance"]["mode"] == "stub"
+    assert body["provenance"]["source_classification"] == "mock_experimental"
 
 
 def test_cli_mode_unavailable_returns_failed(monkeypatch):
@@ -36,6 +38,12 @@ def test_cli_mode_unavailable_returns_failed(monkeypatch):
     # Either way: provenance.mode must be cli, no HTTP exception.
     assert body["provenance"]["mode"] == "cli"
     assert body["status"] in {"failed", "completed"}
+
+
+def test_cli_binary_resolver_searches_workspace_target(monkeypatch):
+    monkeypatch.setattr(simulations.shutil, "which", lambda _name: None)
+    root = simulations._repo_root()
+    assert (root / "Cargo.toml").exists()
 
 
 def test_list_runs_returns_array():

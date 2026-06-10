@@ -1,4 +1,4 @@
-import maplibregl, { type StyleSpecification } from "maplibre-gl";
+import maplibregl, { type MapOptions, type StyleSpecification } from "maplibre-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { GeoJsonLayer } from "@deck.gl/layers";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -37,6 +37,7 @@ import {
   type SatelliteCompositeLayer,
   type SatelliteCompositeLoadingState,
 } from "../layers/renderers/satelliteComposite";
+import type { BufferedRange } from "../layers/renderers/satellite/frameGrid";
 import { createTerminatorLayer, TerminatorLayer } from "../layers/renderers/terminator";
 import { createAtmosphereLayer, AtmosphereLayer } from "../layers/renderers/atmosphere";
 import { createPowerGridLayer, PowerGridLayer } from "../layers/renderers/powerGrid";
@@ -109,7 +110,13 @@ interface MapViewProps {
    *  the GPU compositor receives zero-latency updates, bypassing React. */
   satelliteProgressRef?: React.MutableRefObject<(progress: number, timelineMs: number) => void>;
   onSatelliteLoadingState?: (state: SatelliteCompositeLoadingState | null) => void;
+  /** Buffered satellite time ranges, reported whenever the frame buffer changes. */
+  onSatelliteBufferedRanges?: (ranges: BufferedRange[]) => void;
   onCanvasReady?: (canvas: HTMLCanvasElement) => void;
+  /** Fires once the MapLibre map instance is ready (for export capture). */
+  onMapReady?: (map: maplibregl.Map) => void;
+  /** Ref filled with a readiness await for a timeline instant (export). */
+  satelliteReadinessRef?: React.MutableRefObject<(timeMs: number) => Promise<void>>;
 }
 
 interface BasemapPreset {
@@ -535,7 +542,10 @@ export function MapView({
   satelliteTimelineMs,
   satelliteProgressRef,
   onSatelliteLoadingState,
+  onSatelliteBufferedRanges,
   onCanvasReady,
+  onMapReady,
+  satelliteReadinessRef,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -1016,22 +1026,26 @@ export function MapView({
 
     if (configs.length === 0) {
       satelliteLayerRef.current = null;
-      onSatelliteLoadingState?.(null);
+      // Defer: this memo runs during render; parent setState must not.
+      queueMicrotask(() => {
+        onSatelliteLoadingState?.(null);
+        onSatelliteBufferedRanges?.([]);
+      });
       return null;
     }
-    console.log("[MapView] Creating satellite composite layer with", configs.length, "satellite(s):", configs.map(c => c.id).join(", "));
     const layer = createSatelliteCompositeLayer({
       satellites: configs,
       timeProgress: satelliteSubFrameProgress,
       timelineMs: satelliteTimelineMs,
       quality: renderQuality,
       onLoadingStateChange: onSatelliteLoadingState,
+      onBufferedRangesChange: onSatelliteBufferedRanges,
     });
     satelliteLayerRef.current = layer;
     return layer;
     // satelliteSignature intentionally captures only visibility, opacity, and URL-template changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [satelliteSignature, renderQuality, onSatelliteLoadingState]);
+  }, [satelliteSignature, renderQuality, onSatelliteLoadingState, onSatelliteBufferedRanges]);
 
   useEffect(() => {
     satelliteLayerRef.current?.setTimeProgress(satelliteSubFrameProgress);
@@ -1061,6 +1075,20 @@ export function MapView({
       }
     };
   }, [satelliteProgressRef]);
+
+  // Export readiness: resolves when satellite imagery for the requested
+  // timeline instant is buffered (other layer types load via map idle).
+  useEffect(() => {
+    if (satelliteReadinessRef) {
+      satelliteReadinessRef.current = (timeMs: number) =>
+        satelliteLayerRef.current?.whenTimeBuffered(timeMs) ?? Promise.resolve();
+    }
+    return () => {
+      if (satelliteReadinessRef) {
+        satelliteReadinessRef.current = () => Promise.resolve();
+      }
+    };
+  }, [satelliteReadinessRef]);
 
   // Photorealistic globe atmosphere. This is a lightweight screen-space
   // scattering pass over MapLibre's globe, not a replacement map renderer.
@@ -1163,7 +1191,7 @@ export function MapView({
     if (!containerRef.current || mapRef.current) return;
     lastBasemapStyleKeyRef.current = currentBasemapStyleKey;
 
-    const map = new maplibregl.Map({
+    const mapOptions: MapOptions & { canvasContextAttributes?: WebGLContextAttributes } = {
       container: containerRef.current,
       style: getBasemapStyle(basemap, globalTimeMs),
       center: [-35, 20],
@@ -1177,7 +1205,9 @@ export function MapView({
       pixelRatio: renderPixelRatio(renderQuality),
       attributionControl: false,
       canvasContextAttributes: { preserveDrawingBuffer: true },
-    });
+    };
+
+    const map = new maplibregl.Map(mapOptions);
     map.dragRotate.disable();
     (map.touchZoomRotate as any)?.disableRotation?.();
 
@@ -1252,6 +1282,7 @@ export function MapView({
       const globeCapable = typeof (map as any).setProjection === "function";
       onGlobeSupportDetectedRef.current(globeCapable);
       onCanvasReady?.(map.getCanvas());
+      onMapReady?.(map);
     });
 
     const updateLiveCamera = () => {

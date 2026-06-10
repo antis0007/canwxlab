@@ -352,8 +352,8 @@ export function syncWmsLayers(options: {
 
   const style = options.map.getStyle();
   style.layers
-    ?.filter((entry) => entry.id.startsWith("wms-layer-") && !isManagedWmsId(entry.id, "layer", expectedLayerBaseIds))
-    .forEach((entry) => options.map.removeLayer(entry.id));
+    ?.filter((entry: { id: string }) => entry.id.startsWith("wms-layer-") && !isManagedWmsId(entry.id, "layer", expectedLayerBaseIds))
+    .forEach((entry: { id: string }) => options.map.removeLayer(entry.id));
   Object.keys(style.sources)
     .filter((sourceId) => sourceId.startsWith("wms-source-") && !isManagedWmsId(sourceId, "source", expectedLayerBaseIds))
     .forEach((sourceId) => {
