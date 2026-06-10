@@ -1,7 +1,20 @@
 # Satellite Flow Overhaul + Video/GIF Export — Design Spec
 
 Date: 2026-06-09
-Status: Approved pending user review
+Status: Implemented (merged to main 2026-06-10)
+
+Implementation amendments:
+- No MediaRecorder fallback for video export: it cannot produce
+  frame-accurate timestamps for stepped offline rendering. The UI disables
+  WebM/MP4 when WebCodecs is unavailable; GIF remains.
+- Motion sampling stays synchronous at fetch time instead of a worker; GPU
+  flow is amortized one pass per frame via the pipeline pump, which removed
+  the jank the worker was meant to address.
+- Zoom-band handoff swaps when the new grid pair is ready instead of a
+  150 ms crossfade, keeping the composite shader within WebGL2's 16
+  guaranteed texture units (satellite slots reduced 4 → 3).
+- Added (root-cause find during implementation): periodic layer-catalog
+  refresh so sliding WMS time extents (radar ~3 h) track upstream retention.
 Scope: apps/web satellite compositor, animation timeline, export pipeline
 
 ## Problem
