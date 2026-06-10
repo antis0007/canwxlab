@@ -3,6 +3,24 @@ use serde::{Deserialize, Serialize};
 use crate::grid::Grid2D;
 use crate::state::ModelState2D;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AdvectionScheme {
+    /// BFECC/MacCormack-corrected semi-Lagrangian transport. This is the default
+    /// because it is stable for interactive timesteps while preserving sharper
+    /// cloud/moisture structure than first-order upwind advection.
+    SemiLagrangianMacCormack,
+    /// Legacy first-order upwind transport. Kept for regression comparisons and
+    /// ultra-conservative fallback runs.
+    FirstOrderUpwind,
+}
+
+impl Default for AdvectionScheme {
+    fn default() -> Self {
+        Self::SemiLagrangianMacCormack
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct SimulationConfig {
     pub dt_seconds: f64,
@@ -12,6 +30,8 @@ pub struct SimulationConfig {
     pub saturation_threshold: f64,
     pub condensation_rate: f64,
     pub precipitation_rate: f64,
+    #[serde(default)]
+    pub advection_scheme: AdvectionScheme,
 }
 
 impl Default for SimulationConfig {
@@ -24,6 +44,7 @@ impl Default for SimulationConfig {
             saturation_threshold: 0.014,
             condensation_rate: 0.18,
             precipitation_rate: 0.04,
+            advection_scheme: AdvectionScheme::default(),
         }
     }
 }
@@ -67,16 +88,14 @@ pub fn step(
         &mut state.temperature,
         &state.u_wind,
         &state.v_wind,
-        config.dt_seconds,
-        config.diffusion,
+        config,
     );
     advect_scalar(
         grid,
         &mut state.moisture,
         &state.u_wind,
         &state.v_wind,
-        config.dt_seconds,
-        config.diffusion,
+        config,
     );
     apply_cloud_microphysics(state, config);
     diffuse_field(grid, &mut state.pressure_height, config.diffusion * 0.3);
@@ -95,8 +114,16 @@ pub fn step(
 }
 
 pub fn run_sample(width: usize, height: usize, steps: usize) -> Result<SimulationResult, String> {
+    run_sample_with_config(width, height, steps, SimulationConfig::default())
+}
+
+pub fn run_sample_with_config(
+    width: usize,
+    height: usize,
+    steps: usize,
+    config: SimulationConfig,
+) -> Result<SimulationResult, String> {
     let grid = Grid2D::new(width, height, 10_000.0, 10_000.0);
-    let config = SimulationConfig::default();
     let mut state = ModelState2D::demo(&grid);
     let mut diagnostics = diagnose(&grid, &state);
     for completed in 1..=steps {
@@ -133,7 +160,31 @@ fn apply_pressure_gradient(grid: &Grid2D, state: &mut ModelState2D, config: &Sim
     }
 }
 
-fn advect_scalar(grid: &Grid2D, scalar: &mut [f64], u: &[f64], v: &[f64], dt: f64, diffusion: f64) {
+fn advect_scalar(
+    grid: &Grid2D,
+    scalar: &mut [f64],
+    u: &[f64],
+    v: &[f64],
+    config: &SimulationConfig,
+) {
+    match config.advection_scheme {
+        AdvectionScheme::SemiLagrangianMacCormack => {
+            advect_scalar_maccormack(grid, scalar, u, v, config.dt_seconds, config.diffusion);
+        }
+        AdvectionScheme::FirstOrderUpwind => {
+            advect_scalar_upwind(grid, scalar, u, v, config.dt_seconds, config.diffusion);
+        }
+    }
+}
+
+fn advect_scalar_upwind(
+    grid: &Grid2D,
+    scalar: &mut [f64],
+    u: &[f64],
+    v: &[f64],
+    dt: f64,
+    diffusion: f64,
+) {
     let old = scalar.to_owned();
     for y in 0..grid.height {
         for x in 0..grid.width {
@@ -156,6 +207,99 @@ fn advect_scalar(grid: &Grid2D, scalar: &mut [f64], u: &[f64], v: &[f64], dt: f6
         }
     }
     diffuse_field(grid, scalar, diffusion);
+}
+
+fn advect_scalar_maccormack(
+    grid: &Grid2D,
+    scalar: &mut [f64],
+    u: &[f64],
+    v: &[f64],
+    dt: f64,
+    diffusion: f64,
+) {
+    let old = scalar.to_owned();
+    let forward = semi_lagrangian_advect(grid, &old, u, v, dt);
+    let backward = semi_lagrangian_advect(grid, &forward, u, v, -dt);
+
+    let mut corrected = vec![0.0; grid.len()];
+    for idx in 0..grid.len() {
+        corrected[idx] = old[idx] + 0.5 * (old[idx] - backward[idx]);
+    }
+
+    let mut limited = semi_lagrangian_advect(grid, &corrected, u, v, dt);
+    for y in 0..grid.height {
+        for x in 0..grid.width {
+            let idx = grid.index(x, y);
+            let departure_x = x as f64 - u[idx] * dt / grid.dx_m;
+            let departure_y = y as f64 - v[idx] * dt / grid.dy_m;
+            let (min_value, max_value) = local_min_max(grid, &old, departure_x, departure_y);
+            limited[idx] = limited[idx].clamp(min_value, max_value);
+        }
+    }
+
+    scalar.copy_from_slice(&limited);
+    diffuse_field(grid, scalar, diffusion);
+}
+
+fn semi_lagrangian_advect(
+    grid: &Grid2D,
+    field: &[f64],
+    u: &[f64],
+    v: &[f64],
+    dt: f64,
+) -> Vec<f64> {
+    let mut advected = vec![0.0; grid.len()];
+    for y in 0..grid.height {
+        for x in 0..grid.width {
+            let idx = grid.index(x, y);
+            let departure_x = x as f64 - u[idx] * dt / grid.dx_m;
+            let departure_y = y as f64 - v[idx] * dt / grid.dy_m;
+            advected[idx] = sample_bilinear(grid, field, departure_x, departure_y);
+        }
+    }
+    advected
+}
+
+fn sample_bilinear(grid: &Grid2D, field: &[f64], x: f64, y: f64) -> f64 {
+    let x = x.clamp(0.0, (grid.width - 1) as f64);
+    let y = y.clamp(0.0, (grid.height - 1) as f64);
+    let x0 = x.floor() as usize;
+    let y0 = y.floor() as usize;
+    let x1 = grid.clamp_x(x0 as isize + 1);
+    let y1 = grid.clamp_y(y0 as isize + 1);
+    let fx = x - x0 as f64;
+    let fy = y - y0 as f64;
+
+    let v00 = field[grid.index(x0, y0)];
+    let v10 = field[grid.index(x1, y0)];
+    let v01 = field[grid.index(x0, y1)];
+    let v11 = field[grid.index(x1, y1)];
+    let top = v00 * (1.0 - fx) + v10 * fx;
+    let bottom = v01 * (1.0 - fx) + v11 * fx;
+    top * (1.0 - fy) + bottom * fy
+}
+
+fn local_min_max(grid: &Grid2D, field: &[f64], x: f64, y: f64) -> (f64, f64) {
+    let cx = x.round() as isize;
+    let cy = y.round() as isize;
+    let mut min_value = f64::INFINITY;
+    let mut max_value = f64::NEG_INFINITY;
+
+    for oy in -1..=1 {
+        for ox in -1..=1 {
+            let px = grid.clamp_x(cx + ox);
+            let py = grid.clamp_y(cy + oy);
+            let value = field[grid.index(px, py)];
+            min_value = min_value.min(value);
+            max_value = max_value.max(value);
+        }
+    }
+
+    if min_value.is_finite() && max_value.is_finite() {
+        (min_value, max_value)
+    } else {
+        (0.0, 0.0)
+    }
 }
 
 fn diffuse_field(grid: &Grid2D, field: &mut [f64], coefficient: f64) {

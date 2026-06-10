@@ -1,4 +1,4 @@
-import maplibregl, { type StyleSpecification } from "maplibre-gl";
+import maplibregl, { type MapOptions, type StyleSpecification } from "maplibre-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { GeoJsonLayer } from "@deck.gl/layers";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1019,7 +1019,6 @@ export function MapView({
       onSatelliteLoadingState?.(null);
       return null;
     }
-    console.log("[MapView] Creating satellite composite layer with", configs.length, "satellite(s):", configs.map(c => c.id).join(", "));
     const layer = createSatelliteCompositeLayer({
       satellites: configs,
       timeProgress: satelliteSubFrameProgress,
@@ -1163,7 +1162,7 @@ export function MapView({
     if (!containerRef.current || mapRef.current) return;
     lastBasemapStyleKeyRef.current = currentBasemapStyleKey;
 
-    const map = new maplibregl.Map({
+    const mapOptions: MapOptions & { canvasContextAttributes?: WebGLContextAttributes } = {
       container: containerRef.current,
       style: getBasemapStyle(basemap, globalTimeMs),
       center: [-35, 20],
@@ -1177,7 +1176,9 @@ export function MapView({
       pixelRatio: renderPixelRatio(renderQuality),
       attributionControl: false,
       canvasContextAttributes: { preserveDrawingBuffer: true },
-    });
+    };
+
+    const map = new maplibregl.Map(mapOptions);
     map.dragRotate.disable();
     (map.touchZoomRotate as any)?.disableRotation?.();
 

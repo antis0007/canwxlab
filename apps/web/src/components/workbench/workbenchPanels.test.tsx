@@ -6,6 +6,7 @@ import { buildTicks, clampTimelineInputFrame, timelineMaxFrame } from "./BottomT
 import { TopBar } from "./TopBar";
 import { EMPTY_ARCHIVE_SUMMARY } from "../../lib/archiveIndex";
 import { buildSourceContractViews } from "../../lib/planetaryCatalog";
+import { frameFromTimelinePct } from "../../time/timelineWindow";
 import type {
   AnimationPlaybackState,
   LayerDefinition,
@@ -20,10 +21,12 @@ import type {
 
 const playback: AnimationPlaybackState = {
   isPlaying: true,
+  isBuffering: false,
   speedMultiplier: 1,
   playheadFrame: 288,
   frame: 288,
   frameCount: 865,
+  visibleDays: 3,
   selectedValidTime: new Date().toISOString(),
   selectedContinuousTime: new Date().toISOString(),
   loopStart: 0,
@@ -161,6 +164,16 @@ describe("workbench components", () => {
     expect(clampTimelineInputFrame(playback.forecastFrame, playback, locked)).toBe(playback.liveFrame);
     expect(timelineMaxFrame(playback, unlocked)).toBe(playback.forecastFrame);
     expect(clampTimelineInputFrame(playback.forecastFrame, playback, unlocked)).toBe(playback.forecastFrame);
+  });
+
+  it("maps timeline clicks through the displayed span before clamping future time", () => {
+    const locked = { ...timelineState, forecastEnabled: false };
+    const fullWidthFrame = frameFromTimelinePct(100, playback.frameCount);
+    const livePct = (playback.liveFrame / (playback.frameCount - 1)) * 100;
+
+    expect(fullWidthFrame).toBe(playback.forecastFrame);
+    expect(frameFromTimelinePct(livePct, playback.frameCount)).toBeCloseTo(playback.liveFrame, 4);
+    expect(clampTimelineInputFrame(fullWidthFrame, playback, locked)).toBe(playback.liveFrame);
   });
 
   it("renders map/globe toggle and animation controls", () => {

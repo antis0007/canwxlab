@@ -1,5 +1,6 @@
 import type { PlanetaryTimelineState } from "../types/planetary";
 import type { SourceStatus } from "../types/weather";
+import type { TimelineViewDays } from "../time/timelineWindow";
 
 export type ViewMode = "map" | "globe";
 
@@ -185,12 +186,15 @@ export interface LayerDiagnostics {
 
 export interface AnimationPlaybackState {
   isPlaying: boolean;
+  /** True while playback is held at the edge of buffered satellite data. */
+  isBuffering: boolean;
   speedMultiplier: number;
   /** Continuous timeline position, in frame units. Drives smooth scrub/playback UI. */
   playheadFrame: number;
   /** Discrete WMS target frame used for fetching the next raster frame. */
   frame: number;
   frameCount: number;
+  visibleDays: TimelineViewDays;
   selectedValidTime: string;
   selectedContinuousTime: string;
   loopStart: number;

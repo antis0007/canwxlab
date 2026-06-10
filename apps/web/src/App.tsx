@@ -346,6 +346,7 @@ export default function App() {
     reset,
     returnLive,
     setForecastEnabled,
+    setVisibleDays,
   } = useAnimationTimeline({
     onProgress: (progress, timelineMs) => satelliteProgressRef.current(progress, timelineMs),
   });
@@ -360,6 +361,9 @@ export default function App() {
   const [gifExportProgress, setGifExportProgress] = useState<[number, number] | null>(null);
   const mapCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [satelliteLoadingState, setSatelliteLoadingState] = useState<SatelliteCompositeLoadingState | null>(null);
+  const satelliteLoadingPendingRef = useRef<SatelliteCompositeLoadingState | null>(null);
+  const satelliteLoadingTimerRef = useRef<number | null>(null);
+  const satelliteLoadingLastCommitAtRef = useRef(0);
   const [timeZone, setTimeZone] = useState<string>(() => getStoredTimeZone());
   const [archiveSummary, setArchiveSummary] = useState<ArchiveSummary>(EMPTY_ARCHIVE_SUMMARY);
 
@@ -421,8 +425,41 @@ export default function App() {
     try { window.localStorage.setItem(TERMINATOR_INTENSITY_STORAGE_KEY, String(terminatorIntensity)); } catch {/* ignore */}
   }, [terminatorIntensity]);
 
+  const flushSatelliteLoadingState = useCallback(() => {
+    satelliteLoadingTimerRef.current = null;
+    satelliteLoadingLastCommitAtRef.current = performance.now();
+    setSatelliteLoadingState(satelliteLoadingPendingRef.current);
+  }, []);
+
   const handleSatelliteLoadingState = useCallback((state: SatelliteCompositeLoadingState | null) => {
-    setSatelliteLoadingState(state);
+    satelliteLoadingPendingRef.current = state;
+    const now = performance.now();
+    const urgent = state === null || state.phase === "ready";
+    const minIntervalMs = 160;
+    const waitMs = minIntervalMs - (now - satelliteLoadingLastCommitAtRef.current);
+
+    if (urgent || waitMs <= 0) {
+      if (satelliteLoadingTimerRef.current !== null) {
+        window.clearTimeout(satelliteLoadingTimerRef.current);
+        satelliteLoadingTimerRef.current = null;
+      }
+      satelliteLoadingLastCommitAtRef.current = now;
+      setSatelliteLoadingState(state);
+      return;
+    }
+
+    if (satelliteLoadingTimerRef.current === null) {
+      satelliteLoadingTimerRef.current = window.setTimeout(flushSatelliteLoadingState, waitMs);
+    }
+  }, [flushSatelliteLoadingState]);
+
+  useEffect(() => {
+    return () => {
+      if (satelliteLoadingTimerRef.current !== null) {
+        window.clearTimeout(satelliteLoadingTimerRef.current);
+        satelliteLoadingTimerRef.current = null;
+      }
+    };
   }, []);
 
   const satelliteLoadingPercent = useMemo(() => {
@@ -802,6 +839,13 @@ export default function App() {
     }),
     [layerEngine.activeLayers, layerEngine.runtimeState, playbackState.frameCount, timelineWindowStartMs],
   );
+  const timelineSolarReference = useMemo(
+    () => ({
+      latitude: selectedCity?.latitude ?? cameraState.latitude,
+      longitude: selectedCity?.longitude ?? cameraState.longitude,
+    }),
+    [cameraState.latitude, cameraState.longitude, selectedCity?.latitude, selectedCity?.longitude],
+  );
 
   return (
     <main className="wb-app">
@@ -981,10 +1025,13 @@ export default function App() {
             onStepFrame={stepFrame}
             onSetSpeed={setSpeedMultiplier}
             onShiftWindowDays={shiftWindowDays}
+            onSetVisibleDays={setVisibleDays}
+            onReturnLive={returnLive}
             timeZone={timeZone}
             onOpenGifExport={() => setGifExportOpen(true)}
             warningRanges={timelineWarningRanges}
             timelineState={playbackState.timelineState}
+            solarReference={timelineSolarReference}
           />
         </section>
 

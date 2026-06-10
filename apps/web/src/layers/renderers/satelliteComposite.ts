@@ -16,7 +16,7 @@ import type { RenderQualityPreset } from "../types";
 import { API_BASE_URL } from "../../lib/api";
 import { cachedGetImageBlob } from "../../lib/localCache";
 import { logManager } from "../../lib/logging";
-import { parseWmsTimeDimension } from "../../time/wmsTime";
+import { formatWmsUtcSecond, parseWmsTimeDimension } from "../../time/wmsTime";
 import { subSolarPoint } from "./terminator";
 
 export interface SatelliteDiskParams {
@@ -103,6 +103,15 @@ interface FlowPairState {
   lastError: string | null;
 }
 
+export interface FlowSchedulingFrame {
+  key: string;
+  timeMs: number | null;
+  loadedAtMs: number;
+  mercBounds: [number, number, number, number];
+  width: number;
+  height: number;
+}
+
 interface InFlightFrameRequest {
   key: string;
   template: string;
@@ -110,6 +119,7 @@ interface InFlightFrameRequest {
   controller: AbortController;
   timer: number | null;
   requestId: number;
+  startedAtMs: number | null;
 }
 
 interface SatEntry {
@@ -124,14 +134,8 @@ interface SatEntry {
   loadError: boolean;
   requestId: number;
   activePairKey: string | null;
-  activePairStartedMs: number;
+  activeFrameKeys: Set<string>;
   flowComputeTimer: number | null;
-  // Pair transition smoothing: when activePairKey changes, lerp uniforms
-  // from the old pair's values to the new pair's over ~400ms to hide
-  // flow-field discontinuities at satellite frame boundaries.
-  prevPairGlobalFlow: [number, number, number, number];
-  prevPairHasFlowTex: number;
-  pairTransitionStartMs: number;
 }
 
 interface CompositorState {
@@ -200,21 +204,30 @@ const FLOW_TEX_DIM = 512;
 const COARSE_FLOW_DIM = 128;
 const MAX_FLOW_UV = 0.25;
 const MOTION_SAMPLE_DIM = 256;
-const MOTION_SEARCH_RADIUS_PX = 10;
-const MAX_GLOBAL_FLOW_UV = 0.11;
+const MOTION_COARSE_SEARCH_RADIUS_PX = 28;
+const MOTION_FINE_SEARCH_RADIUS_PX = 4;
+const MAX_GLOBAL_FLOW_UV = 0.18;
 const VISIBLE_MOTION_START_SIN_ELEV = 0.13917; // sin(8 deg)
 const VISIBLE_MOTION_FULL_SIN_ELEV = 0.30902; // sin(18 deg)
 const VISIBLE_MOTION_MIN_TRUST = 0.65;
 
 const PRELOAD_LOOKBEHIND_FRAMES = 1;
-const PRELOAD_AHEAD_FRAMES = 4;
-const MIN_START_BUFFER_FRAMES = 3;
-const MIN_STEADY_BUFFER_FRAMES = 2;
-const MAX_RETAINED_FRAMES = 8;
+const PRELOAD_AHEAD_FRAMES = 2;
+// Progressive start matters more than a full temporal buffer for observed WMS
+// imagery. Requiring three frames made the app wait for unavailable future
+// satellite times and appear broken on latest/live products.
+const MIN_START_BUFFER_FRAMES = 1;
+const MIN_STEADY_BUFFER_FRAMES = 1;
+// Keep one active spatial sequence plus one freshly fetched replacement sequence.
+// With 1 look-behind + 2 look-ahead + current frame, two sequences need 8
+// frames; a budget of 12 leaves room for a protected fallback and late arrivals.
+const MAX_RETAINED_FRAMES = 12;
 const FLOW_COMPUTE_DELAY_MS = 0;
 
 const REFETCH_THRESHOLD = 0.15;
-const FETCH_STAGGER_MS = 140;
+const FETCH_STAGGER_MS = 100;
+const FUTURE_OBSERVED_FRAME_GRACE_MS = 90_000;
+const MAX_IN_FLIGHT_FRAMES_PER_SATELLITE = 1;
 const RETRY_DELAYS_MS = [500, 1500, 4500];
 const FAILED_URL_COOLDOWN_MS = 5 * 60 * 1000;
 const SATELLITE_FRAME_INTERVAL_MS = 10 * 60 * 1000;
@@ -272,6 +285,8 @@ uniform float uSatFeather[4];
 uniform vec4 uPrevBounds[4];
 uniform vec4 uNextBounds[4];
 uniform vec4 uGlobalFlow[4];
+uniform vec4 uIncomingGlobalFlow[4];
+uniform vec4 uOutgoingGlobalFlow[4];
 uniform int uSatCount;
 uniform float uSatOpacity[4];
 uniform float uHasPrevTex[4];
@@ -345,7 +360,26 @@ float stableDaylightMotionTrust(vec2 merc) {
   return smoothstep(0.13917, 0.30902, sinElev);
 }
 
-vec4 sampleMorph(int idx, vec2 merc, vec2 screenUv) {
+vec2 clampTemporalVelocityAdjustment(vec2 delta, vec2 baseFlow) {
+  // Adjacent-pair global flow is used only to smooth the velocity at keyframes.
+  // Limit the correction so a noisy neighbouring pair cannot destroy local dense
+  // motion or drag clouds across unrelated layers.
+  vec2 limit = max(vec2(0.0035), abs(baseFlow) * 0.55);
+  return clamp(delta, -limit, limit);
+}
+
+vec2 hermiteDisplacement(vec2 totalFlow, vec2 startVelocity, vec2 endVelocity, float t) {
+  if (t <= 0.0) return vec2(0.0);
+  if (t >= 1.0) return totalFlow;
+  float t2 = t * t;
+  float t3 = t2 * t;
+  float h01 = -2.0 * t3 + 3.0 * t2;
+  float h10 = t3 - 2.0 * t2 + t;
+  float h11 = t3 - t2;
+  return h01 * totalFlow + h10 * startVelocity + h11 * endVelocity;
+}
+
+vec4 sampleMorph(int idx, vec2 merc) {
   bool hasPrev = uHasPrevTex[idx] > 0.5;
   bool hasNext = uHasNextTex[idx] > 0.5;
   vec2 prevUv = mercToTexUv(merc, uPrevBounds[idx]);
@@ -357,77 +391,103 @@ vec4 sampleMorph(int idx, vec2 merc, vec2 screenUv) {
   if (prevInside && !nextInside) return cleanTexel(samplePrevTex(idx, prevUv));
   if (!prevInside && nextInside) return cleanTexel(sampleNextTex(idx, nextUv));
 
+  vec4 prevSample = cleanTexel(samplePrevTex(idx, prevUv));
+  vec4 nextSample = cleanTexel(sampleNextTex(idx, nextUv));
+  vec4 globalMotion = uGlobalFlow[idx];
+  vec4 incomingMotion = uIncomingGlobalFlow[idx];
+  vec4 outgoingMotion = uOutgoingGlobalFlow[idx];
+  float motionTrust = mix(1.0, stableDaylightMotionTrust(merc), uRequiresStableVisibleLight[idx]);
+  float globalConf = clamp(globalMotion.z, 0.0, 1.0) * motionTrust;
+  float incomingConf = clamp(incomingMotion.z, 0.0, 1.0) * motionTrust;
+  float outgoingConf = clamp(outgoingMotion.z, 0.0, 1.0) * motionTrust;
+  vec2 globalFlowUV = globalMotion.xy * motionTrust;
+  vec2 incomingFlowUV = incomingMotion.xy * motionTrust;
+  vec2 outgoingFlowUV = outgoingMotion.xy * motionTrust;
+
   float phase = uTimeProgress[idx];
   if (phase < 0.0) {
-    vec4 globalMotion = uGlobalFlow[idx];
-    vec2 backFlow = globalMotion.xy;
-    // Continuous backward advection — no min() cap, consistent with forward path
-    return cleanTexel(samplePrevTex(idx, clamp(prevUv + backFlow * (-phase), vec2(0.0), vec2(1.0))));
+    if (globalConf < 0.08) return prevSample;
+    // Continuous backward advection — no min() cap, consistent with forward path.
+    return cleanTexel(samplePrevTex(idx, clamp(prevUv + globalFlowUV * (-phase), vec2(0.0), vec2(1.0))));
   }
 
   // Continuous extrapolation past the latest frame — no fract() wrapping.
   // The old fract(extrapolated) caused the advection to reset every full
   // interval, creating a cyclic "breathing" artifact. Now clouds keep
-  // drifting in the same direction until they hit the texture edge.
+  // drifting in the same direction until they hit the texture edge. If the
+  // motion estimate is not trusted, freeze on the endpoint instead of drifting
+  // low-sun visible imagery with a stale global vector.
   float extrapolated = max(phase - 1.0, 0.0);
   if (extrapolated > 0.0) {
-    vec4 globalMotion = uGlobalFlow[idx];
-    vec2 forwardFlow = globalMotion.xy * (1.0 + extrapolated);
+    if (globalConf < 0.08) return nextSample;
+    vec2 forwardFlow = globalFlowUV * (1.0 + extrapolated);
     return cleanTexel(sampleNextTex(idx, clamp(nextUv - forwardFlow, vec2(0.0), vec2(1.0))));
   }
 
   // Linear interpolation preserves constant-velocity cloud advection.
-  // Smoothstep was removed: its zero-derivative at endpoints causes
-  // visible pauses at every keyframe — real clouds don't decelerate
-  // when approaching a satellite capture time.
+  // Smoothstep was removed from the high-confidence flow path: its
+  // zero-derivative at endpoints causes visible pauses at every keyframe.
   float t = clamp(phase, 0.0, 1.0);
-
-  vec4 globalMotion = uGlobalFlow[idx];
-  vec2 globalFlowUV = globalMotion.xy;
-  float motionTrust = mix(1.0, stableDaylightMotionTrust(merc), uRequiresStableVisibleLight[idx]);
-  float globalConf = clamp(globalMotion.z, 0.0, 1.0) * motionTrust;
 
   // Single-frame advection: warp the prev frame forward by flow * t.
   // Optical flow alone creates intermediate frames — no cross-fade needed
   // across most of the cycle. This eliminates the double-image artifact
   // that made keyframes visible as "noise" or "blur" at mid-cycle.
   //
-  // Only near the next keyframe (last 15% of the interval) do we introduce
-  // a narrow correction blend to the actual next frame, correcting any
-  // accumulated flow errors before the pair switch.
+  // Low-confidence motion is different: holding the previous frame until the
+  // correction zone caused hard jumps whenever visible imagery crossed the
+  // terminator or the flow gate rejected a pair. In that case use a whole-
+  // interval crossfade, which is less physically rich but stable and honest.
   float flowBlend = uHasFlowTex[idx];
+  float denseConf = 0.0;
   vec2 flowUV = globalFlowUV;
   if (flowBlend > 0.001) {
-    vec4 packed = sampleFlowTex(idx, screenUv);
-    float denseConf = clamp(packed.b, 0.0, 1.0);
-    vec2 denseScreen = (packed.rg - vec2(0.5)) * (uMaxFlowUv * 2.0);
+    // Dense flow is generated in satellite texture coordinates at the next-frame
+    // position. For intermediate frames, sample near the predicted final parcel
+    // position instead of the screen position; this is a cheap semi-Lagrangian
+    // lookup that reduces local flow-field swimming during strong shear.
+    vec2 predictedNextUv = clamp(nextUv + globalFlowUV * (1.0 - t), vec2(0.0), vec2(1.0));
+    vec4 packed = sampleFlowTex(idx, predictedNextUv);
+    denseConf = clamp(packed.b, 0.0, 1.0) * motionTrust;
+    vec2 denseFlowUv = (packed.rg - vec2(0.5)) * (uMaxFlowUv * 2.0) * motionTrust;
 
-    vec2 screenSpan = uMercBounds.zw - uMercBounds.xy;
-    vec2 prevSpan = max(uPrevBounds[idx].zw - uPrevBounds[idx].xy, vec2(1.0));
-    vec2 mercFlow = denseScreen * screenSpan;
-
-    float denseWeight = smoothstep(0.08, 0.50, denseConf);
-    denseWeight = max(denseWeight, globalConf * 0.05);
-    denseWeight *= flowBlend;
-    flowUV = mix(globalFlowUV, mercFlow / prevSpan, denseWeight);
+    float denseWeight = smoothstep(0.08, 0.50, denseConf) * flowBlend;
+    flowUV = mix(globalFlowUV, denseFlowUv, denseWeight);
   }
-  flowUV *= motionTrust;
 
-  // Warp the prev frame forward: flowUV pixels per full interval,
-  // scaled by t for the current fraction of the interval.
-  vec2 warpedUv = prevUv - flowUV * t;
-  vec4 result = cleanTexel(samplePrevTex(idx, clamp(warpedUv, vec2(0.0), vec2(1.0))));
+  float flowConf = max(globalConf, denseConf * flowBlend);
+  if (flowConf < 0.08) {
+    float fade = t * t * (3.0 - 2.0 * t);
+    return mix(prevSample, nextSample, fade);
+  }
 
-  // Correction zone: last 15% of the interval. Blend toward the
-  // un-warped next frame so the pair transition is seamless (both
-  // old and new pairs render the same frame at the boundary).
-  // Quadratic ease-in: barely noticeable at t=0.85, reaches 100%
-  // at t=1.0 where the pair switch occurs.
-  if (t > 0.85 && hasNext) {
-    float correction = (t - 0.85) / 0.15;
-    correction = correction * correction; // quadratic ease-in
-    vec4 nextSample = cleanTexel(sampleNextTex(idx, nextUv));
-    result = mix(result, nextSample, correction);
+  // Symmetric optical-flow morphing with C1 temporal continuity. Endpoints stay
+  // exact, but the displacement curve uses adjacent-pair velocity estimates so
+  // clouds do not visibly pause or change speed at each satellite keyframe.
+  vec2 startVelocity = flowUV;
+  if (incomingConf > 0.08) {
+    vec2 boundaryVelocity = 0.5 * (incomingFlowUV + flowUV);
+    float weight = smoothstep(0.08, 0.55, incomingConf);
+    startVelocity += clampTemporalVelocityAdjustment((boundaryVelocity - flowUV) * weight, flowUV);
+  }
+
+  vec2 endVelocity = flowUV;
+  if (outgoingConf > 0.08) {
+    vec2 boundaryVelocity = 0.5 * (flowUV + outgoingFlowUV);
+    float weight = smoothstep(0.08, 0.55, outgoingConf);
+    endVelocity += clampTemporalVelocityAdjustment((boundaryVelocity - flowUV) * weight, flowUV);
+  }
+
+  vec2 displacement = clamp(hermiteDisplacement(flowUV, startVelocity, endVelocity, t), -vec2(uMaxFlowUv), vec2(uMaxFlowUv));
+  vec2 prevWarpUv = clamp(prevUv - displacement, vec2(0.0), vec2(1.0));
+  vec2 nextWarpUv = clamp(nextUv + (flowUV - displacement), vec2(0.0), vec2(1.0));
+  vec4 prevWarp = cleanTexel(samplePrevTex(idx, prevWarpUv));
+  vec4 nextWarp = cleanTexel(sampleNextTex(idx, nextWarpUv));
+  vec4 result = mix(prevWarp, nextWarp, t);
+
+  if (result.a < 0.01) {
+    float fade = t * t * (3.0 - 2.0 * t);
+    result = mix(prevSample, nextSample, fade);
   }
 
   return result;
@@ -453,7 +513,7 @@ void main() {
     float weight = 1.0 - smoothstep(featherStart, maxChord, chordDist);
 
     if (weight > 0.001) {
-      vec4 texel = sampleMorph(i, merc, vUv);
+      vec4 texel = sampleMorph(i, merc);
       float contrib = weight * texel.a * uSatOpacity[i];
       color += texel * contrib;
       totalWeight += contrib;
@@ -483,6 +543,8 @@ uniform vec2 uTexelSize;
 uniform float uFlowEncodeScale;
 uniform float uHasFlowHistory;
 uniform float uHasInitialFlow;
+uniform vec2 uGlobalInitialFlow;
+uniform float uGlobalInitialConfidence;
 
 vec4 safeSample(sampler2D tex, vec2 uv) {
   return texture(tex, clamp(uv, vec2(0.0), vec2(1.0)));
@@ -504,13 +566,36 @@ float lumaAt(sampler2D tex, vec2 uv) {
 }
 
 void main() {
-  vec2 initialFlow = vec2(0.0);
-  float initialConfidence = 0.0;
+  vec2 initialFlow = clamp(uGlobalInitialFlow, vec2(-uFlowEncodeScale), vec2(uFlowEncodeScale));
+  float initialConfidence = clamp(uGlobalInitialConfidence, 0.0, 1.0) * 0.45;
 
   if (uHasInitialFlow > 0.5) {
-    vec4 coarse = safeSample(uInitialFlowTex, vUv);
-    initialFlow = (coarse.rg - vec2(0.5)) * (uFlowEncodeScale * 2.0);
-    initialConfidence = coarse.b;
+    vec2 flowSum = vec2(0.0);
+    float confidenceSum = 0.0;
+    float weightSum = 0.0;
+
+    for (int sy = -1; sy <= 1; sy++) {
+      for (int sx = -1; sx <= 1; sx++) {
+        vec2 tapUv = vUv + vec2(float(sx), float(sy)) * uTexelSize;
+        vec4 tap = safeSample(uInitialFlowTex, tapUv);
+        vec2 tapFlow = (tap.rg - vec2(0.5)) * (uFlowEncodeScale * 2.0);
+        float tapConfidence = clamp(tap.b, 0.0, 1.0);
+        float spatialWeight = sx == 0 && sy == 0 ? 1.0 : (abs(sx) + abs(sy) == 1 ? 0.55 : 0.30);
+        float weight = spatialWeight * smoothstep(0.08, 0.70, tapConfidence);
+        flowSum += tapFlow * weight;
+        confidenceSum += tapConfidence * weight;
+        weightSum += weight;
+      }
+    }
+
+    vec4 center = safeSample(uInitialFlowTex, vUv);
+    vec2 centerFlow = (center.rg - vec2(0.5)) * (uFlowEncodeScale * 2.0);
+    float centerConfidence = clamp(center.b, 0.0, 1.0);
+    vec2 coarseFlow = weightSum > 0.0001 ? flowSum / weightSum : centerFlow;
+    float coarseConfidence = weightSum > 0.0001 ? confidenceSum / weightSum : centerConfidence;
+    float coarseTrust = smoothstep(0.12, 0.55, coarseConfidence);
+    initialFlow = mix(initialFlow, coarseFlow, coarseTrust);
+    initialConfidence = max(initialConfidence, coarseConfidence);
   }
 
   vec2 warpedPrevBase = vUv - initialFlow;
@@ -594,15 +679,17 @@ void main() {
   }
 
   if (confidence > 0.20) {
-    float prevLuma = lumaAt(uFlowPrevTex, warpedPrevBase);
-    float forwardError = abs(prevLuma - lumaAt(uFlowNextTex, vUv + flowUv));
-    float reverseError = abs(prevLuma - lumaAt(uFlowNextTex, vUv - flowUv));
+    float nextCenter = lumaAt(uFlowNextTex, vUv);
+    float forwardError = abs(lumaAt(uFlowPrevTex, vUv - flowUv) - nextCenter);
+    float reverseError = abs(lumaAt(uFlowPrevTex, vUv + flowUv) - nextCenter);
 
     if (reverseError + 0.012 < forwardError) {
       flowUv = -flowUv;
       confidence *= 0.55;
     } else {
-      confidence *= smoothstep(0.18, 0.018, forwardError);
+      // GLSL smoothstep is undefined when edge0 >= edge1. Use an explicit
+      // decreasing trust curve so WebGL drivers agree on confidence gating.
+      confidence *= 1.0 - smoothstep(0.018, 0.18, forwardError);
     }
   }
 
@@ -619,6 +706,26 @@ function smoothstep(edge0: number, edge1: number, value: number): number {
   if (edge0 === edge1) return value < edge0 ? 0 : 1;
   const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
+}
+
+export function hermiteFlowDisplacementForTesting(
+  totalFlow: [number, number],
+  startVelocity: [number, number],
+  endVelocity: [number, number],
+  tValue: number,
+): [number, number] {
+  const t = Math.max(0, Math.min(1, Number.isFinite(tValue) ? tValue : 0));
+  if (t <= 0) return [0, 0];
+  if (t >= 1) return totalFlow;
+  const t2 = t * t;
+  const t3 = t2 * t;
+  const h01 = -2 * t3 + 3 * t2;
+  const h10 = t3 - 2 * t2 + t;
+  const h11 = t3 - t2;
+  return [
+    h01 * totalFlow[0] + h10 * startVelocity[0] + h11 * endVelocity[0],
+    h01 * totalFlow[1] + h10 * startVelocity[1] + h11 * endVelocity[1],
+  ];
 }
 
 export function isVisibleSatelliteMotionSource(layerId: string): boolean {
@@ -718,10 +825,22 @@ function maxSatellitesForQuality(quality: RenderQualityPreset): number {
   return 2;
 }
 
+function maxInFlightFramesTotalForQuality(quality: RenderQualityPreset): number {
+  if (quality === "performance") return 1;
+  if (quality === "quality") return 3;
+  return 2;
+}
+
 function maxTextureDimForQuality(quality: RenderQualityPreset): number {
   if (quality === "performance") return 1024;
   if (quality === "quality") return 1600;
   return 1280;
+}
+
+export function flowRefinementPassesForQuality(quality: RenderQualityPreset): number {
+  if (quality === "performance") return 1;
+  if (quality === "quality") return 3;
+  return 2;
 }
 
 function fetchPaddingForQuality(quality: RenderQualityPreset): number {
@@ -898,6 +1017,19 @@ function boundsContain(
   );
 }
 
+function boundsIntersect(
+  a: [number, number, number, number] | null,
+  b: [number, number, number, number] | null,
+): boolean {
+  if (!a || !b) return false;
+  return !(
+    a[2] <= b[0] ||
+    a[0] >= b[2] ||
+    a[3] <= b[1] ||
+    a[1] >= b[3]
+  );
+}
+
 function boundsEquivalent(
   a: [number, number, number, number] | null,
   b: [number, number, number, number] | null,
@@ -925,6 +1057,25 @@ function frameKey(template: string, bounds: [number, number, number, number], wi
 
 function pairKey(prev: SatelliteFrame, next: SatelliteFrame): string {
   return `${prev.key}=>${next.key}`;
+}
+
+export function selectFlowPairCandidates<T extends FlowSchedulingFrame>(frames: T[]): Array<[T, T]> {
+  const pairs: Array<[T, T]> = [];
+
+  for (const group of groupFramesBySpatialSequence(frames)) {
+    for (let i = 0; i + 1 < group.length; i += 1) {
+      const prev = group[i];
+      const next = group[i + 1];
+      if (canInterpolateFrames(prev, next)) pairs.push([prev, next]);
+    }
+  }
+
+  return pairs.sort((a, b) => {
+    const aTime = a[0].timeMs ?? a[0].loadedAtMs;
+    const bTime = b[0].timeMs ?? b[0].loadedAtMs;
+    if (aTime !== bTime) return aTime - bTime;
+    return a[0].key.localeCompare(b[0].key);
+  });
 }
 
 function buildWmsUrl(
@@ -1052,7 +1203,7 @@ function shiftedTemplate(template: string, frameOffset: number): string | null {
   const ms = templateTimeMs(template);
   if (ms === null) return null;
 
-  return replaceTemplateTime(template, new Date(ms + frameOffset * SATELLITE_FRAME_INTERVAL_MS).toISOString());
+  return replaceTemplateTime(template, formatWmsUtcSecond(ms + frameOffset * SATELLITE_FRAME_INTERVAL_MS));
 }
 
 function timeRangeFromExtent(timeExtent: string | null | undefined): { start: number; end: number } | null {
@@ -1072,20 +1223,76 @@ function clampTemplateToRange(template: string, range: { start: number; end: num
   if (range === null) return template;
   const ms = templateTimeMs(template);
   if (ms === null) return null;
-  if (ms < range.start) return replaceTemplateTime(template, new Date(range.start).toISOString());
-  if (ms > range.end) return replaceTemplateTime(template, new Date(range.end).toISOString());
+  if (ms < range.start) return replaceTemplateTime(template, formatWmsUtcSecond(range.start));
+  if (ms > range.end) return replaceTemplateTime(template, formatWmsUtcSecond(range.end));
   return template;
+}
+
+function templateIsUnavailableFuture(template: string, timeExtent?: string | null, nowMs = Date.now()): boolean {
+  // If the server advertises a time extent, preloadTemplates() already picks
+  // only advertised times. Without an extent, synthetic +N frame requests can
+  // walk into the future for observed satellite products and clog the request
+  // queue with guaranteed 404s.
+  if (timeExtent) return false;
+  const ms = templateTimeMs(template);
+  return ms !== null && ms > nowMs + FUTURE_OBSERVED_FRAME_GRACE_MS;
+}
+
+export function templateIsUnavailableFutureForTesting(
+  template: string,
+  timeExtent: string | null | undefined,
+  nowMs: number,
+): boolean {
+  return templateIsUnavailableFuture(template, timeExtent, nowMs);
+}
+
+function desiredTemplatesForEntry(entry: SatEntry, allowAhead = true): string[] {
+  return preloadTemplates(entry.config.wmsUrlTemplate, allowAhead, entry.config.timeExtent)
+    .filter((template) => !templateIsUnavailableFuture(template, entry.config.timeExtent));
+}
+
+function nearestAvailableTimeIndex(targetMs: number, times: number[]): number {
+  let bestIndex = 0;
+  let bestDiff = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < times.length; i += 1) {
+    const diff = Math.abs(times[i] - targetMs);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestIndex = i;
+    }
+  }
+  return bestIndex;
+}
+
+function preloadOffsets(allowAhead: boolean): number[] {
+  const offsets = [0];
+  if (allowAhead) {
+    for (let offset = 1; offset <= PRELOAD_AHEAD_FRAMES; offset += 1) offsets.push(offset);
+  }
+  for (let offset = -1; offset >= -PRELOAD_LOOKBEHIND_FRAMES; offset -= 1) offsets.push(offset);
+  return offsets;
 }
 
 function preloadTemplates(template: string, allowAhead = true, timeExtent?: string | null): string[] {
   const templates: string[] = [];
-  const maxAhead = allowAhead ? PRELOAD_AHEAD_FRAMES : 0;
   const range = timeRangeFromExtent(timeExtent);
+  const currentMs = templateTimeMs(template);
+  const availableTimes = timeExtent ? parseWmsTimeDimension(timeExtent) : [];
 
-  for (let offset = -PRELOAD_LOOKBEHIND_FRAMES; offset <= maxAhead; offset += 1) {
-    const shifted = shiftedTemplate(template, offset);
-    if (shifted && templateWithinRange(shifted, range) && !templates.includes(shifted)) {
-      templates.push(shifted);
+  if (currentMs !== null && availableTimes.length > 0) {
+    const currentIndex = nearestAvailableTimeIndex(currentMs, availableTimes);
+    for (const offset of preloadOffsets(allowAhead)) {
+      const index = currentIndex + offset;
+      if (index < 0 || index >= availableTimes.length) continue;
+      const shifted = replaceTemplateTime(template, formatWmsUtcSecond(availableTimes[index]));
+      if (!templates.includes(shifted)) templates.push(shifted);
+    }
+  } else {
+    for (const offset of preloadOffsets(allowAhead)) {
+      const shifted = shiftedTemplate(template, offset);
+      if (shifted && templateWithinRange(shifted, range) && !templates.includes(shifted)) {
+        templates.push(shifted);
+      }
     }
   }
 
@@ -1094,6 +1301,10 @@ function preloadTemplates(template: string, allowAhead = true, timeExtent?: stri
     if (clamped) templates.push(clamped);
   }
   return templates;
+}
+
+export function preloadTemplatesForTesting(template: string, allowAhead = true, timeExtent?: string | null): string[] {
+  return preloadTemplates(template, allowAhead, timeExtent);
 }
 
 function viewportTexDimensions(
@@ -1253,32 +1464,47 @@ function createMotionSample(bitmap: ImageBitmap): MotionSample | null {
   }
 }
 
-function estimateGlobalFlow(prev: MotionSample | null, next: MotionSample | null): [number, number, number, number] {
+function quadraticSubpixelMinimumOffset(left: number, center: number, right: number): number {
+  if (!Number.isFinite(left) || !Number.isFinite(center) || !Number.isFinite(right)) return 0;
+  const denom = left - 2 * center + right;
+  if (Math.abs(denom) < 1e-6) return 0;
+  return Math.max(-0.5, Math.min(0.5, 0.5 * (left - right) / denom));
+}
+
+export function estimateGlobalFlow(prev: MotionSample | null, next: MotionSample | null): [number, number, number, number] {
   if (!prev || !next || prev.width !== next.width || prev.height !== next.height) {
     return [0, 0, 0, 0];
   }
 
-  // Brute-force shift search is intentionally simple and bounded. It is not
-  // the optimal meteorological estimator; it is a low-cost fallback that keeps
-  // the client responsive until a server-side motion field is wired in.
+  // Hierarchical normalized block matching. It is still a bounded browser-side
+  // fallback, but it is much less brittle than a single-radius exhaustive pass:
+  // the coarse pass captures larger frame-to-frame advection, then the fine pass
+  // refines at full sample density and quadratic subpixel fitting removes pixel
+  // quantization from the global seed given to the dense GPU flow.
   const { width, height } = prev;
-  const radius = Math.min(MOTION_SEARCH_RADIUS_PX, Math.floor(Math.min(width, height) / 5));
-  const stride = 2;
+  const maxRadius = Math.max(1, Math.min(MOTION_COARSE_SEARCH_RADIUS_PX, Math.floor(Math.min(width, height) / 4) - 2));
+  const interiorMargin = Math.max(maxRadius + 1, 2);
 
   let bestDx = 0;
   let bestDy = 0;
   let bestError = Number.POSITIVE_INFINITY;
-  let zeroError = Number.POSITIVE_INFINITY;
 
-  const shiftedError = (dx: number, dy: number): number => {
+  const shiftedError = (dx: number, dy: number, stride: number): number => {
+    const ix = Math.round(dx);
+    const iy = Math.round(dy);
+    if (Math.abs(ix) > maxRadius || Math.abs(iy) > maxRadius) return Number.POSITIVE_INFINITY;
+
     let err = 0;
     let weightSum = 0;
 
-    for (let y = radius; y < height - radius; y += stride) {
-      const nextY = y + dy;
+    for (let y = interiorMargin; y < height - interiorMargin; y += stride) {
+      const nextY = y + iy;
+      if (nextY < 0 || nextY >= height) continue;
 
-      for (let x = radius; x < width - radius; x += stride) {
-        const nextX = x + dx;
+      for (let x = interiorMargin; x < width - interiorMargin; x += stride) {
+        const nextX = x + ix;
+        if (nextX < 0 || nextX >= width) continue;
+
         const a = prev.luma[y * width + x];
         const b = next.luma[nextY * width + nextX];
         const signal = Math.max(a, b);
@@ -1294,20 +1520,26 @@ function estimateGlobalFlow(prev: MotionSample | null, next: MotionSample | null
     return weightSum > 0 ? err / weightSum : Number.POSITIVE_INFINITY;
   };
 
-  for (let dy = -radius; dy <= radius; dy += 1) {
-    for (let dx = -radius; dx <= radius; dx += 1) {
-      const err = shiftedError(dx, dy);
-
-      if (dx === 0 && dy === 0) zeroError = err;
-
-      if (err < bestError) {
-        bestError = err;
-        bestDx = dx;
-        bestDy = dy;
+  const searchAround = (centerDx: number, centerDy: number, radius: number, step: number, stride: number): void => {
+    for (let dy = Math.round(centerDy - radius); dy <= Math.round(centerDy + radius); dy += step) {
+      for (let dx = Math.round(centerDx - radius); dx <= Math.round(centerDx + radius); dx += step) {
+        const err = shiftedError(dx, dy, stride);
+        if (err < bestError) {
+          bestError = err;
+          bestDx = dx;
+          bestDy = dy;
+        }
       }
     }
-  }
+  };
 
+  const coarseStep = maxRadius > 16 ? 2 : 1;
+  searchAround(0, 0, maxRadius, coarseStep, 4);
+  searchAround(bestDx, bestDy, Math.min(6, maxRadius), 1, 2);
+  searchAround(bestDx, bestDy, Math.min(MOTION_FINE_SEARCH_RADIUS_PX, maxRadius), 1, 1);
+
+  bestError = shiftedError(bestDx, bestDy, 1);
+  const zeroError = shiftedError(0, 0, 1);
   const magnitude = Math.hypot(bestDx, bestDy);
   if (!Number.isFinite(bestError) || !Number.isFinite(zeroError) || magnitude < 0.5) {
     return [0, 0, 0, 0];
@@ -1316,9 +1548,17 @@ function estimateGlobalFlow(prev: MotionSample | null, next: MotionSample | null
   const improvement = Math.max(0, (zeroError - bestError) / Math.max(zeroError, 0.0001));
   if (improvement < 0.009) return [0, 0, 0, 0];
 
-  const confidence = Math.min(0.90, Math.max(0.30, improvement * 6.0));
-  const flowX = Math.max(-MAX_GLOBAL_FLOW_UV, Math.min(MAX_GLOBAL_FLOW_UV, bestDx / width));
-  const flowY = Math.max(-MAX_GLOBAL_FLOW_UV, Math.min(MAX_GLOBAL_FLOW_UV, bestDy / height));
+  const dxLeft = bestDx > -maxRadius ? shiftedError(bestDx - 1, bestDy, 1) : bestError;
+  const dxRight = bestDx < maxRadius ? shiftedError(bestDx + 1, bestDy, 1) : bestError;
+  const dyDown = bestDy > -maxRadius ? shiftedError(bestDx, bestDy - 1, 1) : bestError;
+  const dyUp = bestDy < maxRadius ? shiftedError(bestDx, bestDy + 1, 1) : bestError;
+
+  const refinedDx = bestDx + quadraticSubpixelMinimumOffset(dxLeft, bestError, dxRight);
+  const refinedDy = bestDy + quadraticSubpixelMinimumOffset(dyDown, bestError, dyUp);
+
+  const confidence = Math.min(0.92, Math.max(0.30, improvement * 6.5));
+  const flowX = Math.max(-MAX_GLOBAL_FLOW_UV, Math.min(MAX_GLOBAL_FLOW_UV, refinedDx / width));
+  const flowY = Math.max(-MAX_GLOBAL_FLOW_UV, Math.min(MAX_GLOBAL_FLOW_UV, refinedDy / height));
 
   return [flowX, flowY, confidence, 0];
 }
@@ -1382,11 +1622,8 @@ function createEntry(config: SatelliteCompositeConfig): SatEntry {
     loadError: false,
     requestId: 0,
     activePairKey: null,
-    activePairStartedMs: 0,
+    activeFrameKeys: new Set(),
     flowComputeTimer: null,
-    prevPairGlobalFlow: [0, 0, 0, 0],
-    prevPairHasFlowTex: 0,
-    pairTransitionStartMs: 0,
   };
 }
 
@@ -1426,23 +1663,33 @@ function abortEntryRequests(entry: SatEntry): void {
   entry.loadingMercBounds = null;
 }
 
-function resetEntryBuffer(entry: SatEntry, nextFetchMercBounds: [number, number, number, number] | null = null): void {
-  abortEntryRequests(entry);
+function cancelFrameRequest(entry: SatEntry, key: string): boolean {
+  const request = entry.inFlight.get(key);
+  if (!request) return false;
 
-  if (entry.flowComputeTimer !== null) {
-    window.clearTimeout(entry.flowComputeTimer);
-    entry.flowComputeTimer = null;
+  if (request.timer !== null) {
+    window.clearTimeout(request.timer);
+    request.timer = null;
   }
 
-  for (const frame of entry.frames) destroyFrame(frame);
-  for (const flow of entry.flows) destroyFlowPair(flow);
+  request.controller.abort();
+  entry.inFlight.delete(key);
+  return true;
+}
 
-  entry.frames = [];
-  entry.flows = [];
-  entry.activePairKey = null;
-  entry.activePairStartedMs = 0;
-  entry.bufferFetchMercBounds = nextFetchMercBounds;
-  entry.loadError = false;
+function cancelObsoleteFrameRequests(entry: SatEntry, wantedKeys: Set<string>, allowAbortStarted: boolean): number {
+  let canceled = 0;
+  for (const [key, request] of Array.from(entry.inFlight.entries())) {
+    if (wantedKeys.has(key)) continue;
+    // Delayed/staggered requests have not touched the network yet and are
+    // always safe to drop. Once a request has started, only abort it after we
+    // already have some retained imagery; otherwise the first-ever load could
+    // starve during rapid camera motion.
+    if (request.timer !== null || allowAbortStarted) {
+      if (cancelFrameRequest(entry, key)) canceled += 1;
+    }
+  }
+  return canceled;
 }
 
 function destroyEntry(entry: SatEntry): void {
@@ -1459,7 +1706,7 @@ function destroyEntry(entry: SatEntry): void {
   entry.frames = [];
   entry.flows = [];
   entry.activePairKey = null;
-  entry.activePairStartedMs = 0;
+  entry.activeFrameKeys.clear();
 }
 
 function usableFrame(
@@ -1491,10 +1738,180 @@ function getUsableFrames(
 ): SatelliteFrame[] {
   return entry.frames
     .filter((frame) => boundsContain(frame.mercBounds, viewMercBounds) && !shouldRefetch(fetchMercBounds, frame.mercBounds))
-    .sort((a, b) => {
-      if (a.timeMs !== null && b.timeMs !== null) return a.timeMs - b.timeMs;
-      return a.loadedAtMs - b.loadedAtMs;
-    });
+    .sort(compareFramesByTime);
+}
+
+function compareFramesByTime(
+  a: Pick<SatelliteFrame, "timeMs" | "loadedAtMs">,
+  b: Pick<SatelliteFrame, "timeMs" | "loadedAtMs">,
+): number {
+  if (a.timeMs !== null && b.timeMs !== null && a.timeMs !== b.timeMs) return a.timeMs - b.timeMs;
+  if (a.timeMs !== null && b.timeMs === null) return -1;
+  if (a.timeMs === null && b.timeMs !== null) return 1;
+  return a.loadedAtMs - b.loadedAtMs;
+}
+
+function spatialSequenceKey(frame: Pick<SatelliteFrame, "mercBounds" | "width" | "height">): string {
+  return `${mercBoundsKey(frame.mercBounds)}|${frame.width}x${frame.height}`;
+}
+
+function groupFramesBySpatialSequence<T extends Pick<SatelliteFrame, "mercBounds" | "width" | "height" | "timeMs" | "loadedAtMs">>(
+  frames: T[],
+): T[][] {
+  const groups = new Map<string, T[]>();
+
+  for (const frame of frames) {
+    const key = spatialSequenceKey(frame);
+    const group = groups.get(key);
+    if (group) {
+      group.push(frame);
+    } else {
+      groups.set(key, [frame]);
+    }
+  }
+
+  return Array.from(groups.values()).map((group) => group.slice().sort(compareFramesByTime));
+}
+
+function canInterpolateFrames(
+  prev: Pick<SatelliteFrame, "key" | "timeMs" | "mercBounds" | "width" | "height">,
+  next: Pick<SatelliteFrame, "key" | "timeMs" | "mercBounds" | "width" | "height">,
+): boolean {
+  if (prev.key === next.key) return false;
+  if (!boundsEquivalent(prev.mercBounds, next.mercBounds)) return false;
+  if (prev.width !== next.width || prev.height !== next.height) return false;
+  if (prev.timeMs !== null && next.timeMs !== null) return next.timeMs > prev.timeMs;
+  return true;
+}
+
+function animatedPair<T extends Pick<SatelliteFrame, "key" | "timeMs" | "mercBounds" | "width" | "height">>(
+  pair: { prev: T; next: T } | null,
+): pair is { prev: T; next: T } {
+  return !!pair && canInterpolateFrames(pair.prev, pair.next);
+}
+
+function selectPairFromSequence<T extends SatelliteFrame>(
+  frames: T[],
+  timelineMs: number | null,
+  currentTemplate: string,
+): { prev: T; next: T } | null {
+  const sorted = frames.slice().sort(compareFramesByTime);
+  if (sorted.length === 0) return null;
+
+  const candidatePairs: Array<{ prev: T; next: T }> = [];
+  for (let i = 0; i + 1 < sorted.length; i += 1) {
+    const prev = sorted[i];
+    const next = sorted[i + 1];
+    if (canInterpolateFrames(prev, next)) candidatePairs.push({ prev, next });
+  }
+
+  if (timelineMs !== null && candidatePairs.length > 0) {
+    const containing = candidatePairs.find(({ prev, next }) => (
+      prev.timeMs !== null &&
+      next.timeMs !== null &&
+      timelineMs >= prev.timeMs &&
+      timelineMs <= next.timeMs
+    ));
+    if (containing) return containing;
+
+    const first = candidatePairs[0];
+    const last = candidatePairs[candidatePairs.length - 1];
+    if (first.prev.timeMs !== null && timelineMs < first.prev.timeMs) return first;
+    if (last.next.timeMs !== null && timelineMs > last.next.timeMs) return last;
+  }
+
+  const nextTemplate = shiftedTemplate(currentTemplate, 1);
+  if (nextTemplate) {
+    const current = sorted.find((frame) => frame.template === currentTemplate) ?? null;
+    const next = sorted.find((frame) => frame.template === nextTemplate) ?? null;
+    if (current && next && canInterpolateFrames(current, next)) return { prev: current, next };
+  }
+
+  const currentMs = templateTimeMs(currentTemplate);
+  if (currentMs !== null && candidatePairs.length > 0) {
+    const currentPair = candidatePairs.find(({ prev, next }) => (
+      prev.timeMs !== null &&
+      next.timeMs !== null &&
+      currentMs >= prev.timeMs &&
+      currentMs <= next.timeMs
+    ));
+    if (currentPair) return currentPair;
+  }
+
+  if (candidatePairs.length > 0) return candidatePairs[0];
+
+  const latest = sorted[sorted.length - 1];
+  return { prev: latest, next: latest };
+}
+
+function selectBestPairFromGroups(
+  frames: SatelliteFrame[],
+  timelineMs: number | null,
+  currentTemplate: string,
+): { prev: SatelliteFrame; next: SatelliteFrame } | null {
+  const groups = groupFramesBySpatialSequence(frames);
+  let bestAnimated: { pair: { prev: SatelliteFrame; next: SatelliteFrame }; score: number } | null = null;
+  let bestStatic: { pair: { prev: SatelliteFrame; next: SatelliteFrame }; score: number } | null = null;
+
+  for (const group of groups) {
+    const pair = selectPairFromSequence(group, timelineMs, currentTemplate);
+    if (!pair) continue;
+
+    const latestLoaded = Math.max(...group.map((frame) => frame.loadedAtMs));
+    const score = group.length * 10_000 + latestLoaded;
+
+    if (animatedPair(pair)) {
+      if (!bestAnimated || score > bestAnimated.score) bestAnimated = { pair, score };
+    } else if (!bestStatic || score > bestStatic.score) {
+      bestStatic = { pair, score };
+    }
+  }
+
+  return bestAnimated?.pair ?? bestStatic?.pair ?? null;
+}
+
+function activeDrawPair(entry: SatEntry, viewMercBounds: [number, number, number, number]): { prev: SatelliteFrame; next: SatelliteFrame } | null {
+  const activePair = entry.activePairKey ? entry.flows.find((flow) => flow.key === entry.activePairKey) : null;
+  if (!activePair) return null;
+
+  const prevFrame = entry.frames.find((frame) => frame.key === activePair.prevFrameKey);
+  const nextFrame = entry.frames.find((frame) => frame.key === activePair.nextFrameKey);
+  if (!prevFrame || !nextFrame) return null;
+  if (!boundsIntersect(prevFrame.mercBounds, viewMercBounds) && !boundsIntersect(nextFrame.mercBounds, viewMercBounds)) return null;
+
+  return { prev: prevFrame, next: nextFrame };
+}
+
+function pairFullyCoversView(
+  pair: { prev: Pick<SatelliteFrame, "mercBounds">; next: Pick<SatelliteFrame, "mercBounds"> },
+  viewMercBounds: [number, number, number, number],
+): boolean {
+  return boundsContain(pair.prev.mercBounds, viewMercBounds) || boundsContain(pair.next.mercBounds, viewMercBounds);
+}
+
+const SAFE_PAIR_SWITCH_PHASE_WINDOW = 0.055;
+
+export function shouldSwitchSatelliteDrawPair(args: {
+  activePairKey: string | null;
+  candidatePairKey: string;
+  activeCoversView: boolean;
+  candidateCoversView: boolean;
+  candidateMotionReady: boolean;
+  phase: number;
+  phaseWindow?: number;
+}): boolean {
+  if (!args.activePairKey || args.activePairKey === args.candidatePairKey) return true;
+  if (!args.activeCoversView) return true;
+  if (!args.candidateCoversView) return false;
+  if (!args.candidateMotionReady) return false;
+
+  const phaseWindow = Math.max(0.01, Math.min(0.25, args.phaseWindow ?? SAFE_PAIR_SWITCH_PHASE_WINDOW));
+  if (!Number.isFinite(args.phase)) return false;
+
+  // Spatial-buffer swaps are allowed at the observation endpoints, where both
+  // old and new pairs should render an exact keyframe. Swapping mid-interval is
+  // what made retained WMS refetches look like hidden keyframes.
+  return args.phase <= phaseWindow || args.phase >= 1 - phaseWindow;
 }
 
 function isEntryBuffered(
@@ -1503,10 +1920,10 @@ function isEntryBuffered(
   fetchMercBounds: [number, number, number, number],
   minFrames: number,
 ): boolean {
-  const templates = preloadTemplates(entry.config.wmsUrlTemplate, true, entry.config.timeExtent)
+  const currentMs = templateTimeMs(entry.config.wmsUrlTemplate);
+  const templates = desiredTemplatesForEntry(entry, true)
     .filter((template) => {
       const templateMs = templateTimeMs(template);
-      const currentMs = templateTimeMs(entry.config.wmsUrlTemplate);
       return templateMs === null || currentMs === null || templateMs >= currentMs;
     });
   const required = templates.slice(0, minFrames);
@@ -1518,53 +1935,61 @@ function isEntryBuffered(
   return required.every((template) => !!getUsableFrame(entry, template, viewMercBounds, fetchMercBounds));
 }
 
+export function shouldStartSatelliteCompositeForTesting(args: {
+  activeSatellites: number;
+  readySatellites: number;
+  bufferedFrames: number;
+}): boolean {
+  if (args.activeSatellites <= 0) return false;
+  return args.readySatellites > 0 || args.bufferedFrames > 0;
+}
+
 function selectDrawPair(
   entry: SatEntry,
   viewMercBounds: [number, number, number, number],
   fetchMercBounds: [number, number, number, number],
   timelineMs: number | null,
 ): { prev: SatelliteFrame; next: SatelliteFrame } | null {
-  const usable = getUsableFrames(entry, viewMercBounds, fetchMercBounds);
-  if (timelineMs !== null && usable.length >= 2) {
-    for (let i = 0; i + 1 < usable.length; i += 1) {
-      const prevMs = usable[i].timeMs;
-      const nextMs = usable[i + 1].timeMs;
-      if (prevMs === null || nextMs === null) continue;
-      if (timelineMs >= prevMs && timelineMs <= nextMs) {
-        return { prev: usable[i], next: usable[i + 1] };
-      }
-    }
-    const firstMs = usable[0].timeMs;
-    const last = usable[usable.length - 1];
-    const lastMs = last.timeMs;
-    if (firstMs !== null && timelineMs < firstMs) return { prev: usable[0], next: usable[1] };
-    if (lastMs !== null && timelineMs > lastMs) return { prev: usable[usable.length - 2], next: last };
-  }
+  const exactFrames = entry.frames.filter((frame) => (
+    boundsContain(frame.mercBounds, viewMercBounds) &&
+    !shouldRefetch(fetchMercBounds, frame.mercBounds)
+  ));
+  const exactPair = selectBestPairFromGroups(exactFrames, timelineMs, entry.config.wmsUrlTemplate);
+  if (animatedPair(exactPair)) return exactPair;
 
-  const currentTemplate = entry.config.wmsUrlTemplate;
-  const nextTemplate = shiftedTemplate(currentTemplate, 1);
+  const activePair = activeDrawPair(entry, viewMercBounds);
+  if (activePair && animatedPair(activePair)) return activePair;
 
-  const current = getUsableFrame(entry, currentTemplate, viewMercBounds, fetchMercBounds);
-  const next = nextTemplate ? getUsableFrame(entry, nextTemplate, viewMercBounds, fetchMercBounds) : null;
+  const fallbackFrames = entry.frames.filter((frame) => boundsIntersect(frame.mercBounds, viewMercBounds));
+  const fallbackPair = selectBestPairFromGroups(fallbackFrames, timelineMs, entry.config.wmsUrlTemplate);
+  if (animatedPair(fallbackPair)) return fallbackPair;
 
-  if (current && next) return { prev: current, next };
+  return exactPair ?? activePair ?? fallbackPair;
+}
 
-  const activePair = entry.activePairKey ? entry.flows.find((flow) => flow.key === entry.activePairKey) : null;
-  if (activePair) {
-    const prevFrame = entry.frames.find((frame) => frame.key === activePair.prevFrameKey);
-    const nextFrame = entry.frames.find((frame) => frame.key === activePair.nextFrameKey);
-    if (prevFrame && nextFrame) return { prev: prevFrame, next: nextFrame };
-  }
+export interface SatelliteFrameSelectionTestInput {
+  key: string;
+  template: string;
+  timeMs: number | null;
+  mercBounds: [number, number, number, number];
+  width: number;
+  height: number;
+  loadedAtMs?: number;
+}
 
-  if (usable.length < 2) return null;
-
-  const currentMs = templateTimeMs(currentTemplate);
-  if (currentMs !== null) {
-    const idx = usable.findIndex((frame) => frame.timeMs !== null && frame.timeMs >= currentMs);
-    if (idx >= 0 && idx + 1 < usable.length) return { prev: usable[idx], next: usable[idx + 1] };
-  }
-
-  return { prev: usable[0], next: usable[1] };
+export function selectSatelliteFramePairForTesting(
+  frames: SatelliteFrameSelectionTestInput[],
+  timelineMs: number | null,
+  currentTemplate: string,
+): [string, string] | null {
+  const syntheticFrames = frames.map((frame, index) => ({
+    ...frame,
+    texture: null as unknown as Texture,
+    motionSample: null,
+    loadedAtMs: frame.loadedAtMs ?? index,
+  })) as SatelliteFrame[];
+  const pair = selectBestPairFromGroups(syntheticFrames, timelineMs, currentTemplate);
+  return pair ? [pair.prev.key, pair.next.key] : null;
 }
 
 function progressForPair(
@@ -1600,6 +2025,8 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       uPrevBounds: new Array(SHADER_SATELLITE_SLOTS * 4).fill(0),
       uNextBounds: new Array(SHADER_SATELLITE_SLOTS * 4).fill(0),
       uGlobalFlow: new Array(SHADER_SATELLITE_SLOTS * 4).fill(0),
+      uIncomingGlobalFlow: new Array(SHADER_SATELLITE_SLOTS * 4).fill(0),
+      uOutgoingGlobalFlow: new Array(SHADER_SATELLITE_SLOTS * 4).fill(0),
       uSatCount: 0,
       uSatOpacity: new Array(SHADER_SATELLITE_SLOTS).fill(0),
       uHasPrevTex: new Array(SHADER_SATELLITE_SLOTS).fill(0),
@@ -1621,6 +2048,8 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
           uFlowEncodeScale: MAX_FLOW_UV,
           uHasFlowHistory: 0,
           uHasInitialFlow: 0,
+          uGlobalInitialFlow: [0, 0],
+          uGlobalInitialConfidence: 0,
         };
 
         flowModel = new Model(device, {
@@ -1800,7 +2229,11 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     const requiredFrames = activeEntries.length * MIN_START_BUFFER_FRAMES;
 
     if (!state.started) {
-      const ready = activeEntries.length > 0 && readySatellites === activeEntries.length;
+      const ready = shouldStartSatelliteCompositeForTesting({
+        activeSatellites: activeEntries.length,
+        readySatellites,
+        bufferedFrames,
+      });
       state.loading = !ready;
       this._emitLoadingState(state.loading, readySatellites, activeEntries.length, bufferedFrames, requiredFrames);
 
@@ -1831,6 +2264,8 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     const prevBounds: number[] = [];
     const nextBounds: number[] = [];
     const globalFlow: number[] = [];
+    const incomingGlobalFlow: number[] = [];
+    const outgoingGlobalFlow: number[] = [];
     const satOpacity: number[] = [];
     const hasPrevTex: number[] = [];
     const hasNextTex: number[] = [];
@@ -1845,69 +2280,53 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     for (let i = 0; i < SHADER_SATELLITE_SLOTS; i += 1) {
       const entry = activeEntries[i];
       const lockedBounds = entry?.bufferFetchMercBounds ?? fetchMercBounds;
-      const pair = entry ? selectDrawPair(entry, mercBounds, lockedBounds, timelineMs) : null;
+      const candidatePair = entry ? selectDrawPair(entry, mercBounds, lockedBounds, timelineMs) : null;
+      const pair = entry && candidatePair
+        ? this._selectStableDrawPair(entry, candidatePair, mercBounds, timelineMs, progress)
+        : null;
 
       if (entry && pair) {
-        const flow = this._ensureFlowPair(entry, pair.prev, pair.next);
-        const key = flow.key;
+        const flow = canInterpolateFrames(pair.prev, pair.next)
+          ? this._ensureFlowPair(entry, pair.prev, pair.next)
+          : null;
+        const incomingFlow = flow ? this._ensureAdjacentFlowPair(entry, pair, "previous") : null;
+        const outgoingFlow = flow ? this._ensureAdjacentFlowPair(entry, pair, "next") : null;
 
-        if (entry.activePairKey !== key) {
-          // Save previous pair's flow uniforms for transition blending
-          const oldFlow = entry.activePairKey
-            ? entry.flows.find((f) => f.key === entry.activePairKey)
-            : null;
-          if (oldFlow && entry.activePairKey !== null) {
-            entry.prevPairGlobalFlow = [...oldFlow.globalFlow] as [number, number, number, number];
-            entry.prevPairHasFlowTex = oldFlow.flowTexture && oldFlow.status === "ready" ? 1 : 0;
-            entry.pairTransitionStartMs = performance.now();
-          }
-          entry.activePairKey = key;
-          entry.activePairStartedMs = performance.now();
-        }
-
-        // Blend uniforms during pair transition (400ms) to smooth
-        // flow-field discontinuities at satellite frame boundaries
-        let useGlobalFlow = flow.globalFlow;
-        let useHasFlowTex = flow.flowTexture && flow.status === "ready" ? 1 : 0;
-        if (entry.pairTransitionStartMs > 0) {
-          const elapsed = performance.now() - entry.pairTransitionStartMs;
-          if (elapsed < 400) {
-            // ease-out: 1 → 0 over 400ms
-            const blend = 1.0 - elapsed / 400;
-            useGlobalFlow = [
-              flow.globalFlow[0] * (1 - blend) + entry.prevPairGlobalFlow[0] * blend,
-              flow.globalFlow[1] * (1 - blend) + entry.prevPairGlobalFlow[1] * blend,
-              flow.globalFlow[2] * (1 - blend) + entry.prevPairGlobalFlow[2] * blend,
-              flow.globalFlow[3] * (1 - blend) + entry.prevPairGlobalFlow[3] * blend,
-            ] as [number, number, number, number];
-            useHasFlowTex = useHasFlowTex * (1 - blend) + entry.prevPairHasFlowTex * blend;
-          }
+        entry.activeFrameKeys = new Set([pair.prev.key, pair.next.key]);
+        if (flow && entry.activePairKey !== flow.key) {
+          entry.activePairKey = flow.key;
         }
 
         const [sx, sy, sz] = subPointCartesian(entry.config.subPoint[0], entry.config.subPoint[1]);
         const chord = chordParams(entry.config.coverageRadiusDeg, entry.config.featherRadiusDeg);
+        const hasReadyFlow = flow?.flowTexture && flow.status === "ready";
 
         satParams.push(sx, sy, sz, chord.maxChord);
         satFeather.push(chord.featherStartChord);
         prevBounds.push(...pair.prev.mercBounds);
         nextBounds.push(...pair.next.mercBounds);
-        globalFlow.push(...useGlobalFlow);
+        globalFlow.push(...(flow?.globalFlow ?? [0, 0, 0, 0]));
+        incomingGlobalFlow.push(...(incomingFlow?.globalFlow ?? [0, 0, 0, 0]));
+        outgoingGlobalFlow.push(...(outgoingFlow?.globalFlow ?? [0, 0, 0, 0]));
         satOpacity.push(entry.config.opacity);
         hasPrevTex.push(1);
         hasNextTex.push(1);
-        hasFlowTex.push(useHasFlowTex);
+        hasFlowTex.push(hasReadyFlow ? 1 : 0);
         requiresStableVisibleLight.push(isVisibleSatelliteMotionSource(entry.config.id) ? 1 : 0);
-        timeProgress.push(progressForPair(pair, timelineMs, progress));
+        timeProgress.push(flow ? progressForPair(pair, timelineMs, progress) : 0);
 
         bindings[`uPrevTex${i}`] = pair.prev.texture;
         bindings[`uNextTex${i}`] = pair.next.texture;
-        bindings[`uFlowTex${i}`] = flow.flowTexture && flow.status === "ready" ? flow.flowTexture : state.fallbackTexture!;
+        bindings[`uFlowTex${i}`] = hasReadyFlow ? flow.flowTexture! : state.fallbackTexture!;
       } else {
+        if (entry) entry.activeFrameKeys.clear();
         satParams.push(0, 0, 0, 0);
         satFeather.push(0);
         prevBounds.push(0, 0, 1, 1);
         nextBounds.push(0, 0, 1, 1);
         globalFlow.push(0, 0, 0, 0);
+        incomingGlobalFlow.push(0, 0, 0, 0);
+        outgoingGlobalFlow.push(0, 0, 0, 0);
         satOpacity.push(0);
         hasPrevTex.push(0);
         hasNextTex.push(0);
@@ -1928,6 +2347,8 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     uniforms.uPrevBounds = prevBounds;
     uniforms.uNextBounds = nextBounds;
     uniforms.uGlobalFlow = globalFlow;
+    uniforms.uIncomingGlobalFlow = incomingGlobalFlow;
+    uniforms.uOutgoingGlobalFlow = outgoingGlobalFlow;
     uniforms.uSatCount = Math.min(activeEntries.length, SHADER_SATELLITE_SLOTS);
     uniforms.uSatOpacity = satOpacity;
     uniforms.uHasPrevTex = hasPrevTex;
@@ -2019,7 +2440,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
 
     this.props.onLoadingStateChange?.({
       loading,
-      started: !rawState?.loading,
+      started: !!rawState?.started,
       readySatellites,
       totalSatellites,
       bufferedFrames,
@@ -2045,27 +2466,37 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       maxTexDim: maxTextureDimForQuality(quality),
     });
 
+    let totalInFlight = state.entries.reduce((sum, entry) => sum + entry.inFlight.size, 0);
+    const maxTotalInFlight = maxInFlightFramesTotalForQuality(quality);
+
     state.entries.forEach((entry, satelliteIndex) => {
       if (!entry.bufferFetchMercBounds) {
         entry.bufferFetchMercBounds = fetchMercBounds;
       }
 
       // All frames in one buffered sequence must use exactly the same BBOX.
-      // If the viewport moves outside the locked buffer, start a new loading
-      // phase instead of mixing old/new bounds and disabling optical flow.
+      // If the viewport moves outside the locked buffer, request a new
+      // sequence but keep the old GPU-ready sequence as the active fallback.
+      // Clearing here causes visible blanking during pan/zoom/resize and also
+      // destroys the optical-flow history just when continuity matters most.
       if (
         !boundsContain(entry.bufferFetchMercBounds, viewMercBounds) ||
         shouldRefetch(fetchMercBounds, entry.bufferFetchMercBounds)
       ) {
-        resetEntryBuffer(entry, fetchMercBounds);
-        state.started = false;
-        state.loading = true;
+        entry.bufferFetchMercBounds = fetchMercBounds;
+        entry.loadError = false;
       }
 
       const lockedFetchMercBounds = entry.bufferFetchMercBounds ?? fetchMercBounds;
-      const wantedTemplates = preloadTemplates(entry.config.wmsUrlTemplate, true, entry.config.timeExtent);
+      const wantedTemplates = desiredTemplatesForEntry(entry, true);
+      const wantedKeys = new Set(wantedTemplates.map((template) => frameKey(template, lockedFetchMercBounds, texW, texH)));
+      const canceled = cancelObsoleteFrameRequests(entry, wantedKeys, entry.frames.length > 0);
+      totalInFlight = Math.max(0, totalInFlight - canceled);
 
       wantedTemplates.forEach((template, templateIndex) => {
+        if (totalInFlight >= maxTotalInFlight) return;
+        if (entry.inFlight.size >= MAX_IN_FLIGHT_FRAMES_PER_SATELLITE) return;
+
         const key = frameKey(template, lockedFetchMercBounds, texW, texH);
         const alreadyLoaded = entry.frames.some((frame) => frame.key === key && usableFrame(frame, template, viewMercBounds, lockedFetchMercBounds));
         const alreadyLoading = entry.inFlight.has(key);
@@ -2082,7 +2513,8 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
         const failedAt = entry.failedUrls.get(url);
         if (failedAt !== undefined && Date.now() - failedAt < FAILED_URL_COOLDOWN_MS) return;
 
-        this._fetchFrame(entry, template, key, url, lockedFetchMercBounds, satelliteIndex * FETCH_STAGGER_MS + templateIndex * 60);
+        this._fetchFrame(entry, template, key, url, lockedFetchMercBounds, satelliteIndex * FETCH_STAGGER_MS + templateIndex * 40);
+        totalInFlight += 1;
       });
 
       this._cleanupEntryBuffers(entry, wantedTemplates, viewMercBounds, lockedFetchMercBounds);
@@ -2111,12 +2543,14 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       controller,
       timer: null,
       requestId,
+      startedAtMs: null,
     };
 
     entry.inFlight.set(key, request);
 
     request.timer = window.setTimeout(() => {
       request.timer = null;
+      request.startedAtMs = performance.now();
 
       if (!entry.inFlight.has(key) || controller.signal.aborted) return;
 
@@ -2145,8 +2579,12 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
 
           bitmap.close?.();
 
-          const replaced = entry.frames.filter((existing) => existing.template === template);
-          entry.frames = entry.frames.filter((existing) => existing.template !== template);
+          // Retain older frames for the same timestamp but different BBOX/size
+          // until cleanup evicts them. Deleting by template caused a camera
+          // change to remove the still-visible active pair before the new
+          // spatial buffer had enough frames to draw or compute flow.
+          const replaced = entry.frames.filter((existing) => existing.key === key);
+          entry.frames = entry.frames.filter((existing) => existing.key !== key);
           for (const oldFrame of replaced) destroyFrame(oldFrame);
 
           entry.frames.push(frame);
@@ -2160,7 +2598,9 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
           entry.loadError = false;
           state.anyTextureLoaded = true;
 
-          this._scheduleFlowForBufferedPairs(entry);
+          if (entry.flows.some((flow) => flow.status === "pending")) {
+            this._scheduleFlowForBufferedPairs(entry);
+          }
           this.setNeedsRedraw();
         })
         .catch((err) => {
@@ -2201,15 +2641,20 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       keepFrameKeys.add(activeFlow.prevFrameKey);
       keepFrameKeys.add(activeFlow.nextFrameKey);
     }
+    for (const frameKey of entry.activeFrameKeys) keepFrameKeys.add(frameKey);
 
     const retained: SatelliteFrame[] = [];
     const removedKeys = new Set<string>();
 
     for (const frame of entry.frames) {
-      const keep = (
-        keepTemplates.has(frame.template) ||
-        keepFrameKeys.has(frame.key)
-      ) && boundsContain(frame.mercBounds, viewMercBounds) && !shouldRefetch(fetchMercBounds, frame.mercBounds);
+      const protectedActive = keepFrameKeys.has(frame.key);
+      const exactCurrent = keepTemplates.has(frame.template)
+        && boundsContain(frame.mercBounds, viewMercBounds)
+        && !shouldRefetch(fetchMercBounds, frame.mercBounds);
+      const retainedFallback = keepTemplates.has(frame.template)
+        && boundsIntersect(frame.mercBounds, viewMercBounds);
+
+      const keep = protectedActive || exactCurrent || retainedFallback;
 
       if (keep) {
         retained.push(frame);
@@ -2220,14 +2665,17 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     }
 
     if (retained.length > MAX_RETAINED_FRAMES) {
-      const overflow = retained.splice(0, retained.length - MAX_RETAINED_FRAMES);
+      const removable = retained
+        .filter((frame) => !keepFrameKeys.has(frame.key))
+        .sort((a, b) => a.loadedAtMs - b.loadedAtMs);
+      const overflow = removable.slice(0, Math.min(removable.length, retained.length - MAX_RETAINED_FRAMES));
       for (const frame of overflow) {
         removedKeys.add(frame.key);
         destroyFrame(frame);
       }
     }
 
-    entry.frames = retained;
+    entry.frames = retained.filter((frame) => !removedKeys.has(frame.key));
 
     if (removedKeys.size > 0) {
       const keptFlows: FlowPairState[] = [];
@@ -2247,16 +2695,110 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     }
   }
 
-  private _ensureFlowPair(entry: SatEntry, prev: SatelliteFrame, next: SatelliteFrame): FlowPairState {
+  private _selectStableDrawPair(
+    entry: SatEntry,
+    candidate: { prev: SatelliteFrame; next: SatelliteFrame },
+    viewMercBounds: [number, number, number, number],
+    timelineMs: number | null,
+    fallbackProgress: number,
+  ): { prev: SatelliteFrame; next: SatelliteFrame } {
+    if (!animatedPair(candidate)) return candidate;
+
+    const candidateFlow = this._ensureFlowPair(entry, candidate.prev, candidate.next);
+    const activePair = activeDrawPair(entry, viewMercBounds);
+    if (!activePair || !animatedPair(activePair)) return candidate;
+
+    const activeKey = pairKey(activePair.prev, activePair.next);
+    if (activeKey === candidateFlow.key) return candidate;
+
+    const candidateMotionReady = candidateFlow.status === "ready"
+      || candidateFlow.status === "failed"
+      || candidateFlow.globalFlow[2] > 0.08;
+
+    const shouldSwitch = shouldSwitchSatelliteDrawPair({
+      activePairKey: activeKey,
+      candidatePairKey: candidateFlow.key,
+      activeCoversView: pairFullyCoversView(activePair, viewMercBounds),
+      candidateCoversView: pairFullyCoversView(candidate, viewMercBounds),
+      candidateMotionReady,
+      phase: progressForPair(candidate, timelineMs, fallbackProgress),
+    });
+
+    return shouldSwitch ? candidate : activePair;
+  }
+
+  private _sequenceContainingPair(
+    entry: SatEntry,
+    pair: { prev: SatelliteFrame; next: SatelliteFrame },
+  ): SatelliteFrame[] {
+    const sequenceKey = spatialSequenceKey(pair.prev);
+    return entry.frames
+      .filter((frame) => spatialSequenceKey(frame) === sequenceKey)
+      .sort(compareFramesByTime);
+  }
+
+  private _ensureAdjacentFlowPair(
+    entry: SatEntry,
+    pair: { prev: SatelliteFrame; next: SatelliteFrame },
+    direction: "previous" | "next",
+  ): FlowPairState | null {
+    const sequence = this._sequenceContainingPair(entry, pair);
+    const prevIndex = sequence.findIndex((frame) => frame.key === pair.prev.key);
+    const nextIndex = sequence.findIndex((frame) => frame.key === pair.next.key);
+
+    if (direction === "previous" && prevIndex > 0) {
+      const neighbor = sequence[prevIndex - 1];
+      if (neighbor && canInterpolateFrames(neighbor, pair.prev)) {
+        return this._ensureFlowPair(entry, neighbor, pair.prev, { allowDense: false });
+      }
+    }
+
+    if (direction === "next" && nextIndex >= 0 && nextIndex + 1 < sequence.length) {
+      const neighbor = sequence[nextIndex + 1];
+      if (neighbor && canInterpolateFrames(pair.next, neighbor)) {
+        return this._ensureFlowPair(entry, pair.next, neighbor, { allowDense: false });
+      }
+    }
+
+    return null;
+  }
+
+  private _findTemporalHistoryFlow(
+    entry: SatEntry,
+    pair: FlowPairState,
+    flowSize: [number, number],
+  ): FlowPairState | null {
+    const candidates = entry.flows.filter((flow) => (
+      flow.key !== pair.key &&
+      flow.status === "ready" &&
+      !!flow.flowTexture &&
+      flow.flowSize?.[0] === flowSize[0] &&
+      flow.flowSize?.[1] === flowSize[1] &&
+      (flow.nextFrameKey === pair.prevFrameKey || flow.prevFrameKey === pair.nextFrameKey)
+    ));
+
+    return candidates.find((flow) => flow.nextFrameKey === pair.prevFrameKey)
+      ?? candidates.find((flow) => flow.prevFrameKey === pair.nextFrameKey)
+      ?? null;
+  }
+
+  private _ensureFlowPair(
+    entry: SatEntry,
+    prev: SatelliteFrame,
+    next: SatelliteFrame,
+    opts: { allowDense?: boolean } = {},
+  ): FlowPairState {
     const key = pairKey(prev, next);
     let flow = entry.flows.find((candidate) => candidate.key === key);
 
     if (flow) return flow;
 
+    const allowDense = opts.allowDense !== false;
     const assessment = assessMotionPair(entry.config.id, prev, next);
     const globalFlow = assessment.allowsDenseFlow && boundsEquivalent(prev.mercBounds, next.mercBounds)
       ? estimateGlobalFlow(prev.motionSample, next.motionSample)
       : [0, 0, 0, 0] as [number, number, number, number];
+    const denseAllowed = ENABLE_DENSE_OPTICAL_FLOW && allowDense && assessment.allowsDenseFlow;
 
     flow = {
       key,
@@ -2274,12 +2816,16 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       coarseFlowFBO: null,
       flowSize: null,
       coarseFlowSize: null,
-      status: ENABLE_DENSE_OPTICAL_FLOW && assessment.allowsDenseFlow ? "pending" : "failed",
-      lastError: assessment.allowsDenseFlow ? null : "Visible motion rejected near terminator.",
+      status: denseAllowed ? "pending" : "failed",
+      lastError: denseAllowed
+        ? null
+        : (assessment.allowsDenseFlow
+          ? "Dense flow intentionally not scheduled for adjacent velocity prior."
+          : "Visible motion rejected near terminator."),
     };
 
     entry.flows.push(flow);
-    this._scheduleFlowForBufferedPairs(entry);
+    if (denseAllowed) this._scheduleFlowForBufferedPairs(entry);
     return flow;
   }
 
@@ -2300,16 +2846,14 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
         logManager.warn("satellite", "Dense optical-flow model unavailable; using global flow only.");
         this._flowModelLogged = true;
       }
+      for (const flow of entry.flows) {
+        if (flow.status === "pending") {
+          flow.status = "failed";
+          flow.lastError = "Dense optical-flow model unavailable; using global flow only.";
+        }
+      }
+      this.setNeedsRedraw();
       return;
-    }
-
-    const frames = entry.frames.slice().sort((a, b) => {
-      if (a.timeMs !== null && b.timeMs !== null) return a.timeMs - b.timeMs;
-      return a.loadedAtMs - b.loadedAtMs;
-    });
-
-    for (let i = 0; i + 1 < frames.length; i += 1) {
-      this._ensureFlowPair(entry, frames[i], frames[i + 1]);
     }
 
     const pending = entry.flows.find((flow) => flow.status === "pending");
@@ -2318,9 +2862,9 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     const prev = entry.frames.find((frame) => frame.key === pending.prevFrameKey);
     const next = entry.frames.find((frame) => frame.key === pending.nextFrameKey);
 
-    if (!prev || !next || !boundsEquivalent(prev.mercBounds, next.mercBounds)) {
+    if (!prev || !next || !canInterpolateFrames(prev, next)) {
       pending.status = "failed";
-      pending.lastError = "Missing frames or non-equivalent bounds.";
+      pending.lastError = "Missing frames, duplicate timestamps, non-equivalent bounds, or mismatched texture dimensions.";
       this._scheduleFlowForBufferedPairs(entry);
       return;
     }
@@ -2328,7 +2872,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     pending.status = "computing";
 
     try {
-      this._computeFlowTextureForPair(state, pending, prev, next);
+      this._computeFlowTextureForPair(state, entry, pending, prev, next);
       pending.status = pending.flowTexture ? "ready" : "failed";
     } catch (err) {
       destroyFlowPair(pending);
@@ -2423,6 +2967,8 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     h: number,
     hasInitialFlow: boolean,
     hasHistory: boolean,
+    initialFlowTexture: Texture | null = pair.coarseFlowTexture,
+    historyTexture: Texture | null = pair.flowTexture,
   ): void {
     if (!state.device || !state.flowModel || !state.flowUniforms) return;
 
@@ -2431,12 +2977,14 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     uniforms.uFlowEncodeScale = MAX_FLOW_UV;
     uniforms.uHasInitialFlow = hasInitialFlow ? 1 : 0;
     uniforms.uHasFlowHistory = hasHistory ? 1 : 0;
+    uniforms.uGlobalInitialFlow = [pair.globalFlow[0], pair.globalFlow[1]];
+    uniforms.uGlobalInitialConfidence = pair.globalFlow[2];
 
     state.flowModel.setBindings({
       uFlowPrevTex: prev.texture,
       uFlowNextTex: next.texture,
-      uFlowHistoryTex: hasHistory && pair.flowTexture ? pair.flowTexture : state.fallbackTexture!,
-      uInitialFlowTex: hasInitialFlow && pair.coarseFlowTexture ? pair.coarseFlowTexture : state.fallbackTexture!,
+      uFlowHistoryTex: hasHistory && historyTexture ? historyTexture : state.fallbackTexture!,
+      uInitialFlowTex: hasInitialFlow && initialFlowTexture ? initialFlowTexture : state.fallbackTexture!,
     } as any);
 
     setModelUniforms(state.flowModel, uniforms);
@@ -2458,6 +3006,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
 
   private _computeFlowTextureForPair(
     state: CompositorState,
+    entry: SatEntry,
     pair: FlowPairState,
     prev: SatelliteFrame,
     next: SatelliteFrame,
@@ -2474,18 +3023,39 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     this._runFlowPass(state, pair, prev, next, pair.coarseFlowFBO!, coarseW, coarseH, false, false);
 
     const hadHistory = this._ensureFlowBuffers(state.device, pair, flowW, flowH);
-    this._runFlowPass(state, pair, prev, next, pair.flowScratchFramebuffer!, flowW, flowH, true, hadHistory);
+    const temporalHistory = this._findTemporalHistoryFlow(entry, pair, [flowW, flowH]);
+    const historyTexture = hadHistory
+      ? pair.flowTexture
+      : temporalHistory?.flowTexture ?? null;
+    const refinementPasses = flowRefinementPassesForQuality(normalizeQuality(this.props.quality));
 
-    const oldTex = pair.flowTexture;
-    const oldFBO = pair.flowFramebuffer;
+    for (let passIndex = 0; passIndex < refinementPasses; passIndex += 1) {
+      const initialTexture = passIndex === 0 ? pair.coarseFlowTexture : pair.flowTexture;
+      this._runFlowPass(
+        state,
+        pair,
+        prev,
+        next,
+        pair.flowScratchFramebuffer!,
+        flowW,
+        flowH,
+        true,
+        passIndex === 0 && !!historyTexture,
+        initialTexture,
+        passIndex === 0 ? historyTexture : null,
+      );
 
-    pair.flowTexture = pair.flowScratchTexture;
-    pair.flowFramebuffer = pair.flowScratchFramebuffer;
-    pair.flowScratchTexture = oldTex;
-    pair.flowScratchFramebuffer = oldFBO;
+      const oldTex = pair.flowTexture;
+      const oldFBO = pair.flowFramebuffer;
+
+      pair.flowTexture = pair.flowScratchTexture;
+      pair.flowFramebuffer = pair.flowScratchFramebuffer;
+      pair.flowScratchTexture = oldTex;
+      pair.flowScratchFramebuffer = oldFBO;
+    }
 
     if (!this._flowModelLogged) {
-      logManager.debug("satellite", "Dense optical-flow is active", { flowW, flowH, coarseW, coarseH });
+      logManager.debug("satellite", "Dense optical-flow is active", { flowW, flowH, coarseW, coarseH, refinementPasses });
       this._flowModelLogged = true;
     }
   }

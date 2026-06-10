@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { FrameStore, type FrameStoreOptions } from "./frameStore";
+import { FrameStore, type FrameFetchRequest, type FrameStoreOptions } from "./frameStore";
 
 const MIN10 = 600_000;
 const T0 = Date.parse("2026-06-09T00:00:00Z");
 const times = Array.from({ length: 18 }, (_, i) => T0 + i * MIN10);
 
 function makeStore(overrides: Partial<FrameStoreOptions> = {}) {
-  const fetchFrame = vi.fn(async () => ({ width: 64, height: 64, destroy: vi.fn() }));
+  const fetchFrame = vi.fn(async (_req: FrameFetchRequest) => ({ width: 64, height: 64, destroy: vi.fn() }));
   const store = new FrameStore({
     satelliteId: "eccc_goes_east_natural",
     wmsUrlTemplate:

@@ -101,7 +101,7 @@ export function TopBar({
       </div>
 
       {/* Playback controls */}
-      <div className="wb-topbar-group">
+      <div className="wb-topbar-group wb-topbar-group--playback">
         <button
           type="button"
           className="wb-icon-btn"
@@ -111,10 +111,10 @@ export function TopBar({
           {playback.isPlaying ? "⏸" : "▶"}
         </button>
         <select
+          className="wb-speed-select"
           value={playback.speedMultiplier}
           onChange={(e) => onSpeedChange(Number(e.target.value))}
           title="Playback speed"
-          style={{ width: 46 }}
         >
           {SPEED_OPTIONS.map((v) => (
             <option key={v} value={v}>{v}×</option>
@@ -131,14 +131,15 @@ export function TopBar({
       </div>
 
       {/* Time display + mode */}
-      <div className="wb-topbar-group">
+      <div className="wb-topbar-group wb-topbar-group--time">
         <span className="wb-topbar-label">NOW</span>
-        <span className="wb-topbar-label" style={{ color: "var(--wb-text)" }}>{nowStr}</span>
+        <span className="wb-topbar-label wb-topbar-value">{nowStr}</span>
         <span className="wb-topbar-label" style={{ opacity: 0.3 }}>│</span>
         <span className="wb-topbar-label">VALID</span>
-        <span className="wb-topbar-label" style={{ color: "var(--wb-accent)" }}>{validStr}</span>
+        <span className="wb-topbar-label wb-topbar-value wb-topbar-value--accent">{validStr}</span>
         <TimeZoneSelector value={timeZone} onChange={onSetTimeZone} refMs={Date.parse(timelineTime) || Date.now()} />
         <span className={`wb-mode-pill wb-mode-pill-${timelineState.mode}`}>{modeLabel}</span>
+        <span className="wb-mode-pill wb-mode-pill-window">{playback.visibleDays}D</span>
         <button
           type="button"
           className={`wb-live-pill ${timelineState.isTrackingLive ? "is-live" : ""}`}
@@ -175,7 +176,7 @@ export function TopBar({
       </div>
 
       {/* Map projection */}
-      <div className="wb-topbar-group">
+      <div className="wb-topbar-group wb-topbar-group--projection">
         <div className="wb-toggle-group" role="group" aria-label="Map projection">
           <button
             type="button"
@@ -197,7 +198,7 @@ export function TopBar({
       </div>
 
       {/* Day/night overlay */}
-      <div className="wb-topbar-group wb-terminator-controls">
+      <div className="wb-topbar-group wb-terminator-controls wb-topbar-group--terminator">
         <label className="wb-topbar-check" title="Show day/night terminator overlay">
           <input
             type="checkbox"

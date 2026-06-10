@@ -12,7 +12,13 @@
     "validate": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate.ps1",
     "build:web": "pnpm --filter @canwxlab/web build",
     "lint:web": "pnpm --filter @canwxlab/web lint",
-    "test:web": "pnpm --filter @canwxlab/web test"
+    "test:web": "pnpm --filter @canwxlab/web test",
+    "dev:web:direct": "pnpm --filter @canwxlab/web dev",
+    "build:web:direct": "pnpm --filter @canwxlab/web build",
+    "typecheck:web": "node node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/bin/tsc -p apps/web/tsconfig.json --noEmit",
+    "test:web:direct": "pnpm --filter @canwxlab/web test",
+    "dev:api:direct": "python -m uvicorn canwxlab_api.main:app --reload --app-dir services/api",
+    "test:api": "cd services/api && python -m pytest tests -q"
   },
   "packageManager": "pnpm@9.15.0"
 }

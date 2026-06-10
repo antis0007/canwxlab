@@ -1748,6 +1748,34 @@ details.wb-section[open] > summary .wb-section-chevron {
   background: transparent;
   border: none;
   padding: 0;
+  /* Zero-width thumb eliminates the browser's half-thumb inset offset,
+     making value=0 map to pixel 0 and value=max map to pixel width.
+     This aligns the invisible slider's click geometry with left:pct% cursor. */
+  -webkit-appearance: none;
+  appearance: none;
+}
+.wb-tl-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 0;
+  height: 0;
+}
+.wb-tl-slider::-moz-range-thumb {
+  appearance: none;
+  width: 0;
+  height: 0;
+  border: none;
+}
+.wb-tl-slider::-webkit-slider-runnable-track {
+  background: transparent;
+}
+.wb-tl-slider::-moz-range-track {
+  background: transparent;
+}
+/* Hide OS cursor while scrubbing; custom cursor provides feedback */
+.wb-tl-track.is-scrubbing,
+.wb-tl-track.is-scrubbing * {
+  cursor: none !important;
 }
 
 .wb-tl-readout {
@@ -2725,6 +2753,159 @@ input[type="number"]::-webkit-inner-spin-button {
 
 .wb-tl-max-marker {
   background: rgba(255, 255, 255, 0.34);
+}
+
+.wb-tl-window-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 4px;
+  border-left: 1px solid var(--wb-line);
+  border-right: 1px solid var(--wb-line);
+}
+
+.wb-tl-window-label {
+  color: var(--wb-muted);
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wb-tl-window-btn {
+  min-width: 28px;
+  padding: 0 5px;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 10px;
+}
+
+.wb-tl-window-btn.is-active {
+  border-color: var(--wb-accent-dim);
+  background: var(--wb-accent-glow);
+  color: var(--wb-accent);
+}
+
+.wb-topbar {
+  min-height: 32px;
+  height: auto;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  overflow: visible;
+}
+
+.wb-topbar-group {
+  min-width: 0;
+}
+
+.wb-topbar-group--time {
+  flex: 1 1 520px;
+  overflow: hidden;
+}
+
+.wb-topbar-group--playback,
+.wb-topbar-group--projection,
+.wb-topbar-group--terminator {
+  flex: 0 1 auto;
+}
+
+.wb-speed-select {
+  width: 50px;
+  flex-shrink: 0;
+}
+
+.wb-topbar-value {
+  min-width: 76px;
+  max-width: 120px;
+  overflow: hidden;
+  color: var(--wb-text);
+  text-overflow: ellipsis;
+}
+
+.wb-topbar-value--accent {
+  color: var(--wb-accent);
+}
+
+.wb-topbar-divider {
+  color: var(--wb-muted);
+  opacity: 0.35;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+}
+
+.wb-mode-pill-window {
+  color: var(--wb-accent);
+  border-color: color-mix(in srgb, var(--wb-accent) 42%, var(--wb-line));
+  background: color-mix(in srgb, var(--wb-accent) 10%, var(--wb-panel-hi));
+}
+
+.wb-timeline-top,
+.wb-timeline-controls,
+.wb-tl-readout {
+  min-width: 0;
+}
+
+.wb-timeline-controls {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.wb-tl-window-readout {
+  color: var(--wb-muted);
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.wb-satellite-loading {
+  max-width: min(720px, calc(100% - 24px));
+}
+
+.wb-satellite-loading-meta {
+  min-width: 0;
+}
+
+.wb-satellite-loading-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1180px) {
+  .wb-topbar-group--time {
+    flex-basis: 100%;
+    order: 2;
+    border-top: 1px solid var(--wb-line-dim);
+  }
+
+  .wb-topbar-group--right {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .wb-topbar-group {
+    padding: 0 5px;
+  }
+
+  .wb-topbar-value {
+    max-width: 88px;
+  }
+
+  .wb-terminator-controls input[type="range"] {
+    width: 48px;
+  }
+
+  .wb-tl-window-label,
+  .wb-tl-ab-group {
+    display: none;
+  }
+
+  .wb-tl-window-btn {
+    min-width: 26px;
+  }
 }
 
 /* ===== PLANETARY INTELLIGENCE ===== */

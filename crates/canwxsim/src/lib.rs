@@ -11,7 +11,10 @@ mod state;
 
 pub use grid::Grid2D;
 pub use plugin::{NoopTendencyPlugin, Tendency2D, TendencyPlugin};
-pub use simulation::{run_sample, step, SimulationConfig, SimulationDiagnostics, SimulationResult};
+pub use simulation::{
+    run_sample, run_sample_with_config, step, AdvectionScheme, SimulationConfig,
+    SimulationDiagnostics, SimulationResult,
+};
 pub use state::ModelState2D;
 
 #[cfg(test)]
@@ -61,6 +64,25 @@ mod tests {
         };
         step(&grid, &mut state, &config).expect("step should run");
         assert!(state.cloud_water.iter().any(|value| *value > 0.0));
+    }
+
+
+    #[test]
+    fn default_advection_uses_maccormack_limiter() {
+        let config = SimulationConfig::default();
+        assert_eq!(config.advection_scheme, AdvectionScheme::SemiLagrangianMacCormack);
+    }
+
+    #[test]
+    fn legacy_upwind_advection_still_runs() {
+        let grid = Grid2D::new(12, 12, 5_000.0, 5_000.0);
+        let mut state = ModelState2D::demo(&grid);
+        let config = SimulationConfig {
+            advection_scheme: AdvectionScheme::FirstOrderUpwind,
+            ..SimulationConfig::default()
+        };
+        step(&grid, &mut state, &config).expect("legacy upwind step should run");
+        assert!(!state.has_non_finite());
     }
 
     #[test]

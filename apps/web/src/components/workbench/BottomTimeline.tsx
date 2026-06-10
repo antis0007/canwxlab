@@ -1,6 +1,15 @@
 import { useMemo, useRef, useState } from "react";
 import type { AnimationPlaybackState } from "../../layers/types";
+import type { TimelineViewDays } from "../../time/timelineWindow";
 import type { PlanetaryTimelineState } from "../../types/planetary";
+import {
+  FRAME_INTERVAL_MS,
+  timelinePctFromFrame,
+  TIMELINE_VIEW_DAY_OPTIONS,
+} from "../../time/timelineWindow";
+import { SOLAR_BAND_COLORS, solarBandForAltitudeDeg, solarElevationDeg } from "../../time/solarBands";
+
+export { frameFromTimelinePct } from "../../time/timelineWindow";
 
 export interface TimelineWarningRange {
   startFrame: number;
@@ -17,6 +26,8 @@ interface BottomTimelineProps {
   onStepFrame: (delta: number) => void;
   onSetSpeed: (value: number) => void;
   onShiftWindowDays: (days: number) => void;
+  onSetVisibleDays: (days: TimelineViewDays) => void;
+  onReturnLive?: () => void;
   /** Operator-selected IANA time zone for the strip readouts. Defaults to UTC. */
   timeZone?: string;
   /** Open the GIF export panel. */
@@ -24,6 +35,10 @@ interface BottomTimelineProps {
   /** Timeline spans where selected layer data is outside loadable coverage. */
   warningRanges?: TimelineWarningRange[];
   timelineState: PlanetaryTimelineState;
+  solarReference?: {
+    latitude: number;
+    longitude: number;
+  };
 }
 
 /** Pin "A" or "B" comparison times on the timeline. Stored in localStorage so
@@ -53,10 +68,8 @@ function writeAbState(state: Record<AbKey, number | null>) {
 }
 
 const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
-const FRAME_INTERVAL_MS = 5 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
 
 type TickKind = "fine" | "minor" | "major";
 interface Tick {
@@ -204,7 +217,7 @@ export function buildTicks(startMs: number, frameCount: number, timeZone = "UTC"
 
 export function timelineMaxFrame(playback: AnimationPlaybackState, timelineState: PlanetaryTimelineState): number {
   const endMs = timelineState.forecastEnabled ? timelineState.forecastEndMs : timelineState.liveTimeMs;
-  const frame = Math.round((endMs - timelineState.replayStartMs) / FRAME_INTERVAL_MS);
+  const frame = Math.floor((endMs - timelineState.replayStartMs) / FRAME_INTERVAL_MS);
   return Math.max(0, Math.min(playback.frameCount - 1, frame));
 }
 
@@ -236,13 +249,30 @@ const AFTERNOON_ANCHOR:[number, number, number]= [130, 180, 235]; // soft blue
 const SUNSET_ANCHOR:  [number, number, number] = [240, 135, 55]; // vivid orange
 const DUSK_ANCHOR:    [number, number, number] = [95, 38, 95];   // deep violet
 
-function dayNightStops(startMs: number, frameCount: number, timeZone: string): string {
+function dayNightStops(
+  startMs: number,
+  frameCount: number,
+  timeZone: string,
+  solarReference?: { latitude: number; longitude: number },
+): string {
   const totalMs = (frameCount - 1) * FRAME_INTERVAL_MS;
   const samples = 96;
   const stops: string[] = [];
+  const hasSolarReference = (
+    solarReference !== undefined &&
+    Number.isFinite(solarReference.latitude) &&
+    Number.isFinite(solarReference.longitude)
+  );
 
   for (let i = 0; i <= samples; i += 1) {
     const t = startMs + (i / samples) * totalMs;
+    if (hasSolarReference) {
+      const elevation = solarElevationDeg(solarReference.latitude, solarReference.longitude, t);
+      const band = solarBandForAltitudeDeg(elevation);
+      stops.push(`${SOLAR_BAND_COLORS[band]} ${((i / samples) * 100).toFixed(2)}%`);
+      continue;
+    }
+
     const hour = localClockHour(t, timeZone);
     let color: string;
 
@@ -308,13 +338,18 @@ export function BottomTimeline({
   onStepFrame,
   onSetSpeed,
   onShiftWindowDays,
+  onSetVisibleDays,
+  onReturnLive,
   timeZone = "UTC",
   onOpenGifExport,
   warningRanges = [],
   timelineState,
+  solarReference,
 }: BottomTimelineProps) {
   const stripRef = useRef<HTMLDivElement | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
   const [hoverPct, setHoverPct] = useState<number | null>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
   const [abState, setAbState] = useState<Record<AbKey, number | null>>(readAbState);
 
   const setAbAtCurrent = (key: AbKey) => {
@@ -345,17 +380,21 @@ export function BottomTimeline({
   );
 
   const gradient = useMemo(
-    () => dayNightStops(startMs, playback.frameCount, timelineTimeZone),
-    [startMs, playback.frameCount, timelineTimeZone],
+    () => dayNightStops(startMs, playback.frameCount, timelineTimeZone, solarReference),
+    [startMs, playback.frameCount, timelineTimeZone, solarReference],
   );
 
-  const progressPct = (playback.playheadFrame / Math.max(1, playback.frameCount - 1)) * 100;
-  const livePct = (playback.liveFrame / Math.max(1, playback.frameCount - 1)) * 100;
-  const forecastStartPct = livePct;
+  const displayMaxFrame = Math.max(1, playback.frameCount - 1);
+  const boundedPlayheadFrame = Math.max(0, Math.min(displayMaxFrame, playback.playheadFrame));
+  const boundedLiveFrame = Math.max(0, Math.min(displayMaxFrame, playback.liveFrame));
+  const liveInWindow = playback.liveFrame >= 0 && playback.liveFrame <= displayMaxFrame;
+  const progressPct = timelinePctFromFrame(boundedPlayheadFrame, playback.frameCount);
+  const livePct = timelinePctFromFrame(boundedLiveFrame, playback.frameCount);
+  const forecastStartPct = playback.liveFrame <= 0 ? 0 : playback.liveFrame >= displayMaxFrame ? 100 : livePct;
   const maxFrame = timelineMaxFrame(playback, timelineState);
-  const maxPct = (maxFrame / Math.max(1, playback.frameCount - 1)) * 100;
-  const loopStartPct = (playback.loopStart / Math.max(1, playback.frameCount - 1)) * 100;
-  const loopEndPct = (playback.loopEnd / Math.max(1, playback.frameCount - 1)) * 100;
+  const maxPct = timelinePctFromFrame(maxFrame, playback.frameCount);
+  const loopStartPct = timelinePctFromFrame(playback.loopStart, playback.frameCount);
+  const loopEndPct = timelinePctFromFrame(playback.loopEnd, playback.frameCount);
   const displayMs = startMs + playback.playheadFrame * FRAME_INTERVAL_MS;
   const validLabel = new Date(displayMs).toLocaleString("en-CA", {
     year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timelineTimeZone,
@@ -371,7 +410,7 @@ export function BottomTimeline({
     : null;
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const rect = stripRef.current?.getBoundingClientRect();
+    const rect = (trackRef.current ?? stripRef.current)?.getBoundingClientRect();
     if (!rect) return;
     const pct = ((e.clientX - rect.left) / rect.width) * 100;
     setHoverPct(Math.max(0, Math.min(100, pct)));
@@ -385,11 +424,26 @@ export function BottomTimeline({
           type="button"
           className="wb-tl-btn wb-tl-step"
           onClick={() => onShiftWindowDays(-1)}
-          title="Previous UTC day"
-          aria-label="Previous UTC day"
+          title="Move timeline window back one day"
+          aria-label="Previous day"
         >
           -1d
         </button>
+        <span className="wb-tl-window-group" role="group" aria-label="Timeline visible span">
+          <span className="wb-tl-window-label">View</span>
+          {TIMELINE_VIEW_DAY_OPTIONS.map((days) => (
+            <button
+              key={days}
+              type="button"
+              className={`wb-tl-btn wb-tl-window-btn${playback.visibleDays === days ? " is-active" : ""}`}
+              onClick={() => onSetVisibleDays(days)}
+              aria-pressed={playback.visibleDays === days}
+              title={`Show ${days} day${days === 1 ? "" : "s"} on the timeline`}
+            >
+              {days}d
+            </button>
+          ))}
+        </span>
         <button
           type="button"
           className="wb-tl-btn wb-tl-step"
@@ -444,8 +498,14 @@ export function BottomTimeline({
         <button
           type="button"
           className="wb-tl-btn wb-tl-step"
-          onClick={() => onSetFrame(playback.liveFrame)}
-          title="Jump to live frame (End)"
+          onClick={() => {
+            if (liveInWindow) {
+              onSetFrame(playback.liveFrame);
+            } else {
+              onReturnLive?.();
+            }
+          }}
+          title={liveInWindow ? "Jump to live frame (End)" : "Return timeline window to live"}
           aria-label="Live frame"
         >
           <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
@@ -456,8 +516,8 @@ export function BottomTimeline({
           type="button"
           className="wb-tl-btn wb-tl-step"
           onClick={() => onShiftWindowDays(1)}
-          title="Next UTC day"
-          aria-label="Next UTC day"
+          title="Move timeline window forward one day"
+          aria-label="Next day"
         >
           +1d
         </button>
@@ -509,6 +569,9 @@ export function BottomTimeline({
           <span className="wb-tl-frame-sep">/</span>
           {String(playback.frameCount).padStart(3, "0")}
         </span>
+        <span className="wb-tl-window-readout">
+          {playback.visibleDays}d window
+        </span>
       </div>
       </div>
 
@@ -516,7 +579,7 @@ export function BottomTimeline({
         ref={stripRef}
         className="wb-tl-strip"
         onPointerMove={handlePointerMove}
-        onPointerLeave={() => setHoverPct(null)}
+        onPointerLeave={() => { setHoverPct(null); setIsScrubbing(false); }}
         onContextMenu={(e) => {
           if (onOpenGifExport) {
             e.preventDefault();
@@ -537,7 +600,7 @@ export function BottomTimeline({
           ))}
         </div>
 
-        <div className="wb-tl-track">
+        <div ref={trackRef} className={`wb-tl-track${isScrubbing ? " is-scrubbing" : ""}`}>
           {warningRanges.map((range, i) => {
             const maxFrame = Math.max(1, playback.frameCount - 1);
             const startFrame = Math.max(0, Math.min(maxFrame, range.startFrame));
@@ -599,7 +662,7 @@ export function BottomTimeline({
           {(["A", "B"] as AbKey[]).map((k) => {
             const frame = abState[k];
             if (frame === null || frame === undefined) return null;
-            const pct = (frame / Math.max(1, playback.frameCount - 1)) * 100;
+            const pct = timelinePctFromFrame(frame, playback.frameCount);
             return (
               <div
                 key={k}
@@ -623,8 +686,10 @@ export function BottomTimeline({
             className="wb-tl-slider"
             step="any"
             min={0}
-            max={maxFrame}
-            value={Math.min(playback.playheadFrame, maxFrame)}
+            max={displayMaxFrame}
+            value={boundedPlayheadFrame}
+            onPointerDown={() => setIsScrubbing(true)}
+            onPointerUp={() => setIsScrubbing(false)}
             onInput={(event) => onSetFrame(clampTimelineInputFrame(Number(event.currentTarget.value), playback, timelineState))}
             onChange={(event) => onSetFrame(clampTimelineInputFrame(Number(event.target.value), playback, timelineState))}
             aria-label={`Frame ${playback.frame + 1} of ${playback.frameCount}`}
