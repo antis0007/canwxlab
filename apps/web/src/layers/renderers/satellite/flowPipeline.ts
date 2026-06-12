@@ -354,6 +354,8 @@ interface PairState {
   occlusion: RenderTarget | null;
   cloudMask: RenderTarget | null;
   lastError: string | null;
+  /** True once a server-computed field replaced local estimation. */
+  serverFieldAdopted?: boolean;
 }
 
 interface SequenceBackground {
@@ -605,6 +607,58 @@ export class FlowPipeline {
     });
   }
 
+  /** Install a server-computed motion field for a pair. Server fields are
+   * authoritative (IR-derived, native-grid, computed once): they mark the
+   * pair ready immediately and any queued GPU passes for it are skipped.
+   * Local cloud-mask/background passes still run via the normal queue. */
+  adoptServerField(pairKey: string, field: { width: number; height: number; data: Uint8Array }): boolean {
+    const state = this.pairs.get(pairKey);
+    if (!state || !this.device) return false;
+    if (state.serverFieldAdopted) return true;
+
+    try {
+      const texture = this.device.createTexture({
+        data: field.data,
+        width: field.width,
+        height: field.height,
+        format: "rgba8unorm" as never,
+        sampler: {
+          minFilter: "linear" as never,
+          magFilter: "linear" as never,
+          addressModeU: "clamp-to-edge" as never,
+          addressModeV: "clamp-to-edge" as never,
+        },
+      });
+      // Replace whatever the GPU pipeline produced; the packed final lives in
+      // the occlusion slot (see get()).
+      this.destroyTarget(state.occlusion);
+      this.destroyTarget(state.forward);
+      this.destroyTarget(state.backward);
+      state.forward = null;
+      state.backward = null;
+      state.occlusion = {
+        texture,
+        framebuffer: null as never,
+        width: field.width,
+        height: field.height,
+      };
+      state.serverFieldAdopted = true;
+      // Run only the cheap background/cloud-mask tail if it hasn't happened.
+      if (state.status !== "ready") {
+        state.nextLevelIndex = state.levels.length + 1;
+        state.status = "computing";
+      }
+      // Probe/vector read-back comes free: the server bytes ARE the field.
+      this.readbackCache.set(pairKey, { data: field.data, cloud: null });
+      return true;
+    } catch (err) {
+      logManager.warn("satellite", "Server motion field adoption failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return false;
+    }
+  }
+
   isReady(pairKey: string): boolean {
     return this.pairs.get(pairKey)?.status === "ready";
   }
@@ -789,7 +843,8 @@ export class FlowPipeline {
   }
 
   private destroyTarget(target: RenderTarget | null): void {
-    target?.framebuffer.destroy();
+    // Server-adopted fields are texture-only (no framebuffer).
+    target?.framebuffer?.destroy();
     target?.texture.destroy();
   }
 

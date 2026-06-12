@@ -46,9 +46,15 @@ function storedFrame(gridKey: string, timeMs: number): StoredFrame {
 describe("satellite motion quality gates", () => {
   it("does not cross-fade warped clouds when confident motion is available", () => {
     const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "satelliteComposite.ts"), "utf8");
-    expect(source).toContain("vec4 advectedCloudSample(");
-    expect(source).toContain("result = advectedCloudSample(prevWarp, nextWarp, t);");
+    const helper = source.slice(
+      source.indexOf("vec4 advectedCloudSample("),
+      source.indexOf("vec4 sampleMorph("),
+    );
+    expect(helper).toContain("return prevSignal >= nextSignal ? prevWarp : nextWarp;");
+    expect(helper).not.toContain("mix(");
+    expect(source).toContain("result = advectedCloudSample(prevWarp, nextWarp);");
     expect(source).not.toContain("vec4 result = mix(prevWarp, nextWarp, t);");
+    expect(source).not.toContain("mix(prevWarp, nextWarp, smoothstep");
   });
 
   it("classifies visible products separately from IR/cloud products", () => {

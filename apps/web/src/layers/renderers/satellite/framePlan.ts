@@ -27,6 +27,19 @@ export function planPrefetch(input: PrefetchInput): number[] {
     .filter((t) => t >= windowStart && t <= windowEnd && !buffered.has(t))
     .sort((a, b) => a - b);
 
+  // Early-morning and source-lag case: wall-clock live can be hours after the
+  // newest published frame. If the strict prefetch span misses every advertised
+  // time, still fetch the nearest real frames so the compositor has data to
+  // hold/extrapolate instead of staying blank until the operator scrubs back.
+  const earliest = input.availableTimesMs[0];
+  const latest = input.availableTimesMs[input.availableTimesMs.length - 1];
+  if (candidates.length === 0 && (input.playheadMs < earliest || input.playheadMs > latest)) {
+    return input.availableTimesMs
+      .filter((t) => !buffered.has(t))
+      .sort((a, b) => Math.abs(a - input.playheadMs) - Math.abs(b - input.playheadMs))
+      .slice(0, Math.min(6, input.availableTimesMs.length));
+  }
+
   const ahead = candidates.filter((t) => t >= input.playheadMs);
   const behind = candidates.filter((t) => t < input.playheadMs).reverse();
   const out: number[] = [];

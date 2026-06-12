@@ -33,6 +33,7 @@ import {
   type MotionField,
   type MotionVectorSample,
 } from "./satellite/motionField";
+import { fetchMotionField, motionFieldUrl, motionSatelliteFor } from "./satellite/serverMotion";
 import { templateTimeMs } from "./satellite/wmsRequest";
 
 export type { BufferedRange } from "./satellite/frameGrid";
@@ -292,40 +293,23 @@ vec2 hermiteDisplacement(vec2 totalFlow, vec2 startVelocity, vec2 endVelocity, f
   return h01 * totalFlow + h10 * startVelocity + h11 * endVelocity;
 }
 
+/* Hard temporal switch for paths WITHOUT usable motion. This is intentionally
+ * not a fade: if flow is absent or untrusted, crisp frame replacement is less
+ * misleading than inventing motion by cross-dissolving cloud pixels. */
+float hardFrameSwitch(float t) {
+  return step(0.5, t);
+}
+
 float cloudSignal(vec4 texel) {
-  float hi = max(max(texel.r, texel.g), texel.b);
-  float lo = min(min(texel.r, texel.g), texel.b);
   float luma = dot(texel.rgb, vec3(0.2126, 0.7152, 0.0722));
-  float chroma = hi - lo;
-  return texel.a * max(luma, chroma * 0.8);
+  float chroma = max(max(texel.r, texel.g), texel.b) - min(min(texel.r, texel.g), texel.b);
+  return texel.a * max(luma, chroma);
 }
 
-/* Narrow temporal blend window: image content switches inside a short
- * mid-interval band instead of dissolving across the whole keyframe gap.
- * Endpoints remain exact keyframes; each half of the interval is dominated
- * by a single (advected) image, so pixels read as translating rather than
- * fading in/out — the standard dominant-image trick from video frame
- * interpolation. */
-float narrowFade(float t) {
-  return smoothstep(0.38, 0.62, t);
-}
-
-vec4 advectedCloudSample(vec4 prevWarp, vec4 nextWarp, float t) {
-  if (t <= 0.001) return prevWarp;
-  if (t >= 0.999) return nextWarp;
-
+vec4 advectedCloudSample(vec4 prevWarp, vec4 nextWarp) {
   float prevSignal = cloudSignal(prevWarp);
   float nextSignal = cloudSignal(nextWarp);
-  vec4 strongest = mix(prevWarp, nextWarp, step(prevSignal, nextSignal));
-
-  // Warped samples should already align. When they do, allow a small amount of
-  // temporal color continuity; when they do not, keep the stronger cloud texel
-  // so the interframe does not visibly dim into an alpha cross-fade.
-  vec4 blended = mix(prevWarp, nextWarp, narrowFade(t));
-  float agreement = 1.0 - smoothstep(0.04, 0.24, length(prevWarp.rgb - nextWarp.rgb));
-  vec4 result = mix(strongest, blended, agreement * 0.35);
-  result.a = max(result.a, max(prevWarp.a, nextWarp.a));
-  return cleanTexel(result);
+  return prevSignal >= nextSignal ? prevWarp : nextWarp;
 }
 
 vec4 sampleMorph(int idx, vec2 merc) {
@@ -392,10 +376,10 @@ vec4 sampleMorph(int idx, vec2 merc) {
   // interval: a narrow mid-interval switch keeps pixels crisp on both sides
   // (categorical products like cloud-type defeat optical flow inside class
   // interiors, which made this branch the dominant look).
-  float fade = narrowFade(t);
+  float frameSwitch = hardFrameSwitch(t);
   float flowConf = max(globalConf, denseConf * flowBlend);
   if (flowConf < 0.05) {
-    return mix(prevSample, nextSample, fade);
+    return frameSwitch < 0.5 ? prevSample : nextSample;
   }
 
   // Symmetric optical-flow morphing with C1 temporal continuity across
@@ -419,16 +403,23 @@ vec4 sampleMorph(int idx, vec2 merc) {
   vec2 nextWarpUv = clamp(nextUv + (flowUV - displacement), vec2(0.0), vec2(1.0));
   vec4 prevWarp = cleanTexel(samplePrevTex(idx, prevWarpUv));
   vec4 nextWarp = cleanTexel(sampleNextTex(idx, nextWarpUv));
-  vec4 result = advectedCloudSample(prevWarp, nextWarp, t);
+
+  // Preserve warped cloud radiance instead of cross-fading two warped frames.
+  // A dissolve turns real motion into fading pixels; the helper returns one
+  // carried texel, so confident motion is visual advection rather than a
+  // temporal transition.
+  vec4 result = advectedCloudSample(prevWarp, nextWarp);
 
   // Forward-backward occlusion: where the flow directions disagree, the cloud
-  // is forming or dissipating. Warping would stretch it — cross-dissolve.
+  // is forming or dissipating. Warping would stretch it; fading would ghost it.
+  // Choose the stronger endpoint cloud signal as a crisp replacement.
   if (occlusion > 0.001) {
-    result = mix(result, mix(prevSample, nextSample, fade), occlusion);
+    vec4 occlusionSample = cloudSignal(prevSample) >= cloudSignal(nextSample) ? prevSample : nextSample;
+    result = occlusion > 0.5 ? occlusionSample : result;
   }
 
   if (result.a < 0.01) {
-    result = mix(prevSample, nextSample, fade);
+    result = frameSwitch < 0.5 ? prevSample : nextSample;
   }
 
   // Cloud/background separation: static clear-sky pixels render from the
@@ -922,6 +913,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
   /** Draw-loop gates: skip recomputing ranges / loading / flow schedules when
    * no frame store changed and the playhead stayed in the same frame slot. */
   private _lastDrawGateKey = "";
+  private _serverFieldRequested = new Set<string>();
 
   private _drawGateKey(state: CompositorState, timelineMs: number): string {
     let revisions = "";
@@ -1244,6 +1236,31 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
 
     state.flowPipeline.prune(keepPairs, keepSequences);
     state.flowPipeline.schedule(requests, timelineMs);
+
+    // Server-side shared motion field: authoritative IR-derived flow per
+    // pair, fetched in parallel with (and replacing) local GPU estimation.
+    for (const request of requests) {
+      if (this._serverFieldRequested.has(request.key)) continue;
+      const satellite = motionSatelliteFor(request.sequenceKey);
+      if (!satellite) continue;
+      this._serverFieldRequested.add(request.key);
+      if (this._serverFieldRequested.size > 256) this._serverFieldRequested.clear();
+      const prevBounds = state.entries
+        .flatMap((e) => e.frameStore.activeFrames())
+        .find((f) => f.timeMs === request.prevTimeMs)?.mercBounds;
+      const url = motionFieldUrl({
+        satellite,
+        mercBounds: prevBounds ?? [0, 0, 1, 1],
+        t0Ms: request.prevTimeMs,
+        t1Ms: request.nextTimeMs,
+      });
+      void fetchMotionField(url).then((field) => {
+        if (!field) return;
+        if (state.flowPipeline?.adoptServerField(request.key, field)) {
+          this.setNeedsRedraw();
+        }
+      });
+    }
 
     // One unit of GPU work per draw keeps the frame budget intact; the idle
     // loop drains the rest of the queue between draws.

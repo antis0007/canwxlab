@@ -47,6 +47,38 @@ describe("planPrefetch", () => {
     expect(plan.length).toBeGreaterThan(0);
     expect(Math.max(...plan)).toBeLessThanOrEqual(avail[10]);
   });
+
+  it("falls back to nearest published frames when live is hours after the source", () => {
+    const avail = times(12);
+    const playheadMs = avail[avail.length - 1] + LOOP_BUFFER_SPAN_MS + 2 * MIN10;
+    const plan = planPrefetch({
+      availableTimesMs: avail,
+      bufferedTimesMs: [],
+      playheadMs,
+      loopStartMs: playheadMs - LOOP_BUFFER_SPAN_MS / 2,
+      loopEndMs: playheadMs + LOOP_BUFFER_SPAN_MS / 2,
+    });
+
+    expect(plan[0]).toBe(avail[avail.length - 1]);
+    expect(plan[1]).toBe(avail[avail.length - 2]);
+    expect(plan.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("falls back to nearest published frames when the selected day precedes the source window", () => {
+    const avail = times(12, 24 * 60 * 60 * 1000);
+    const playheadMs = avail[0] - LOOP_BUFFER_SPAN_MS - 2 * MIN10;
+    const plan = planPrefetch({
+      availableTimesMs: avail,
+      bufferedTimesMs: [],
+      playheadMs,
+      loopStartMs: playheadMs - LOOP_BUFFER_SPAN_MS / 2,
+      loopEndMs: playheadMs + LOOP_BUFFER_SPAN_MS / 2,
+    });
+
+    expect(plan[0]).toBe(avail[0]);
+    expect(plan[1]).toBe(avail[1]);
+    expect(plan.length).toBeGreaterThanOrEqual(2);
+  });
 });
 
 describe("planEviction", () => {
