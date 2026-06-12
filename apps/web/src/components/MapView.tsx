@@ -40,6 +40,7 @@ import {
 import type { BufferedRange } from "../layers/renderers/satellite/frameGrid";
 import { createMotionVectorLayer } from "../layers/renderers/motionVectors";
 import { formatMotionProbe } from "../layers/renderers/satellite/motionField";
+import { FRAME_INTERVAL_MS } from "../time/timelineWindow";
 import { createTerminatorLayer, TerminatorLayer } from "../layers/renderers/terminator";
 import { createAtmosphereLayer, AtmosphereLayer } from "../layers/renderers/atmosphere";
 import { createPowerGridLayer, PowerGridLayer } from "../layers/renderers/powerGrid";
@@ -642,14 +643,19 @@ export function MapView({
     [layers, layerState, viewMode],
   );
 
+  // WMS time resolution only changes at discrete timeline frame slots, but
+  // globalTimeMs advances with every continuous-playback commit (~10 Hz).
+  // Quantizing the memo key avoids rebuilding the entire render plan (and all
+  // downstream layer memos) on every commit during playback.
+  const renderPlanTimeMs = Math.floor(globalTimeMs / FRAME_INTERVAL_MS) * FRAME_INTERVAL_MS;
   const renderPlan = useMemo(
     () => buildRenderPlan({
       layers: activeLayers,
       runtimeState: layerState,
-      globalTimeMs,
+      globalTimeMs: renderPlanTimeMs,
       viewMode,
     }),
-    [activeLayers, globalTimeMs, layerState, viewMode],
+    [activeLayers, renderPlanTimeMs, layerState, viewMode],
   );
 
   const genericOgcLayerIds = useMemo(
