@@ -300,6 +300,16 @@ float cloudSignal(vec4 texel) {
   return texel.a * max(luma, chroma * 0.8);
 }
 
+/* Narrow temporal blend window: image content switches inside a short
+ * mid-interval band instead of dissolving across the whole keyframe gap.
+ * Endpoints remain exact keyframes; each half of the interval is dominated
+ * by a single (advected) image, so pixels read as translating rather than
+ * fading in/out — the standard dominant-image trick from video frame
+ * interpolation. */
+float narrowFade(float t) {
+  return smoothstep(0.38, 0.62, t);
+}
+
 vec4 advectedCloudSample(vec4 prevWarp, vec4 nextWarp, float t) {
   if (t <= 0.001) return prevWarp;
   if (t >= 0.999) return nextWarp;
@@ -311,7 +321,7 @@ vec4 advectedCloudSample(vec4 prevWarp, vec4 nextWarp, float t) {
   // Warped samples should already align. When they do, allow a small amount of
   // temporal color continuity; when they do not, keep the stronger cloud texel
   // so the interframe does not visibly dim into an alpha cross-fade.
-  vec4 blended = mix(prevWarp, nextWarp, t);
+  vec4 blended = mix(prevWarp, nextWarp, narrowFade(t));
   float agreement = 1.0 - smoothstep(0.04, 0.24, length(prevWarp.rgb - nextWarp.rgb));
   vec4 result = mix(strongest, blended, agreement * 0.35);
   result.a = max(result.a, max(prevWarp.a, nextWarp.a));
@@ -374,13 +384,17 @@ vec4 sampleMorph(int idx, vec2 merc) {
     occlusion = clamp(packed.a, 0.0, 1.0);
     vec2 denseFlowUv = (packed.rg - vec2(0.5)) * (uMaxFlowUv * 2.0) * motionTrust;
 
-    float denseWeight = smoothstep(0.08, 0.50, denseConf) * flowBlend;
+    float denseWeight = smoothstep(0.05, 0.35, denseConf) * flowBlend;
     flowUV = mix(globalFlowUV, denseFlowUv, denseWeight);
   }
 
-  float fade = t * t * (3.0 - 2.0 * t);
+  // Even without trustworthy motion, never dissolve across the whole
+  // interval: a narrow mid-interval switch keeps pixels crisp on both sides
+  // (categorical products like cloud-type defeat optical flow inside class
+  // interiors, which made this branch the dominant look).
+  float fade = narrowFade(t);
   float flowConf = max(globalConf, denseConf * flowBlend);
-  if (flowConf < 0.08) {
+  if (flowConf < 0.05) {
     return mix(prevSample, nextSample, fade);
   }
 
