@@ -1683,6 +1683,47 @@ details.wb-section[open] > summary .wb-section-chevron {
   gap: 8px;
 }
 
+.wb-tl-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--wb-text);
+  letter-spacing: 0.08em;
+}
+.wb-tl-export-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff5d5d;
+  box-shadow: 0 0 4px rgba(255, 93, 93, 0.7);
+}
+.wb-tl-export:hover .wb-tl-export-dot {
+  animation: wb-rec-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes wb-rec-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* Keyboard operability: a consistent, visible focus ring everywhere. */
+.wb-tl-track:focus-visible,
+.wb-tl-btn:focus-visible,
+.wb-topbar-check input:focus-visible,
+.wb-expandable-toggle:focus-visible,
+button:focus-visible {
+  outline: 2px solid rgba(120, 180, 255, 0.9);
+  outline-offset: 1px;
+}
+
+/* Respect vestibular-safe preferences: kill decorative animation, keep state. */
+@media (prefers-reduced-motion: reduce) {
+  .wb-tl-play.is-buffering,
+  .wb-tl-export:hover .wb-tl-export-dot {
+    animation: none;
+  }
+}
+
 .wb-tl-buffered-band {
   position: absolute;
   top: 1px;

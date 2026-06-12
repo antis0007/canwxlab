@@ -709,13 +709,12 @@ export default function App() {
         },
         whenReady: async (timelineMs) => {
           await satelliteReadinessRef.current(timelineMs);
-          await new Promise<void>((resolve) => {
-            if (map.loaded() && !map.isMoving()) {
-              resolve();
-              return;
-            }
-            map.once("idle", () => resolve());
-          });
+          // Two rAFs let MapLibre and deck consume the seek before capture.
+          // Waiting for map "idle" here deadlocks against the satellite
+          // pipeline's own repaint scheduling (idle can stay >15 s away while
+          // flow passes pump), which timed out every frame.
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          await new Promise((resolve) => requestAnimationFrame(resolve));
         },
         onProgress: (current, total) => setGifExportProgress([current, total]),
         signal: abort.signal,

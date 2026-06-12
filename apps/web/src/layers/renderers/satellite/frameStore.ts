@@ -263,6 +263,8 @@ export class FrameStore {
           time: new Date(timeMs).toISOString(),
           error: err instanceof Error ? err.message : String(err),
         });
+        // Release exporters waiting on a time that just became unfetchable.
+        this.notifyWaiters();
         this.options.onChange?.();
         if (this.lastUpdate && !this.destroyed) this.update(this.lastUpdate);
       });
@@ -348,12 +350,23 @@ export class FrameStore {
   }
 
   private isTimeBuffered(timeMs: number): boolean {
-    const ranges = this.getBufferedRanges();
-    return ranges.some((r) => timeMs >= r.startMs - this.options.frameIntervalMs && timeMs <= r.endMs + this.options.frameIntervalMs / 2);
+    // A time is renderable when either the viewport band or the whole-world
+    // base band covers it — framesAt draws from the same fallback chain.
+    const inRanges = (ranges: BufferedRange[]) => ranges.some(
+      (r) => timeMs >= r.startMs - this.options.frameIntervalMs
+        && timeMs <= r.endMs + this.options.frameIntervalMs / 2,
+    );
+    if (inRanges(this.getBufferedRanges())) return true;
+    return inRanges(mergeBufferedRanges(
+      this.framesForGrid(BASE_BAND_GRID_KEY).map((f) => f.timeMs),
+      this.options.frameIntervalMs,
+    ));
   }
 
   whenTimeBuffered(timeMs: number): Promise<void> {
-    if (this.isTimeBuffered(timeMs)) return Promise.resolve();
+    // Unfetchable times must not hang callers (the exporter awaits this per
+    // frame); the current buffer is the best drawable state for them.
+    if (this.isTimeBuffered(timeMs) || this.isUnfetchable(timeMs)) return Promise.resolve();
     return new Promise<void>((resolve) => {
       this.waiters.push({ timeMs, resolve });
     });
@@ -363,13 +376,26 @@ export class FrameStore {
     if (this.waiters.length === 0) return;
     const still: Waiter[] = [];
     for (const waiter of this.waiters) {
-      if (this.isTimeBuffered(waiter.timeMs)) {
+      if (this.isTimeBuffered(waiter.timeMs) || this.isUnfetchable(waiter.timeMs)) {
         waiter.resolve();
       } else {
         still.push(waiter);
       }
     }
     this.waiters = still;
+  }
+
+  /** True when no fetch can satisfy this time right now: nothing advertised
+   * nearby, or the nearest advertised time is on failure cooldown. Waiters on
+   * such times resolve immediately — the current buffer is the best state. */
+  private isUnfetchable(timeMs: number): boolean {
+    const nearest = this.options.availableTimesMs.reduce<number | null>((best, t) => {
+      if (best === null || Math.abs(t - timeMs) < Math.abs(best - timeMs)) return t;
+      return best;
+    }, null);
+    if (nearest === null || Math.abs(nearest - timeMs) > this.options.frameIntervalMs) return true;
+    const failedAt = this.failedTimes.get(nearest);
+    return failedAt !== undefined && Date.now() - failedAt < FAILED_URL_COOLDOWN_MS;
   }
 
   framesAt(timelineMs: number): { prev: StoredFrame; next: StoredFrame } | null {

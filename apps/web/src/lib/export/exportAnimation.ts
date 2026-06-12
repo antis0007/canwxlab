@@ -55,10 +55,22 @@ export async function exportAnimation(options: ExportAnimationOptions): Promise<
 
       const timelineMs = times[i];
       options.seekTo(timelineMs);
-      const frame = await options.capture.captureFrame({
-        timelineMs,
-        whenReady: () => options.whenReady(timelineMs),
-      });
+      let frame: ImageData;
+      try {
+        frame = await options.capture.captureFrame({
+          timelineMs,
+          whenReady: () => options.whenReady(timelineMs),
+        });
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") throw err;
+        // Readiness stalled (slow upstream, purged frame). One degraded frame
+        // — captured with whatever is currently drawable — beats killing the
+        // whole export.
+        frame = await options.capture.captureFrame({
+          timelineMs,
+          whenReady: () => Promise.resolve(),
+        });
+      }
       await options.sink.addFrame(frame, (i / options.fps) * 1000);
       options.onProgress?.(i + 1, times.length);
     }

@@ -587,6 +587,19 @@ export function BottomTimeline({
             );
           })}
         </span>
+
+        {onOpenGifExport && (
+          <button
+            type="button"
+            className="wb-tl-btn wb-tl-export"
+            onClick={onOpenGifExport}
+            title="Export animation — GIF / WebM / MP4 (also: right-click timeline)"
+            aria-label="Export animation as GIF, WebM, or MP4"
+          >
+            <span className="wb-tl-export-dot" aria-hidden="true" />
+            REC
+          </button>
+        )}
       </div>
 
       <div className="wb-tl-readout">
@@ -627,7 +640,36 @@ export function BottomTimeline({
           ))}
         </div>
 
-        <div ref={trackRef} className={`wb-tl-track${isScrubbing ? " is-scrubbing" : ""}`}>
+        <div
+          ref={trackRef}
+          className={`wb-tl-track${isScrubbing ? " is-scrubbing" : ""}`}
+          role="slider"
+          tabIndex={0}
+          aria-label="Timeline position"
+          aria-valuemin={0}
+          aria-valuemax={Math.max(0, playback.frameCount - 1)}
+          aria-valuenow={playback.frame}
+          aria-valuetext={validLabel}
+          onKeyDown={(e) => {
+            const step = e.shiftKey ? 12 : 1; // shift = one hour of 5-min frames
+            if (e.key === "ArrowRight") {
+              e.preventDefault();
+              onStepFrame(step);
+            } else if (e.key === "ArrowLeft") {
+              e.preventDefault();
+              onStepFrame(-step);
+            } else if (e.key === "Home") {
+              e.preventDefault();
+              onSetFrame(0);
+            } else if (e.key === "End") {
+              e.preventDefault();
+              onSetFrame(playback.frameCount - 1);
+            } else if (e.key === " " || e.key === "Enter") {
+              e.preventDefault();
+              onTogglePlay();
+            }
+          }}
+        >
           {bufferedBandsForTesting(bufferedRanges, startMs, playback.frameCount).map((band, i) => (
             <div
               key={`buffered-${i}-${band.leftPct}`}
