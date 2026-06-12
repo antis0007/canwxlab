@@ -58,14 +58,27 @@ export function mergeBufferedRanges(
   return out;
 }
 
-export function clampPlayheadToBuffered(timeMs: number, ranges: BufferedRange[]): number {
+/** Clamp a playhead time into buffered coverage.
+ *
+ * `presentationLagMs` implements a streaming jitter buffer: playback presents
+ * that far behind each range's true end, so the renderer always has a
+ * complete frame pair to morph through (phase sweeps 0→1) instead of sitting
+ * pinned on the newest frame and stepping when the next one arrives. */
+export function clampPlayheadToBuffered(
+  timeMs: number,
+  ranges: BufferedRange[],
+  presentationLagMs = 0,
+): number {
   if (ranges.length === 0) return timeMs;
+  const effectiveEnd = (range: BufferedRange) =>
+    Math.max(range.startMs, range.endMs - presentationLagMs);
   for (const range of ranges) {
-    if (timeMs >= range.startMs && timeMs <= range.endMs) return timeMs;
+    if (timeMs >= range.startMs && timeMs <= effectiveEnd(range)) return timeMs;
   }
   let best: number | null = null;
   for (const range of ranges) {
-    if (range.endMs <= timeMs && (best === null || range.endMs > best)) best = range.endMs;
+    const end = effectiveEnd(range);
+    if (end <= timeMs && (best === null || end > best)) best = end;
   }
   if (best !== null) return best;
   return ranges[0].startMs;

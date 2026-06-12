@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { MAX_IN_FLIGHT_PER_SATELLITE } from "./framePlan";
 import { FrameStore, type FrameFetchRequest, type FrameStoreOptions } from "./frameStore";
 
 const MIN10 = 600_000;
@@ -45,7 +46,7 @@ describe("FrameStore", () => {
       viewBounds: [-9e6, 4e6, -7e6, 5.5e6],
       playheadMs: times[9],
     });
-    expect(mainCalls(fetchFrame).length).toBeLessThanOrEqual(4);
+    expect(mainCalls(fetchFrame).length).toBeLessThanOrEqual(MAX_IN_FLIGHT_PER_SATELLITE);
     expect(mainCalls(fetchFrame)[0].timeMs).toBe(times[9]);
     await vi.waitFor(() => expect(store.getBufferedRanges().length).toBeGreaterThan(0));
   });

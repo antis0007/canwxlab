@@ -2,8 +2,11 @@
 
 export const LOOP_BUFFER_SPAN_MS = 3 * 60 * 60 * 1000; // 3 h seamless window
 export const MAX_RETAINED_FRAMES = 40;
-export const MAX_IN_FLIGHT_PER_SATELLITE = 4;
-export const MAX_IN_FLIGHT_TOTAL = 8;
+// 6 parallel fetches per satellite: WMS frame latency is dominated by the
+// proxy round-trip, not bandwidth, so parallelism converts directly into
+// time-to-first-pair (browser per-host connection limit caps the useful max).
+export const MAX_IN_FLIGHT_PER_SATELLITE = 6;
+export const MAX_IN_FLIGHT_TOTAL = 12;
 
 export interface PrefetchInput {
   availableTimesMs: number[];

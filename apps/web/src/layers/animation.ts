@@ -34,6 +34,11 @@ import { clampPlayheadToBuffered, type BufferedRange } from "./renderers/satelli
 export type { BufferedRange } from "./renderers/satellite/frameGrid";
 
 export const LIVE_REFRESH_MS = 15 * 1000;
+/** Jitter buffer for playback at the live edge: present one satellite frame
+ * interval behind the newest buffered frame so the GPU morph always has a
+ * complete pair to flow through. Without it the phase pins at 1.0 and the
+ * image steps discretely whenever a new frame lands. */
+export const SATELLITE_PRESENTATION_LAG_MS = 10 * 60 * 1000;
 const MIN_SPEED = 0.25;
 const MAX_SPEED = 4;
 export const PLAYBACK_UI_COMMIT_INTERVAL_MS = 100;
@@ -80,6 +85,8 @@ export function advancePlayheadForTesting(input: {
   windowStartMs: number;
   frameIntervalMs: number;
   bufferedRanges: BufferedRange[];
+  /** Playback speed; used to derive the real-time rate at the buffer edge. */
+  speedMultiplier?: number;
 }): { next: number; isBuffering: boolean } {
   const legalLoopEnd = Math.min(input.loopEnd, input.maxPlayableFrame);
   const legalLoopStart = Math.max(0, Math.min(input.loopStart, legalLoopEnd));
@@ -92,12 +99,31 @@ export function advancePlayheadForTesting(input: {
   if (input.bufferedRanges.length === 0) return { next, isBuffering: false };
 
   const nextMs = input.windowStartMs + next * input.frameIntervalMs;
-  const clampedMs = clampPlayheadToBuffered(nextMs, input.bufferedRanges);
-  if (clampedMs === nextMs) return { next, isBuffering: false };
-  const clampedFrame = (clampedMs - input.windowStartMs) / input.frameIntervalMs;
+  const heldMs = clampPlayheadToBuffered(nextMs, input.bufferedRanges, SATELLITE_PRESENTATION_LAG_MS);
+  if (heldMs === nextMs) return { next, isBuffering: false };
+
+  // Held at the buffer edge. Snapping to the edge pins the morph phase and
+  // produces discrete steps whenever a new frame lands. Instead, crawl
+  // forward at REAL-TIME rate through the presentation-lag cushion: frames
+  // arrive at real-time rate too, so the crawl never starves and the clouds
+  // flow continuously at 1:1 speed until the buffer outruns the playhead.
+  const speed = Math.max(0.25, input.speedMultiplier ?? 1);
+  const realtimeDeltaFrames = input.deltaFrames / speed;
+  const trueEdgeMs = clampPlayheadToBuffered(nextMs, input.bufferedRanges, 0);
+  const trueEdgeFrame = (trueEdgeMs - input.windowStartMs) / input.frameIntervalMs;
+  const heldFrame = (heldMs - input.windowStartMs) / input.frameIntervalMs;
+
+  // Crawl from inside the cushion. Entering hold from at/above the true edge
+  // (typical: pressing play while tracking live) re-bases INTO the cushion —
+  // a one-time step back of one satellite interval that buys continuous flow
+  // from then on. A playhead already mid-cushion keeps its position.
+  const insideCushion = input.current >= heldFrame - 1 && input.current < trueEdgeFrame - 1e-6;
+  const base = insideCushion ? input.current : heldFrame;
+  const crawled = Math.min(trueEdgeFrame, base + Math.max(0, realtimeDeltaFrames));
+
   return {
-    next: clampedFrame,
-    isBuffering: input.deltaFrames > 0 && clampedFrame < next,
+    next: crawled,
+    isBuffering: input.deltaFrames > 0,
   };
 }
 
@@ -288,6 +314,7 @@ export function useAnimationTimeline(opts?: {
         windowStartMs,
         frameIntervalMs: FRAME_INTERVAL_MS,
         bufferedRanges: getBufferedRangesRef.current?.() ?? [],
+        speedMultiplier,
       });
       playheadFrameRef.current = next;
       if (buffering !== isBufferingRef.current) {

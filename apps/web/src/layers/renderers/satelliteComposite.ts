@@ -846,9 +846,9 @@ function maxSatellitesForQuality(quality: RenderQualityPreset): number {
 }
 
 function maxTextureDimForQuality(quality: RenderQualityPreset): number {
-  if (quality === "performance") return 1024;
-  if (quality === "quality") return 1600;
-  return 1280;
+  if (quality === "performance") return 1280;
+  if (quality === "quality") return 2560;
+  return 2048;
 }
 
 function fetchPaddingForQuality(quality: RenderQualityPreset): number {
@@ -867,8 +867,15 @@ function viewportTexDimensions(
   viewport: { width: number; height: number },
   opts: { fetchPadding: number; maxTexDim: number },
 ): [number, number] {
-  const scale = 1 + opts.fetchPadding * 2;
-  const viewportMax = Math.max(viewport.width, viewport.height);
+  // deck viewport dimensions are CSS pixels; without the device-pixel-ratio
+  // factor every satellite texture renders at half resolution (or worse) on
+  // HiDPI displays. Clamp DPR at 2 — beyond that the WMS payload cost
+  // outweighs visible gain.
+  const dpr = typeof window !== "undefined"
+    ? Math.min(2, Math.max(1, window.devicePixelRatio || 1))
+    : 1;
+  const scale = (1 + opts.fetchPadding * 2) * dpr;
+  const viewportMax = Math.max(viewport.width, viewport.height) * dpr;
   const adaptiveMax = Math.max(768, Math.min(opts.maxTexDim, Math.round(viewportMax * 1.15)));
 
   return [
@@ -1407,6 +1414,26 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     uniforms.uTimeProgress = timeProgress;
     uniforms.uMaxFlowUv = MAX_FLOW_UV;
     uniforms.uSunCartesian = sunCartesianAt(timelineMs);
+
+    if (typeof window !== "undefined") {
+      (window as unknown as Record<string, unknown>).__canwxFlowDebug = {
+        hasFlowTex: hasFlowTex.slice(),
+        globalFlow: globalFlowU.slice(0, 4),
+        timeProgress: timeProgress.slice(),
+        pairs: activeEntries.map((entry) => {
+          const pair = entry.frameStore.framesAt(timelineMs);
+          if (!pair) return { id: entry.config.id, pair: null };
+          const key = pairKeyOf(pair.prev, pair.next);
+          return {
+            id: entry.config.id,
+            key,
+            animated: pair.next.timeMs > pair.prev.timeMs,
+            flowStatus: state.flowPipeline?.status(key) ?? null,
+            frames: entry.frameStore.activeFrames().length,
+          };
+        }),
+      };
+    }
 
     try {
       state.model.setBindings(bindings as never);

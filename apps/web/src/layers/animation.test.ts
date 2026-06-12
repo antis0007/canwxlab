@@ -94,12 +94,27 @@ describe("advancePlayheadForTesting (buffered clamp)", () => {
     expect(r.isBuffering).toBe(false);
   });
 
-  it("clamps at the buffer edge and reports buffering", () => {
+  it("crawls at real-time rate through the jitter cushion at the buffer edge", () => {
+    // Buffer ends at frame 60; held edge = 58 (one satellite interval back).
+    // At 2× speed, deltaFrames 1.0 = 0.5 real-time frames: instead of
+    // snapping to 58 and pinning the morph phase, the playhead crawls from
+    // 57.5 to 58.0 — clouds keep flowing at 1:1 while frames arrive.
     const r = advancePlayheadForTesting({
-      current: 59.9, deltaFrames: 1.0, loopStart: 0, loopEnd: 100,
-      maxPlayableFrame: 100, windowStartMs, frameIntervalMs: MIN5, bufferedRanges: ranges,
+      current: 57.5, deltaFrames: 1.0, loopStart: 0, loopEnd: 100,
+      maxPlayableFrame: 100, windowStartMs, frameIntervalMs: MIN5,
+      bufferedRanges: ranges, speedMultiplier: 2,
     });
-    expect(r.next).toBe(60);
+    expect(r.next).toBe(58);
+    expect(r.isBuffering).toBe(true);
+  });
+
+  it("never crawls past the true buffer end", () => {
+    const r = advancePlayheadForTesting({
+      current: 59.9, deltaFrames: 5, loopStart: 0, loopEnd: 100,
+      maxPlayableFrame: 100, windowStartMs, frameIntervalMs: MIN5,
+      bufferedRanges: ranges, speedMultiplier: 1,
+    });
+    expect(r.next).toBe(60); // true edge, lag cushion fully consumed
     expect(r.isBuffering).toBe(true);
   });
 
