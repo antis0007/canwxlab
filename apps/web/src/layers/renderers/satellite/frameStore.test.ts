@@ -27,6 +27,16 @@ const baseUpdate = {
   texSize: [512, 512] as [number, number],
 };
 
+/** Base-band (whole-world archive) requests are distinguished by their world
+ * mercator bounds; viewport-band assertions filter them out. */
+function isBaseRequest(req: FrameFetchRequest): boolean {
+  return req.mercBounds[0] < -19_000_000;
+}
+
+function mainCalls(fetchFrame: { mock: { calls: Array<[FrameFetchRequest]> } }): FrameFetchRequest[] {
+  return fetchFrame.mock.calls.map((c) => c[0]).filter((req) => !isBaseRequest(req));
+}
+
 describe("FrameStore", () => {
   it("fetches outward from the playhead within in-flight limits", async () => {
     const { store, fetchFrame } = makeStore();
@@ -35,9 +45,34 @@ describe("FrameStore", () => {
       viewBounds: [-9e6, 4e6, -7e6, 5.5e6],
       playheadMs: times[9],
     });
-    expect(fetchFrame.mock.calls.length).toBeLessThanOrEqual(4);
-    expect(fetchFrame.mock.calls[0][0].timeMs).toBe(times[9]);
+    expect(mainCalls(fetchFrame).length).toBeLessThanOrEqual(4);
+    expect(mainCalls(fetchFrame)[0].timeMs).toBe(times[9]);
     await vi.waitFor(() => expect(store.getBufferedRanges().length).toBeGreaterThan(0));
+  });
+
+  it("fetches a whole-world base-band sequence in the background", async () => {
+    const { store, fetchFrame } = makeStore();
+    store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
+    await vi.waitFor(() => {
+      const base = fetchFrame.mock.calls.map((c) => c[0]).filter(isBaseRequest);
+      expect(base.length).toBeGreaterThan(0);
+      expect(base[0].texSize).toEqual([512, 512]);
+    });
+  });
+
+  it("framesAt falls back to the base band when the viewport band is empty", async () => {
+    // Viewport-band fetches fail; only the world base band loads.
+    const fetchFrame = vi.fn(async (req: FrameFetchRequest) => {
+      if (!isBaseRequest(req)) throw new Error("viewport band unavailable");
+      return { width: 512, height: 512, destroy: vi.fn() };
+    });
+    const { store } = makeStore({ fetchFrame });
+    store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
+    await vi.waitFor(() => {
+      const pair = store.framesAt(times[1]);
+      expect(pair).not.toBeNull();
+      expect(pair!.prev.gridKey.startsWith("base|")).toBe(true);
+    });
   });
 
   it("reports buffered ranges and resolves whenTimeBuffered", async () => {
@@ -58,7 +93,7 @@ describe("FrameStore", () => {
       expect(ranges.length).toBe(1);
       expect(ranges[0].endMs).toBe(times[9]);
     });
-    expect(fetchFrame.mock.calls.length).toBe(10);
+    expect(mainCalls(fetchFrame).length).toBe(10);
   });
 
   it("framesAt returns the bracketing pair for a mid-interval time", async () => {
@@ -94,19 +129,19 @@ describe("FrameStore", () => {
   });
 
   it("records failures and does not retry inside the cooldown", async () => {
-    const fetchFrame = vi.fn(async () => {
+    const fetchFrame = vi.fn(async (_req: FrameFetchRequest) => {
       throw new Error("boom");
     });
     const { store } = makeStore({ fetchFrame });
     store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
-    // All 10 times in the prefetch window fail once, then go on cooldown.
-    await vi.waitFor(() => expect(fetchFrame.mock.calls.length).toBe(10));
+    // All 10 viewport-band times in the prefetch window fail once, then cool down.
+    await vi.waitFor(() => expect(mainCalls(fetchFrame).length).toBe(10));
     await new Promise((r) => setTimeout(r, 10));
-    const callsAfterFailure = fetchFrame.mock.calls.length;
+    const callsAfterFailure = mainCalls(fetchFrame).length;
     expect(callsAfterFailure).toBe(10);
     store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
     await new Promise((r) => setTimeout(r, 10));
-    expect(fetchFrame.mock.calls.length).toBe(callsAfterFailure);
+    expect(mainCalls(fetchFrame).length).toBe(callsAfterFailure);
   });
 
   it("destroy aborts in-flight fetches and destroys textures", async () => {
@@ -141,12 +176,13 @@ describe("scrub cancellation", () => {
     // is requested until the playhead settles.
     store.update({ ...baseUpdate, viewBounds: view, playheadMs: times[12] });
     await new Promise((r) => setTimeout(r, 5));
-    for (const request of fetchFrame.mock.calls.map((c) => c[0])) {
+    for (const request of mainCalls(fetchFrame)) {
       if (Math.abs(request.timeMs - times[12]) > 600_000 * 1.5) {
         expect(request.signal.aborted).toBe(true);
       }
     }
-    expect(store.inFlightCount()).toBeLessThanOrEqual(2);
+    // ≤2 viewport-band fetches while scrubbing, +1 base-band background slot.
+    expect(store.inFlightCount()).toBeLessThanOrEqual(3);
   });
 
   it("resumes full prefetch once the playhead settles", async () => {

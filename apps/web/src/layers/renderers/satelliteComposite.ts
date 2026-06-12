@@ -640,6 +640,21 @@ function pairKeyOf(prev: StoredFrame, next: StoredFrame): string {
   return `${prev.gridKey}@${prev.timeMs}=>${next.timeMs}`;
 }
 
+/** Index of the frame with the given timeMs in a time-sorted array, or -1.
+ * O(log n) — the draw loop runs per display frame and must not scan. */
+function indexOfFrameTime(frames: StoredFrame[], timeMs: number): number {
+  let lo = 0;
+  let hi = frames.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const t = frames[mid].timeMs;
+    if (t === timeMs) return mid;
+    if (t < timeMs) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return -1;
+}
+
 function clampMercatorLat(lat: number): number {
   return Math.max(-85.05112878, Math.min(85.05112878, lat));
 }
@@ -857,6 +872,15 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
 
   private _lastLoadingStateKey = "";
   private _lastRangesKey = "";
+  /** Draw-loop gates: skip recomputing ranges / loading / flow schedules when
+   * no frame store changed and the playhead stayed in the same frame slot. */
+  private _lastDrawGateKey = "";
+
+  private _drawGateKey(state: CompositorState, timelineMs: number): string {
+    let revisions = "";
+    for (const entry of state.entries) revisions += `${entry.frameStore.revision()},`;
+    return `${revisions}${Math.floor(timelineMs / SATELLITE_FRAME_INTERVAL_MS)}`;
+  }
 
   override initializeState(): void {
     const device = this.context.device;
@@ -1228,9 +1252,20 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       });
     }
 
-    this._scheduleFlow(state, timelineMs);
-    this._emitBufferedRanges();
-    this._emitLoadingState(state, activeEntries, timelineMs);
+    // Ranges, loading state, and flow scheduling only change when a frame
+    // store mutates or the playhead crosses a frame slot — not per display
+    // frame. Skipping them here removes all per-draw allocation and sorting
+    // during steady playback.
+    const gateKey = this._drawGateKey(state, timelineMs);
+    if (gateKey !== this._lastDrawGateKey) {
+      this._lastDrawGateKey = gateKey;
+      this._scheduleFlow(state, timelineMs);
+      this._emitBufferedRanges();
+      this._emitLoadingState(state, activeEntries, timelineMs);
+    } else if (state.flowPipeline?.hasPendingWork()) {
+      state.flowPipeline.pump();
+      this._ensureIdlePump(state);
+    }
 
     if (!state.model || !state.anyTextureLoaded) return;
 
@@ -1270,14 +1305,15 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
         const flowResult = pairFlowKey && state.flowPipeline ? state.flowPipeline.get(pairFlowKey) : null;
         const globalFlow = animated ? this._pairGlobalFlow(state, prev, next) : [0, 0, 0, 0];
 
-        // Neighbor pairs for C1 velocity continuity at keyframes.
+        // Neighbor pairs for C1 velocity continuity at keyframes. The cached
+        // sorted list + binary search keep this O(log n) per draw.
         const frames = entry.frameStore.activeFrames();
-        const prevIndex = frames.findIndex((f) => f.timeMs === prev.timeMs && f.gridKey === prev.gridKey);
-        const incoming = prevIndex > 0 && animated
+        const prevIndex = indexOfFrameTime(frames, prev.timeMs);
+        const incoming = prevIndex > 0 && animated && frames[prevIndex].gridKey === prev.gridKey
           ? this._pairGlobalFlow(state, frames[prevIndex - 1], prev)
           : [0, 0, 0, 0];
-        const nextIndex = frames.findIndex((f) => f.timeMs === next.timeMs && f.gridKey === next.gridKey);
-        const outgoing = nextIndex >= 0 && nextIndex + 1 < frames.length && animated
+        const nextIndex = indexOfFrameTime(frames, next.timeMs);
+        const outgoing = nextIndex >= 0 && nextIndex + 1 < frames.length && animated && frames[nextIndex].gridKey === next.gridKey
           ? this._pairGlobalFlow(state, next, frames[nextIndex + 1])
           : [0, 0, 0, 0];
 

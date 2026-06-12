@@ -75,6 +75,15 @@ function frameMapKey(gridKey: string, timeMs: number): string {
   return `${gridKey}@${timeMs}`;
 }
 
+/** Whole-world mercator quad for the always-resident coarse base band. */
+const WORLD_HALF_MERC = 20_037_508.342789244;
+const BASE_BAND_BOUNDS: [number, number, number, number] = [
+  -WORLD_HALF_MERC, -WORLD_HALF_MERC, WORLD_HALF_MERC, WORLD_HALF_MERC,
+];
+const BASE_BAND_TEX: [number, number] = [512, 512];
+const BASE_BAND_GRID_KEY = "base|512x512";
+const BASE_BAND_MAX_IN_FLIGHT = 1;
+
 export class FrameStore {
   private frames = new Map<string, StoredFrame>();
   private inFlight = new Map<string, { controller: AbortController; timeMs: number }>();
@@ -86,7 +95,23 @@ export class FrameStore {
   private lastUpdate: FrameStoreUpdateInput | null = null;
   private destroyed = false;
 
+  /** Bumped on every frame insert/evict/grid change. Consumers cache derived
+   * data (sorted lists, ranges, flow schedules) keyed by this revision so the
+   * draw loop does no per-frame recomputation when nothing changed. */
+  private _revision = 0;
+  /** Lazily rebuilt time-sorted frame lists per grid; invalidated by revision. */
+  private sortedCache = new Map<string, StoredFrame[]>();
+
   constructor(private options: FrameStoreOptions) {}
+
+  revision(): number {
+    return this._revision;
+  }
+
+  private invalidate(): void {
+    this._revision += 1;
+    this.sortedCache.clear();
+  }
 
   update(input: FrameStoreUpdateInput): void {
     if (this.destroyed) return;
@@ -100,13 +125,14 @@ export class FrameStore {
       if (this.currentGridKey !== null) {
         this.previousGridKey = this.currentGridKey;
         for (const [key, request] of Array.from(this.inFlight)) {
-          if (!key.startsWith(gridKey)) {
+          if (!key.startsWith(gridKey) && !key.startsWith(BASE_BAND_GRID_KEY)) {
             request.controller.abort();
             this.inFlight.delete(key);
           }
         }
       }
       this.currentGridKey = gridKey;
+      this.invalidate();
     }
 
     // Scrub detection: a playhead jump of more than two frame intervals means
@@ -121,6 +147,9 @@ export class FrameStore {
     const scrubbing = jumpMs > this.options.frameIntervalMs * 2;
     if (scrubbing) {
       for (const [key, request] of Array.from(this.inFlight)) {
+        // Base-band fetches survive scrubbing: they are the cheap archive and
+        // never block the interactive band (separate in-flight budget).
+        if (key.startsWith(BASE_BAND_GRID_KEY)) continue;
         if (Math.abs(request.timeMs - input.playheadMs) > this.options.frameIntervalMs * 1.5) {
           request.controller.abort();
           this.inFlight.delete(key);
@@ -147,6 +176,35 @@ export class FrameStore {
       const key = frameMapKey(gridKey, timeMs);
       if (this.inFlight.has(key) || this.frames.has(key)) continue;
       this.startFetch(key, gridKey, timeMs, snapped, input.texSize);
+    }
+
+    // Base band: an always-resident whole-world coarse sequence so the globe
+    // never renders blank while the zoom-band sequence loads, and so a cheap
+    // (512² per frame) archive of every viewed time accumulates regardless of
+    // where the camera was. One background fetch at a time, lowest priority.
+    if (!scrubbing && this.inFlight.size < MAX_IN_FLIGHT_PER_SATELLITE + BASE_BAND_MAX_IN_FLIGHT) {
+      const baseBuffered = this.framesForGrid(BASE_BAND_GRID_KEY).map((f) => f.timeMs);
+      const baseWanted = planPrefetch({
+        availableTimesMs: this.options.availableTimesMs,
+        bufferedTimesMs: baseBuffered,
+        playheadMs: input.playheadMs,
+        loopStartMs: input.loopStartMs,
+        loopEndMs: input.loopEndMs,
+      }).filter((t) => {
+        const failedAt = this.failedTimes.get(t);
+        return failedAt === undefined || now - failedAt >= FAILED_URL_COOLDOWN_MS;
+      });
+      let baseInFlight = 0;
+      for (const key of this.inFlight.keys()) {
+        if (key.startsWith(BASE_BAND_GRID_KEY)) baseInFlight += 1;
+      }
+      for (const timeMs of baseWanted) {
+        if (baseInFlight >= BASE_BAND_MAX_IN_FLIGHT) break;
+        const key = frameMapKey(BASE_BAND_GRID_KEY, timeMs);
+        if (this.inFlight.has(key) || this.frames.has(key)) continue;
+        this.startFetch(key, BASE_BAND_GRID_KEY, timeMs, BASE_BAND_BOUNDS, BASE_BAND_TEX);
+        baseInFlight += 1;
+      }
     }
 
     this.evict(input.playheadMs);
@@ -189,6 +247,7 @@ export class FrameStore {
           height: texture.height,
           globalFlow: null,
         });
+        this.invalidate();
         this.failedTimes.delete(timeMs);
         this.notifyWaiters();
         this.options.onChange?.();
@@ -210,48 +269,75 @@ export class FrameStore {
   }
 
   private evict(playheadMs: number): void {
-    const all = Array.from(this.frames.values());
-    if (all.length <= MAX_RETAINED_FRAMES) return;
-
-    const candidates = all.map((frame) => ({
-      timeMs: frame.timeMs,
-      // Protect the active grid's frames; old-grid frames go first because we
-      // sort eviction by playhead distance within the unprotected set.
-      protected: frame.gridKey === this.currentGridKey
-        && Math.abs(frame.timeMs - playheadMs) <= this.options.frameIntervalMs * 2,
-      frame,
-    }));
-
-    const evictTimes = new Set(planEviction(candidates, playheadMs));
-    if (evictTimes.size === 0) return;
-
-    // planEviction works on times; evict old-grid duplicates first for a time.
-    let remaining = all.length - MAX_RETAINED_FRAMES;
-    const sortedVictims = candidates
-      .filter((c) => !c.protected && evictTimes.has(c.timeMs))
-      .sort((a, b) => {
-        const aOld = a.frame.gridKey !== this.currentGridKey ? 0 : 1;
-        const bOld = b.frame.gridKey !== this.currentGridKey ? 0 : 1;
-        if (aOld !== bOld) return aOld - bOld;
-        return Math.abs(b.timeMs - playheadMs) - Math.abs(a.timeMs - playheadMs);
-      });
-
-    for (const victim of sortedVictims) {
-      if (remaining <= 0) break;
-      const key = frameMapKey(victim.frame.gridKey, victim.frame.timeMs);
-      victim.frame.texture.destroy();
-      this.frames.delete(key);
-      remaining -= 1;
+    // Base-band frames have their own small budget (they are tiny textures
+    // forming the never-blank fallback + cheap deep archive) and are excluded
+    // from the main budget.
+    const baseFrames: StoredFrame[] = [];
+    const mainFrames: StoredFrame[] = [];
+    for (const frame of this.frames.values()) {
+      (frame.gridKey === BASE_BAND_GRID_KEY ? baseFrames : mainFrames).push(frame);
     }
+
+    let changed = false;
+
+    const baseBudget = Math.ceil(
+      (this.lastUpdate
+        ? this.lastUpdate.loopEndMs - this.lastUpdate.loopStartMs
+        : 0) / this.options.frameIntervalMs,
+    ) + 2;
+    if (baseFrames.length > Math.max(8, baseBudget)) {
+      baseFrames
+        .sort((a, b) => Math.abs(b.timeMs - playheadMs) - Math.abs(a.timeMs - playheadMs))
+        .slice(0, baseFrames.length - Math.max(8, baseBudget))
+        .forEach((frame) => {
+          frame.texture.destroy();
+          this.frames.delete(frameMapKey(frame.gridKey, frame.timeMs));
+          changed = true;
+        });
+    }
+
+    if (mainFrames.length > MAX_RETAINED_FRAMES) {
+      const candidates = mainFrames.map((frame) => ({
+        timeMs: frame.timeMs,
+        protected: frame.gridKey === this.currentGridKey
+          && Math.abs(frame.timeMs - playheadMs) <= this.options.frameIntervalMs * 2,
+        frame,
+      }));
+
+      const evictTimes = new Set(planEviction(candidates, playheadMs, MAX_RETAINED_FRAMES));
+      let remaining = mainFrames.length - MAX_RETAINED_FRAMES;
+      const sortedVictims = candidates
+        .filter((c) => !c.protected && evictTimes.has(c.timeMs))
+        .sort((a, b) => {
+          const aOld = a.frame.gridKey !== this.currentGridKey ? 0 : 1;
+          const bOld = b.frame.gridKey !== this.currentGridKey ? 0 : 1;
+          if (aOld !== bOld) return aOld - bOld;
+          return Math.abs(b.timeMs - playheadMs) - Math.abs(a.timeMs - playheadMs);
+        });
+
+      for (const victim of sortedVictims) {
+        if (remaining <= 0) break;
+        victim.frame.texture.destroy();
+        this.frames.delete(frameMapKey(victim.frame.gridKey, victim.frame.timeMs));
+        remaining -= 1;
+        changed = true;
+      }
+    }
+
+    if (changed) this.invalidate();
   }
 
   private framesForGrid(gridKey: string | null): StoredFrame[] {
     if (!gridKey) return [];
+    const cached = this.sortedCache.get(gridKey);
+    if (cached) return cached;
     const out: StoredFrame[] = [];
     for (const frame of this.frames.values()) {
       if (frame.gridKey === gridKey) out.push(frame);
     }
-    return out.sort((a, b) => a.timeMs - b.timeMs);
+    out.sort((a, b) => a.timeMs - b.timeMs);
+    this.sortedCache.set(gridKey, out);
+    return out;
   }
 
   getBufferedRanges(): BufferedRange[] {
@@ -287,10 +373,16 @@ export class FrameStore {
   }
 
   framesAt(timelineMs: number): { prev: StoredFrame; next: StoredFrame } | null {
+    // Fallback chain: active zoom band → previous band (still drawable after
+    // a zoom change) → whole-world base band (never-blank floor).
     let frames = this.framesForGrid(this.currentGridKey);
     if (frames.length < 2 && this.previousGridKey) {
       const fallback = this.framesForGrid(this.previousGridKey);
       if (fallback.length > frames.length) frames = fallback;
+    }
+    if (frames.length < 2) {
+      const base = this.framesForGrid(BASE_BAND_GRID_KEY);
+      if (base.length > frames.length) frames = base;
     }
     if (frames.length === 0) return null;
     if (frames.length === 1) return { prev: frames[0], next: frames[0] };
@@ -337,6 +429,7 @@ export class FrameStore {
     this.inFlight.clear();
     for (const frame of this.frames.values()) frame.texture.destroy();
     this.frames.clear();
+    this.invalidate();
     this.waiters = [];
   }
 }
