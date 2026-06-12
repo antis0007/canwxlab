@@ -292,6 +292,32 @@ vec2 hermiteDisplacement(vec2 totalFlow, vec2 startVelocity, vec2 endVelocity, f
   return h01 * totalFlow + h10 * startVelocity + h11 * endVelocity;
 }
 
+float cloudSignal(vec4 texel) {
+  float hi = max(max(texel.r, texel.g), texel.b);
+  float lo = min(min(texel.r, texel.g), texel.b);
+  float luma = dot(texel.rgb, vec3(0.2126, 0.7152, 0.0722));
+  float chroma = hi - lo;
+  return texel.a * max(luma, chroma * 0.8);
+}
+
+vec4 advectedCloudSample(vec4 prevWarp, vec4 nextWarp, float t) {
+  if (t <= 0.001) return prevWarp;
+  if (t >= 0.999) return nextWarp;
+
+  float prevSignal = cloudSignal(prevWarp);
+  float nextSignal = cloudSignal(nextWarp);
+  vec4 strongest = mix(prevWarp, nextWarp, step(prevSignal, nextSignal));
+
+  // Warped samples should already align. When they do, allow a small amount of
+  // temporal color continuity; when they do not, keep the stronger cloud texel
+  // so the interframe does not visibly dim into an alpha cross-fade.
+  vec4 blended = mix(prevWarp, nextWarp, t);
+  float agreement = 1.0 - smoothstep(0.04, 0.24, length(prevWarp.rgb - nextWarp.rgb));
+  vec4 result = mix(strongest, blended, agreement * 0.35);
+  result.a = max(result.a, max(prevWarp.a, nextWarp.a));
+  return cleanTexel(result);
+}
+
 vec4 sampleMorph(int idx, vec2 merc) {
   bool hasPrev = uHasPrevTex[idx] > 0.5;
   bool hasNext = uHasNextTex[idx] > 0.5;
@@ -379,7 +405,7 @@ vec4 sampleMorph(int idx, vec2 merc) {
   vec2 nextWarpUv = clamp(nextUv + (flowUV - displacement), vec2(0.0), vec2(1.0));
   vec4 prevWarp = cleanTexel(samplePrevTex(idx, prevWarpUv));
   vec4 nextWarp = cleanTexel(sampleNextTex(idx, nextWarpUv));
-  vec4 result = mix(prevWarp, nextWarp, t);
+  vec4 result = advectedCloudSample(prevWarp, nextWarp, t);
 
   // Forward-backward occlusion: where the flow directions disagree, the cloud
   // is forming or dissipating. Warping would stretch it — cross-dissolve.

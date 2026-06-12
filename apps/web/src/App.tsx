@@ -45,6 +45,11 @@ import { GifSink } from "./lib/export/gifSink";
 import { VideoSink } from "./lib/export/videoSink";
 import { FRAME_INTERVAL_MS } from "./time/timelineWindow";
 import type maplibregl from "maplibre-gl";
+import { useLiveFeed } from "./lib/liveFeeds/useLiveFeed";
+import { quakesFeed } from "./lib/liveFeeds/quakes";
+import { aircraftFeed } from "./lib/liveFeeds/aircraft";
+import type { LonLatBounds } from "./lib/liveFeeds/feedClient";
+import { createAircraftLayers, createQuakeLayer } from "./layers/renderers/osint";
 import { EMPTY_ARCHIVE_SUMMARY, getArchiveSummary } from "./lib/archiveIndex";
 import { buildSourceContractViews } from "./lib/planetaryCatalog";
 import type { ArchiveSummary } from "./types/planetary";
@@ -312,6 +317,42 @@ export default function App() {
   useEffect(() => {
     try { window.localStorage.setItem(MOTION_VECTORS_STORAGE_KEY, String(motionVectorsVisible)); } catch { /* ignore */ }
   }, [motionVectorsVisible]);
+
+  // ── OSINT live feeds (spec: 2026-06-12-osint-fusion-program.md) ─────────
+  const [osintQuakesEnabled, setOsintQuakesEnabled] = useState(false);
+  const [osintAircraftEnabled, setOsintAircraftEnabled] = useState(false);
+  const [viewBboxString, setViewBboxString] = useState<string | null>(null);
+  const viewBbox = useMemo<LonLatBounds | null>(() => {
+    if (!viewBboxString) return null;
+    const parts = viewBboxString.split(",").map(Number);
+    return parts.length === 4 && parts.every(Number.isFinite)
+      ? (parts as LonLatBounds)
+      : null;
+  }, [viewBboxString]);
+
+  const quakeFeedState = useLiveFeed(quakesFeed, osintQuakesEnabled, null);
+  const aircraftFeedState = useLiveFeed(aircraftFeed, osintAircraftEnabled, viewBbox);
+
+  // Aircraft dead-reckon between polls: tick the layer clock at 1 Hz while
+  // visible so darts move smoothly without re-fetching.
+  const [osintNowMs, setOsintNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!osintAircraftEnabled && !osintQuakesEnabled) return;
+    const id = window.setInterval(() => setOsintNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [osintAircraftEnabled, osintQuakesEnabled]);
+
+  const osintLayers = useMemo(() => {
+    const layers: unknown[] = [];
+    if (osintQuakesEnabled) {
+      const layer = createQuakeLayer(quakeFeedState.events, osintNowMs);
+      if (layer) layers.push(layer);
+    }
+    if (osintAircraftEnabled) {
+      layers.push(...createAircraftLayers(aircraftFeedState.events, osintNowMs));
+    }
+    return layers;
+  }, [osintQuakesEnabled, osintAircraftEnabled, quakeFeedState.events, aircraftFeedState.events, osintNowMs]);
   const [globeSupported, setGlobeSupported] = useState(false);
   const [globeCapabilityChecked, setGlobeCapabilityChecked] = useState(false);
   const [inspectorState, setInspectorState] = useState<{
@@ -963,6 +1004,24 @@ export default function App() {
         onSetTerminatorIntensity={setTerminatorIntensity}
         motionVectorsVisible={motionVectorsVisible}
         onSetMotionVectorsVisible={setMotionVectorsVisible}
+        osintToggles={[
+          {
+            id: "quakes",
+            label: "EQ",
+            enabled: osintQuakesEnabled,
+            statusText: `USGS earthquakes (24 h) — ${osintQuakesEnabled ? `${quakeFeedState.status.state}${quakeFeedState.status.lastError ? `: ${quakeFeedState.status.lastError}` : ""}` : "off"}`,
+          },
+          {
+            id: "aircraft",
+            label: "AIR",
+            enabled: osintAircraftEnabled,
+            statusText: `OpenSky live aircraft — ${osintAircraftEnabled ? `${aircraftFeedState.status.state}${aircraftFeedState.status.lastError ? `: ${aircraftFeedState.status.lastError}` : ""}` : "off"}`,
+          },
+        ]}
+        onSetOsintToggle={(id, enabled) => {
+          if (id === "quakes") setOsintQuakesEnabled(enabled);
+          if (id === "aircraft") setOsintAircraftEnabled(enabled);
+        }}
       />
 
       <section
@@ -1089,6 +1148,8 @@ export default function App() {
             onMapReady={(map) => { mapInstanceRef.current = map; }}
             satelliteReadinessRef={satelliteReadinessRef}
             motionVectorsVisible={motionVectorsVisible}
+            extraDeckLayers={osintLayers}
+            onVisibleBboxChange={setViewBboxString}
           />
 
           {areaSelectMode && (

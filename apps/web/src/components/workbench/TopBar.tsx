@@ -43,6 +43,15 @@ interface TopBarProps {
   /** AMV-style derived cloud motion vector overlay. */
   motionVectorsVisible?: boolean;
   onSetMotionVectorsVisible?: (visible: boolean) => void;
+  /** OSINT live-feed toggles, one entry per source (kernel feeds). */
+  osintToggles?: Array<{
+    id: string;
+    label: string;
+    enabled: boolean;
+    /** Feed health for the tooltip — honest failure, spec law 4. */
+    statusText: string;
+  }>;
+  onSetOsintToggle?: (id: string, enabled: boolean) => void;
 }
 
 const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
@@ -85,6 +94,8 @@ export function TopBar({
   onSetTerminatorIntensity,
   motionVectorsVisible = false,
   onSetMotionVectorsVisible,
+  osintToggles = [],
+  onSetOsintToggle,
 }: TopBarProps) {
   const nowStr = fmtTime(new Date().toISOString(), timeZone);
   const validStr = fmtTime(timelineTime, timeZone);
@@ -220,6 +231,16 @@ export function TopBar({
           />
           <span>VECT</span>
         </label>
+        {osintToggles.map((toggle) => (
+          <label key={toggle.id} className="wb-topbar-check" title={toggle.statusText}>
+            <input
+              type="checkbox"
+              checked={toggle.enabled}
+              onChange={(event) => onSetOsintToggle?.(toggle.id, event.target.checked)}
+            />
+            <span>{toggle.label}</span>
+          </label>
+        ))}
         <span className="wb-topbar-label">DARK</span>
         <input
           type="range"

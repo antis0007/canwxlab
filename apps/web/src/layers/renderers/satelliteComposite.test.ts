@@ -10,6 +10,9 @@ import {
   stableVisibleMotionTrustFromSolarElevation,
 } from "./satelliteComposite";
 import type { StoredFrame } from "./satellite/frameStore";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
 function shiftedBlobSample(width: number, height: number, dx: number, dy: number) {
   const luma = new Float32Array(width * height);
@@ -41,6 +44,13 @@ function storedFrame(gridKey: string, timeMs: number): StoredFrame {
 }
 
 describe("satellite motion quality gates", () => {
+  it("does not cross-fade warped clouds when confident motion is available", () => {
+    const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "satelliteComposite.ts"), "utf8");
+    expect(source).toContain("vec4 advectedCloudSample(");
+    expect(source).toContain("result = advectedCloudSample(prevWarp, nextWarp, t);");
+    expect(source).not.toContain("vec4 result = mix(prevWarp, nextWarp, t);");
+  });
+
   it("classifies visible products separately from IR/cloud products", () => {
     expect(isVisibleSatelliteMotionSource("eccc_goes_east_natural")).toBe(true);
     expect(isVisibleSatelliteMotionSource("eccc_goes_west_visible")).toBe(true);

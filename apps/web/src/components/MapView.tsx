@@ -122,6 +122,12 @@ interface MapViewProps {
   satelliteReadinessRef?: React.MutableRefObject<(timeMs: number) => Promise<void>>;
   /** Show AMV-style derived cloud motion vectors over the satellite layer. */
   motionVectorsVisible?: boolean;
+  /** Feature layers composed by the app (OSINT feeds, future overlays).
+   * MapView renders them above its own layers — spec R1: the renderer does
+   * not grow a prop per feature. */
+  extraDeckLayers?: unknown[];
+  /** Visible viewport as "west,south,east,north" lon/lat, for bbox-gated feeds. */
+  onVisibleBboxChange?: (bbox: string | null) => void;
 }
 
 interface BasemapPreset {
@@ -552,6 +558,8 @@ export function MapView({
   onMapReady,
   satelliteReadinessRef,
   motionVectorsVisible = false,
+  extraDeckLayers,
+  onVisibleBboxChange,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -570,6 +578,12 @@ export function MapView({
   const lastBasemapStyleKeyRef = useRef<string | null>(null);
   const [ogcFeaturesByLayer, setOgcFeaturesByLayer] = useState<Record<string, OgcFeatureCollection>>({});
   const [visibleBbox, setVisibleBbox] = useState<string | null>(null);
+
+  const onVisibleBboxChangeRef = useRef(onVisibleBboxChange);
+  onVisibleBboxChangeRef.current = onVisibleBboxChange;
+  useEffect(() => {
+    onVisibleBboxChangeRef.current?.(visibleBbox);
+  }, [visibleBbox]);
 
   const onInspectRef = useRef(onInspect);
   const onGlobeSupportDetectedRef = useRef(onGlobeSupportDetected);
@@ -1219,8 +1233,16 @@ export function MapView({
   }, [motionVectorsVisible, motionVectorTick, animationFrame]);
 
   const deckLayers = useMemo(
-    () => [...staticDeckLayers, satelliteCompositeLayer, atmosphereLayer, terminatorLayer, powerGridLayer, motionVectorLayer].filter(Boolean),
-    [staticDeckLayers, satelliteCompositeLayer, atmosphereLayer, terminatorLayer, powerGridLayer, motionVectorLayer],
+    () => [
+      ...staticDeckLayers,
+      satelliteCompositeLayer,
+      atmosphereLayer,
+      terminatorLayer,
+      powerGridLayer,
+      motionVectorLayer,
+      ...(extraDeckLayers ?? []),
+    ].filter(Boolean),
+    [staticDeckLayers, satelliteCompositeLayer, atmosphereLayer, terminatorLayer, powerGridLayer, motionVectorLayer, extraDeckLayers],
   );
   const currentBasemapStyleKey = useMemo(
     () => basemapStyleKey(basemap, globalTimeMs),
