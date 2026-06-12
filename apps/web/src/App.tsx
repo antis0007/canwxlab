@@ -74,6 +74,7 @@ function writeViewMode(mode: ViewMode) {
 const BASEMAP_STORAGE_KEY = "canwxlab.basemap.v3";
 const TERMINATOR_VISIBLE_STORAGE_KEY = "canwxlab.terminator.visible.v1";
 const TERMINATOR_INTENSITY_STORAGE_KEY = "canwxlab.terminator.intensity.v1";
+const MOTION_VECTORS_STORAGE_KEY = "canwxlab.motionVectors.v1";
 const LOCAL_STATE_PREFIX = "canwxlab.";
 const INITIAL_OBSERVATION_LIMIT = 1000;
 const TIMELINE_FRAME_INTERVAL_MS = 5 * 60 * 1000;
@@ -304,6 +305,13 @@ export default function App() {
   const [basemap, setBasemap] = useState<BasemapId>(readBasemap);
   const [terminatorVisible, setTerminatorVisible] = useState(readTerminatorVisible);
   const [terminatorIntensity, setTerminatorIntensity] = useState(readTerminatorIntensity);
+  const [motionVectorsVisible, setMotionVectorsVisible] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(MOTION_VECTORS_STORAGE_KEY) === "true";
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem(MOTION_VECTORS_STORAGE_KEY, String(motionVectorsVisible)); } catch { /* ignore */ }
+  }, [motionVectorsVisible]);
   const [globeSupported, setGlobeSupported] = useState(false);
   const [globeCapabilityChecked, setGlobeCapabilityChecked] = useState(false);
   const [inspectorState, setInspectorState] = useState<{
@@ -954,6 +962,8 @@ export default function App() {
         terminatorIntensity={terminatorIntensity}
         onSetTerminatorVisible={setTerminatorVisible}
         onSetTerminatorIntensity={setTerminatorIntensity}
+        motionVectorsVisible={motionVectorsVisible}
+        onSetMotionVectorsVisible={setMotionVectorsVisible}
       />
 
       <section
@@ -1079,6 +1089,7 @@ export default function App() {
             onCanvasReady={(canvas) => { mapCanvasRef.current = canvas; }}
             onMapReady={(map) => { mapInstanceRef.current = map; }}
             satelliteReadinessRef={satelliteReadinessRef}
+            motionVectorsVisible={motionVectorsVisible}
           />
 
           {areaSelectMode && (

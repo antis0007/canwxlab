@@ -40,6 +40,9 @@ interface TopBarProps {
   terminatorIntensity: number;
   onSetTerminatorVisible: (visible: boolean) => void;
   onSetTerminatorIntensity: (intensity: number) => void;
+  /** AMV-style derived cloud motion vector overlay. */
+  motionVectorsVisible?: boolean;
+  onSetMotionVectorsVisible?: (visible: boolean) => void;
 }
 
 const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4];
@@ -80,6 +83,8 @@ export function TopBar({
   terminatorIntensity,
   onSetTerminatorVisible,
   onSetTerminatorIntensity,
+  motionVectorsVisible = false,
+  onSetMotionVectorsVisible,
 }: TopBarProps) {
   const nowStr = fmtTime(new Date().toISOString(), timeZone);
   const validStr = fmtTime(timelineTime, timeZone);
@@ -206,6 +211,14 @@ export function TopBar({
             onChange={(event) => onSetTerminatorVisible(event.target.checked)}
           />
           <span>NIGHT</span>
+        </label>
+        <label className="wb-topbar-check" title="Show derived cloud motion vectors (optical flow AMV)">
+          <input
+            type="checkbox"
+            checked={motionVectorsVisible}
+            onChange={(event) => onSetMotionVectorsVisible?.(event.target.checked)}
+          />
+          <span>VECT</span>
         </label>
         <span className="wb-topbar-label">DARK</span>
         <input

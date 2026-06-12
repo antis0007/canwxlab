@@ -26,6 +26,13 @@ import { LOOP_BUFFER_SPAN_MS } from "./satellite/framePlan";
 import { FrameStore, type StoredFrame } from "./satellite/frameStore";
 import { createGpuFetchFrame, getMotionSample, type GpuFrameTexture, type MotionSample } from "./satellite/frameStoreFactory";
 import { FlowPipeline, MAX_FLOW_UV, type FlowPairRequest } from "./satellite/flowPipeline";
+import {
+  bearingToCardinal,
+  decodeMotionSample,
+  sampleMotionGrid,
+  type MotionField,
+  type MotionVectorSample,
+} from "./satellite/motionField";
 import { templateTimeMs } from "./satellite/wmsRequest";
 
 export type { BufferedRange } from "./satellite/frameGrid";
@@ -91,6 +98,7 @@ interface CompositorState {
   geometryKey: string | null;
   pairGlobalFlows: Map<string, [number, number, number, number]>;
   idlePumpHandle: number | null;
+  lastViewMercBounds: [number, number, number, number] | null;
 }
 
 const GEOSTATIONARY_SATELLITES: Record<string, SatelliteDiskParams> = {
@@ -913,6 +921,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       geometryKey: null,
       pairGlobalFlows: new Map(),
       idlePumpHandle: null,
+      lastViewMercBounds: null,
     });
   }
 
@@ -972,6 +981,79 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     state.timeProgressValue = Math.max(0, Math.min(1, Number.isFinite(progress) ? progress : 0));
     state.timelineMs = Number.isFinite(timelineMs) ? timelineMs : null;
     this.setNeedsRedraw();
+  }
+
+  private _motionFieldFor(state: CompositorState, entry: SatEntry, timelineMs: number): MotionField | null {
+    const pair = entry.frameStore.framesAt(timelineMs);
+    if (!pair || pair.next.timeMs <= pair.prev.timeMs) return null;
+    const pixels = state.flowPipeline?.readMotionPixels(pairKeyOf(pair.prev, pair.next));
+    if (!pixels) return null;
+    return {
+      ...pixels,
+      mercBounds: pair.prev.mercBounds,
+      intervalMs: pair.next.timeMs - pair.prev.timeMs,
+    };
+  }
+
+  /** AMV-style motion vectors for the current view, gated by confidence,
+   * occlusion, and cloud probability. Static per satellite scene. */
+  getMotionVectors(maxCount = 512): MotionVectorSample[] {
+    const state = this.state as unknown as CompositorState | undefined;
+    if (!state?.entries || !state.lastViewMercBounds) return [];
+    const timelineMs = state.timelineMs ?? Date.now();
+    const bounds = state.lastViewMercBounds;
+    const aspect = Math.abs(bounds[3] - bounds[1]) / Math.max(1, Math.abs(bounds[2] - bounds[0]));
+    const cols = 24;
+    const rows = Math.max(4, Math.min(24, Math.round(cols * aspect)));
+
+    const out: MotionVectorSample[] = [];
+    for (const entry of state.entries) {
+      const field = this._motionFieldFor(state, entry, timelineMs);
+      if (!field) continue;
+      out.push(...sampleMotionGrid(field, {
+        viewMercBounds: bounds,
+        cols,
+        rows,
+        maxCount: Math.max(0, maxCount - out.length),
+      }));
+      if (out.length >= maxCount) break;
+    }
+    return out;
+  }
+
+  /** Point interrogation of derived cloud motion at a lon/lat. */
+  probeMotionAt(lon: number, lat: number): {
+    speedMps: number;
+    speedKmh: number;
+    bearingDeg: number;
+    bearingCardinal: string;
+    confidence: number;
+    cloudProbability: number;
+    satelliteId: string;
+    validTime: string;
+  } | null {
+    const state = this.state as unknown as CompositorState | undefined;
+    if (!state?.entries) return null;
+    const timelineMs = state.timelineMs ?? Date.now();
+    const [mercX, mercY] = lonLatToMercator(lon, lat);
+
+    for (const entry of state.entries) {
+      const field = this._motionFieldFor(state, entry, timelineMs);
+      if (!field) continue;
+      const sample = decodeMotionSample(field, mercX, mercY);
+      if (!sample) continue;
+      return {
+        speedMps: sample.speedMps,
+        speedKmh: sample.speedMps * 3.6,
+        bearingDeg: sample.bearingFromDeg,
+        bearingCardinal: bearingToCardinal(sample.bearingFromDeg),
+        confidence: sample.confidence,
+        cloudProbability: sample.cloudProbability,
+        satelliteId: entry.config.id,
+        validTime: new Date(timelineMs).toISOString(),
+      };
+    }
+    return null;
   }
 
   getBufferedRanges(): BufferedRange[] {
@@ -1120,6 +1202,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     const maxSatellites = maxSatellitesForQuality(quality);
 
     const mercBounds = mercatorBoundsFromViewport(viewport);
+    state.lastViewMercBounds = mercBounds;
     const geometryKey = viewportGeometryKey(viewport as never, mercBounds, meshSegments);
     const [texW, texH] = viewportTexDimensions(viewport, {
       fetchPadding: fetchPaddingForQuality(quality),

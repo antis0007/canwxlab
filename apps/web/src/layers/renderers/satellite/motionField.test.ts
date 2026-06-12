@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   bearingToCardinal,
   decodeMotionSample,
+  formatMotionProbe,
   sampleMotionGrid,
   type MotionField,
 } from "./motionField";
@@ -127,5 +128,17 @@ describe("bearingToCardinal", () => {
     expect(bearingToCardinal(247)).toBe("WSW");
     expect(bearingToCardinal(359)).toBe("N");
     expect(bearingToCardinal(90)).toBe("E");
+  });
+});
+
+describe("formatMotionProbe", () => {
+  it("formats the one-line inspector string", () => {
+    expect(formatMotionProbe({
+      speedKmh: 42.4,
+      bearingDeg: 247.2,
+      bearingCardinal: "WSW",
+      confidence: 0.784,
+      cloudProbability: 0.91,
+    })).toBe("42 km/h from WSW (247°) · conf 78% · cloud 91%");
   });
 });

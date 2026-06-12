@@ -631,11 +631,87 @@ export class FlowPipeline {
     return this.nextWorkItem() !== null;
   }
 
+  private readbackCache = new Map<string, { data: Uint8Array; cloud: Uint8Array | null }>();
+  private readbackFailed = false;
+
+  /** CPU read-back of a ready pair's packed flow + bgMask pixels, cached per
+   * pair. Raw GL path: luma v9 exposes no readPixels helper, but the WebGL
+   * device and framebuffers expose their native handles. */
+  readMotionPixels(pairKey: string): {
+    width: number;
+    height: number;
+    data: Uint8Array;
+    cloud: Uint8Array | null;
+    cloudWidth: number;
+    cloudHeight: number;
+  } | null {
+    const state = this.pairs.get(pairKey);
+    if (!state || state.status !== "ready") return null;
+    const flow = state.occlusion ?? state.forward;
+    if (!flow) return null;
+
+    const cached = this.readbackCache.get(pairKey);
+    if (cached) {
+      return {
+        width: flow.width,
+        height: flow.height,
+        data: cached.data,
+        cloud: cached.cloud,
+        cloudWidth: state.cloudMask?.width ?? flow.width,
+        cloudHeight: state.cloudMask?.height ?? flow.height,
+      };
+    }
+
+    if (this.readbackFailed) return null;
+    const gl = (this.device as unknown as { gl?: WebGL2RenderingContext })?.gl;
+    if (!gl) return null;
+
+    const read = (target: RenderTarget): Uint8Array | null => {
+      const handle = (target.framebuffer as unknown as { handle?: WebGLFramebuffer }).handle;
+      if (!handle) return null;
+      const previous = gl.getParameter(gl.FRAMEBUFFER_BINDING) as WebGLFramebuffer | null;
+      try {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, handle);
+        const out = new Uint8Array(target.width * target.height * 4);
+        gl.readPixels(0, 0, target.width, target.height, gl.RGBA, gl.UNSIGNED_BYTE, out);
+        return out;
+      } catch (err) {
+        this.readbackFailed = true;
+        logManager.warn("satellite", "Flow field read-back failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return null;
+      } finally {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, previous);
+      }
+    };
+
+    const data = read(flow);
+    if (!data) return null;
+    const cloud = state.cloudMask ? read(state.cloudMask) : null;
+
+    this.readbackCache.set(pairKey, { data, cloud });
+    if (this.readbackCache.size > 24) {
+      const first = this.readbackCache.keys().next().value;
+      if (first !== undefined) this.readbackCache.delete(first);
+    }
+
+    return {
+      width: flow.width,
+      height: flow.height,
+      data,
+      cloud,
+      cloudWidth: state.cloudMask?.width ?? flow.width,
+      cloudHeight: state.cloudMask?.height ?? flow.height,
+    };
+  }
+
   prune(keepPairKeys: Set<string>, keepSequenceKeys: Set<string>): void {
     for (const [key, state] of Array.from(this.pairs)) {
       if (!keepPairKeys.has(key)) {
         this.destroyPair(state);
         this.pairs.delete(key);
+        this.readbackCache.delete(key);
       }
     }
     for (const [key, bg] of Array.from(this.backgrounds)) {

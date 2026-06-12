@@ -38,6 +38,8 @@ import {
   type SatelliteCompositeLoadingState,
 } from "../layers/renderers/satelliteComposite";
 import type { BufferedRange } from "../layers/renderers/satellite/frameGrid";
+import { createMotionVectorLayer } from "../layers/renderers/motionVectors";
+import { formatMotionProbe } from "../layers/renderers/satellite/motionField";
 import { createTerminatorLayer, TerminatorLayer } from "../layers/renderers/terminator";
 import { createAtmosphereLayer, AtmosphereLayer } from "../layers/renderers/atmosphere";
 import { createPowerGridLayer, PowerGridLayer } from "../layers/renderers/powerGrid";
@@ -117,6 +119,8 @@ interface MapViewProps {
   onMapReady?: (map: maplibregl.Map) => void;
   /** Ref filled with a readiness await for a timeline instant (export). */
   satelliteReadinessRef?: React.MutableRefObject<(timeMs: number) => Promise<void>>;
+  /** Show AMV-style derived cloud motion vectors over the satellite layer. */
+  motionVectorsVisible?: boolean;
 }
 
 interface BasemapPreset {
@@ -546,6 +550,7 @@ export function MapView({
   onCanvasReady,
   onMapReady,
   satelliteReadinessRef,
+  motionVectorsVisible = false,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -763,10 +768,18 @@ export function MapView({
       sampledRgb: sampleCompositeRgb(point),
       sampledAtMs: liveTimeRef.current,
     });
+    const probe = satelliteLayerRef.current?.probeMotionAt(longitude, latitude) ?? null;
+    const probeValues: RendererFeatureValue[] = probe
+      ? [{
+          label: "Cloud Motion",
+          value: formatMotionProbe(probe),
+          status: "derived",
+        }]
+      : [];
     const mapped: MapInspectPayload = {
       longitude: payload.longitude,
       latitude: payload.latitude,
-      values: payload.values,
+      values: [...probeValues, ...payload.values],
       heroMetrics: payload.heroMetrics,
       pressureSystems: payload.pressureSystems,
       wmsLayerRows: payload.wmsLayers,
@@ -1178,9 +1191,30 @@ export function MapView({
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // AMV-style cloud motion vectors, rebuilt per discrete timeline frame (and
+  // on a slow tick while visible so vectors appear once flow becomes ready) —
+  // never per animation frame; the field is static per satellite scene.
+  const [motionVectorTick, setMotionVectorTick] = useState(0);
+  useEffect(() => {
+    if (!motionVectorsVisible) return;
+    const id = window.setInterval(() => setMotionVectorTick((t) => t + 1), 4000);
+    return () => window.clearInterval(id);
+  }, [motionVectorsVisible]);
+
+  const motionVectorLayer = useMemo(() => {
+    if (!motionVectorsVisible) return null;
+    const vectors = satelliteLayerRef.current?.getMotionVectors() ?? [];
+    if (vectors.length === 0) return null;
+    const bounds = mapRef.current?.getBounds();
+    const spanLonDeg = bounds ? Math.abs(bounds.getEast() - bounds.getWest()) : 40;
+    return createMotionVectorLayer(vectors, Math.max(1, spanLonDeg));
+    // motionVectorTick + animationFrame drive refresh; layer ref read is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [motionVectorsVisible, motionVectorTick, animationFrame]);
+
   const deckLayers = useMemo(
-    () => [...staticDeckLayers, satelliteCompositeLayer, atmosphereLayer, terminatorLayer, powerGridLayer].filter(Boolean),
-    [staticDeckLayers, satelliteCompositeLayer, atmosphereLayer, terminatorLayer, powerGridLayer],
+    () => [...staticDeckLayers, satelliteCompositeLayer, atmosphereLayer, terminatorLayer, powerGridLayer, motionVectorLayer].filter(Boolean),
+    [staticDeckLayers, satelliteCompositeLayer, atmosphereLayer, terminatorLayer, powerGridLayer, motionVectorLayer],
   );
   const currentBasemapStyleKey = useMemo(
     () => basemapStyleKey(basemap, globalTimeMs),

@@ -19,6 +19,9 @@ export interface MotionField {
   data: Uint8Array;
   /** RGBA pixels of the bgMask texture (a = cloud probability), or null. */
   cloud: Uint8Array | null;
+  /** bgMask dims when different from the flow texture (defaults to width/height). */
+  cloudWidth?: number;
+  cloudHeight?: number;
   mercBounds: [number, number, number, number];
   intervalMs: number;
 }
@@ -73,7 +76,15 @@ export function decodeMotionSample(
   const flowV = (field.data[p + 1] / 255 - 0.5) * (MAX_FLOW_UV * 2);
   const confidence = field.data[p + 2] / 255;
   const occlusion = field.data[p + 3] / 255;
-  const cloudProbability = field.cloud ? field.cloud[p + 3] / 255 : 1;
+
+  let cloudProbability = 1;
+  if (field.cloud) {
+    const cw = field.cloudWidth ?? field.width;
+    const ch = field.cloudHeight ?? field.height;
+    const cx = Math.min(cw - 1, Math.max(0, Math.round(u * (cw - 1))));
+    const cy = Math.min(ch - 1, Math.max(0, Math.round((1 - vMerc) * (ch - 1))));
+    cloudProbability = field.cloud[(cy * cw + cx) * 4 + 3] / 255;
+  }
 
   // Flow is prev→next displacement in texture UV; +v in texture space is
   // southward on the ground.
@@ -137,4 +148,17 @@ const CARDINALS = [
 export function bearingToCardinal(bearingDeg: number): string {
   const normalized = ((bearingDeg % 360) + 360) % 360;
   return CARDINALS[Math.round(normalized / 22.5) % 16];
+}
+
+/** One-line inspector formatting: `42 km/h from WSW (247°) · conf 78% · cloud 91%`. */
+export function formatMotionProbe(probe: {
+  speedKmh: number;
+  bearingDeg: number;
+  bearingCardinal: string;
+  confidence: number;
+  cloudProbability: number;
+}): string {
+  return `${Math.round(probe.speedKmh)} km/h from ${probe.bearingCardinal} (${Math.round(probe.bearingDeg)}°)`
+    + ` · conf ${Math.round(probe.confidence * 100)}%`
+    + ` · cloud ${Math.round(probe.cloudProbability * 100)}%`;
 }
