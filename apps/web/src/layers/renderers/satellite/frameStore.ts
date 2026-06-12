@@ -77,7 +77,8 @@ function frameMapKey(gridKey: string, timeMs: number): string {
 
 export class FrameStore {
   private frames = new Map<string, StoredFrame>();
-  private inFlight = new Map<string, AbortController>();
+  private inFlight = new Map<string, { controller: AbortController; timeMs: number }>();
+  private lastPlayheadMs: number | null = null;
   private failedTimes = new Map<number, number>();
   private waiters: Waiter[] = [];
   private currentGridKey: string | null = null;
@@ -98,9 +99,9 @@ export class FrameStore {
       // Keep old frames as drawable fallback; abort fetches for the old grid.
       if (this.currentGridKey !== null) {
         this.previousGridKey = this.currentGridKey;
-        for (const [key, controller] of Array.from(this.inFlight)) {
+        for (const [key, request] of Array.from(this.inFlight)) {
           if (!key.startsWith(gridKey)) {
-            controller.abort();
+            request.controller.abort();
             this.inFlight.delete(key);
           }
         }
@@ -108,9 +109,28 @@ export class FrameStore {
       this.currentGridKey = gridKey;
     }
 
+    // Scrub detection: a playhead jump of more than two frame intervals means
+    // the user is dragging the timeline, not watching. Abort in-flight fetches
+    // for times they scrolled past, and only fetch the immediate neighborhood
+    // until the playhead settles — the full window resumes on the next steady
+    // update.
+    const jumpMs = this.lastPlayheadMs === null
+      ? 0
+      : Math.abs(input.playheadMs - this.lastPlayheadMs);
+    this.lastPlayheadMs = input.playheadMs;
+    const scrubbing = jumpMs > this.options.frameIntervalMs * 2;
+    if (scrubbing) {
+      for (const [key, request] of Array.from(this.inFlight)) {
+        if (Math.abs(request.timeMs - input.playheadMs) > this.options.frameIntervalMs * 1.5) {
+          request.controller.abort();
+          this.inFlight.delete(key);
+        }
+      }
+    }
+
     const buffered = this.framesForGrid(gridKey).map((f) => f.timeMs);
     const now = Date.now();
-    const wanted = planPrefetch({
+    let wanted = planPrefetch({
       availableTimesMs: this.options.availableTimesMs,
       bufferedTimesMs: buffered,
       playheadMs: input.playheadMs,
@@ -120,6 +140,7 @@ export class FrameStore {
       const failedAt = this.failedTimes.get(t);
       return failedAt === undefined || now - failedAt >= FAILED_URL_COOLDOWN_MS;
     });
+    if (scrubbing) wanted = wanted.slice(0, 2);
 
     for (const timeMs of wanted) {
       if (this.inFlight.size >= MAX_IN_FLIGHT_PER_SATELLITE) break;
@@ -149,7 +170,7 @@ export class FrameStore {
     }
 
     const controller = new AbortController();
-    this.inFlight.set(key, controller);
+    this.inFlight.set(key, { controller, timeMs });
 
     this.options
       .fetchFrame({ timeMs, url, mercBounds, texSize, signal: controller.signal })
@@ -312,7 +333,7 @@ export class FrameStore {
 
   destroy(): void {
     this.destroyed = true;
-    for (const controller of this.inFlight.values()) controller.abort();
+    for (const request of this.inFlight.values()) request.controller.abort();
     this.inFlight.clear();
     for (const frame of this.frames.values()) frame.texture.destroy();
     this.frames.clear();

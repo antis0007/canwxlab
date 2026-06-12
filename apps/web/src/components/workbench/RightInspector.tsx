@@ -9,6 +9,7 @@
 // PHASE-A-TODO: Add ConfidenceLevel colour coding to StatusBadge so operators
 // can distinguish at a glance between confirmed (green) and synthetic (purple).
 
+import { ExpandableText } from "./ExpandableText";
 import { LegendPanel } from "./LegendPanel";
 import { StatusBadge } from "./StatusBadge";
 
@@ -147,7 +148,9 @@ export function RightInspector({
         {activeAlert && (
           <div className="wb-hero-alert" role="alert">
             <span className="wb-hero-alert-icon">!</span>
-            <span className="wb-hero-alert-text">{activeAlert}</span>
+            <span className="wb-hero-alert-text">
+              <ExpandableText text={activeAlert} collapsedLines={4} />
+            </span>
           </div>
         )}
 
@@ -215,7 +218,9 @@ export function RightInspector({
                     {value.label}
                     {value.unit && <span className="wb-analysis-unit">{value.unit}</span>}
                   </div>
-                  <div className="wb-analysis-value">{value.value}</div>
+                  <div className="wb-analysis-value">
+                    <ExpandableText text={String(value.value)} collapsedLines={4} />
+                  </div>
                   <div className="wb-analysis-status"><StatusBadge status={value.status} /></div>
                 </li>
               ))}

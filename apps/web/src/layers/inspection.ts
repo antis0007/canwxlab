@@ -80,8 +80,10 @@ function summarizeAlert(alert: AlertFeature): string {
   const expiresPart = alert.expires_at
     ? ` - expires ${new Date(alert.expires_at).toLocaleString()}`
     : "";
-  const descSrc = (alert.description ?? "").trim();
-  const desc = descSrc.length > 220 ? `${descSrc.slice(0, 218).trimEnd()}...` : descSrc;
+  // Full description: ECCC alert text lists every affected zone, and operators
+  // need all of them. The inspector renders this in an expandable block, so
+  // truncating here only destroyed information.
+  const desc = (alert.description ?? "").trim();
   const headLine = severity ? `[${severity}] ${head}` : head;
   return desc && desc !== head ? `${headLine}${expiresPart}\n${desc}` : `${headLine}${expiresPart}`;
 }

@@ -1002,14 +1002,20 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     if (!state?.entries || !state.lastViewMercBounds) return [];
     const timelineMs = state.timelineMs ?? Date.now();
     const bounds = state.lastViewMercBounds;
-    const aspect = Math.abs(bounds[3] - bounds[1]) / Math.max(1, Math.abs(bounds[2] - bounds[0]));
-    const cols = 24;
-    const rows = Math.max(4, Math.min(24, Math.round(cols * aspect)));
+    const viewWidth = Math.max(1, Math.abs(bounds[2] - bounds[0]));
+    const aspect = Math.abs(bounds[3] - bounds[1]) / viewWidth;
 
     const out: MotionVectorSample[] = [];
     for (const entry of state.entries) {
       const field = this._motionFieldFor(state, entry, timelineMs);
       if (!field) continue;
+      // Zoom-adaptive density: never place more than one arrow per two flow
+      // texels across the view, so zoomed-in views show fewer, meaningful
+      // vectors instead of duplicated neighbors; zoomed-out views fill in.
+      const frameWidth = Math.max(1, Math.abs(field.mercBounds[2] - field.mercBounds[0]));
+      const texelsAcrossView = field.width * (viewWidth / frameWidth);
+      const cols = Math.max(6, Math.min(32, Math.floor(texelsAcrossView / 2)));
+      const rows = Math.max(4, Math.min(24, Math.round(cols * aspect)));
       out.push(...sampleMotionGrid(field, {
         viewMercBounds: bounds,
         cols,
@@ -1381,8 +1387,23 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     );
 
     const readySatellites = activeEntries.filter((e) => e.frameStore.getBufferedRanges().length > 0).length;
-    const bufferedFrames = activeEntries.reduce((sum, e) => sum + e.frameStore.activeFrames().length, 0);
     const totalSatellites = activeEntries.length;
+
+    // Honest progress: count buffered frames inside the prefetch window around
+    // the playhead against the number of frames the window actually wants.
+    // The old requiredFrames = satellite count made the bar jump 0 → 100.
+    const half = LOOP_BUFFER_SPAN_MS / 2;
+    let bufferedFrames = 0;
+    let requiredFrames = 0;
+    for (const entry of activeEntries) {
+      const wanted = entry.availableTimesMs.filter(
+        (t) => t >= timelineMs - half && t <= timelineMs + half,
+      ).length;
+      requiredFrames += Math.max(1, wanted);
+      bufferedFrames += entry.frameStore.activeFrames().filter(
+        (f) => f.timeMs >= timelineMs - half && f.timeMs <= timelineMs + half,
+      ).length;
+    }
 
     if (!state.started && readySatellites > 0) {
       state.started = true;
@@ -1403,7 +1424,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     const fetchEstimate = inFlightFrames > 0 ? inFlightFrames * 3 + missingSatellites * 2 : 0;
     const estimatedSecondsRemaining = fetchEstimate > 0 ? Math.ceil(fetchEstimate) : null;
 
-    const key = `${loading}|${readySatellites}|${totalSatellites}|${bufferedFrames}|${phase}|${inFlightFrames}|${pendingFlows}`;
+    const key = `${loading}|${readySatellites}|${totalSatellites}|${bufferedFrames}|${requiredFrames}|${phase}|${inFlightFrames}|${pendingFlows}`;
     if (key === this._lastLoadingStateKey) return;
     this._lastLoadingStateKey = key;
 
@@ -1413,7 +1434,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       readySatellites,
       totalSatellites,
       bufferedFrames,
-      requiredFrames: totalSatellites,
+      requiredFrames,
       phase,
       inFlightFrames,
       pendingFlows,

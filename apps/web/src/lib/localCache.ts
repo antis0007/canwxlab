@@ -73,6 +73,14 @@ async function cachedResponse(
         expiresAt: nextExpiresAt,
       }));
     }
+    // Historical viewing: time-dimensioned products (radar ~3 h, satellite
+    // days) are purged upstream on a sliding window. A 4xx for a frame we have
+    // already cached means "the server no longer has it", not "this frame is
+    // wrong" — serve the archived copy so previously viewed weather stays
+    // viewable after upstream retention.
+    if (!response.ok && response.status >= 400 && response.status < 500 && cached) {
+      return cached.clone();
+    }
     return response;
   } catch (err) {
     if (cached && expiresAt !== null && now < expiresAt + (policy.staleIfErrorMs ?? 0)) {

@@ -120,3 +120,47 @@ describe("FrameStore", () => {
     expect(store.getBufferedRanges()).toEqual([]);
   });
 });
+
+describe("scrub cancellation", () => {
+  it("aborts in-flight fetches for times scrolled past and narrows the fetch window", async () => {
+    let resolvers: Array<() => void> = [];
+    const fetchFrame = vi.fn((_req: FrameFetchRequest) =>
+      new Promise<{ width: number; height: number; destroy: () => void }>((resolve, reject) => {
+        resolvers.push(() => resolve({ width: 64, height: 64, destroy: vi.fn() }));
+        _req.signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+      }));
+    const { store } = makeStore({ fetchFrame });
+    const view: [number, number, number, number] = [-9e6, 4e6, -7e6, 5.5e6];
+
+    store.update({ ...baseUpdate, viewBounds: view, playheadMs: times[0] });
+    const initialInFlight = store.inFlightCount();
+    expect(initialInFlight).toBeGreaterThan(0);
+
+    // Big playhead jump = scrubbing: in-flight fetches for the old
+    // neighborhood abort, and only the immediate new neighborhood (≤2 frames)
+    // is requested until the playhead settles.
+    store.update({ ...baseUpdate, viewBounds: view, playheadMs: times[12] });
+    await new Promise((r) => setTimeout(r, 5));
+    for (const request of fetchFrame.mock.calls.map((c) => c[0])) {
+      if (Math.abs(request.timeMs - times[12]) > 600_000 * 1.5) {
+        expect(request.signal.aborted).toBe(true);
+      }
+    }
+    expect(store.inFlightCount()).toBeLessThanOrEqual(2);
+  });
+
+  it("resumes full prefetch once the playhead settles", async () => {
+    const fetchFrame = vi.fn(async (_req: FrameFetchRequest) => ({ width: 64, height: 64, destroy: vi.fn() }));
+    const { store } = makeStore({ fetchFrame });
+    const view: [number, number, number, number] = [-9e6, 4e6, -7e6, 5.5e6];
+
+    store.update({ ...baseUpdate, viewBounds: view, playheadMs: times[0] });
+    // Jump (scrub) then settle at the same playhead.
+    store.update({ ...baseUpdate, viewBounds: view, playheadMs: times[12] });
+    store.update({ ...baseUpdate, viewBounds: view, playheadMs: times[12] });
+    await vi.waitFor(() => {
+      const ranges = store.getBufferedRanges();
+      expect(ranges.some((r) => r.startMs <= times[12] && r.endMs >= times[12])).toBe(true);
+    });
+  });
+});

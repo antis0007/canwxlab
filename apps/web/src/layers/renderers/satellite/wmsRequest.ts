@@ -130,9 +130,12 @@ export function buildProxiedWmsUrl(
 }
 
 async function loadImage(url: string, signal: AbortSignal): Promise<ImageBitmap> {
+  // Long TTL: satellite frames are immutable once published (a frame for a
+  // given TIME never changes), so cached copies stay valid for a week and
+  // serve as the historical archive after upstream retention expires.
   const response = await cachedGetImageBlob(url, signal, {
-    ttlMs: 30 * 60 * 1000,
-    staleIfErrorMs: 6 * 60 * 60 * 1000,
+    ttlMs: 7 * 24 * 60 * 60 * 1000,
+    staleIfErrorMs: 30 * 24 * 60 * 60 * 1000,
   });
 
   if (!response.ok) {
