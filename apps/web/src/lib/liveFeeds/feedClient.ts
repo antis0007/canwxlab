@@ -17,6 +17,11 @@ export interface FeedDefinition<T> {
   url: (bbox: LonLatBounds | null) => string;
   /** Parse a successful response body into typed events. */
   parse: (body: unknown) => T[];
+  /** CORS posture, declared per spec law so it is explicit not discovered:
+   * "direct" hits the upstream from the browser; "proxy" routes through our
+   * own API (CORS-safe, server-cached). Documentation only — the url builder
+   * already targets the right host. Default "direct". */
+  transport?: "direct" | "proxy";
   /** Re-fetch when the viewport center moves more than this fraction of the
    * current span (Chebyshev distance). Default ⅓; global feeds ignore it. */
   bboxMoveThreshold?: number;

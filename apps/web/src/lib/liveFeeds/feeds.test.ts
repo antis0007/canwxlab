@@ -38,12 +38,25 @@ describe("parseQuakes", () => {
 });
 
 describe("parseAircraft", () => {
-  it("parses OpenSky positional rows", () => {
+  it("parses the aircraft GeoJSON FeatureCollection", () => {
     const events = parseAircraft({
-      states: [
-        ["abc123", "ACA101  ", "Canada", 1_765_900_000, 1_765_900_005,
-          -73.7, 45.5, 10_058.4, false, 231.5, 87.3, 0, null, 10_363.2, "2745", false, 0],
-        ["nopos", "X", "Y", 1, 1, null, null],
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [-73.7, 45.5] },
+          properties: {
+            icao24: "abc123",
+            callsign: "ACA101  ",
+            baro_altitude_m: 10_058.4,
+            velocity_ms: 231.5,
+            heading_deg: 87.3,
+            on_ground: false,
+            squawk: "2745",
+            observed_at: "2025-12-16T12:00:00Z",
+          },
+        },
+        { type: "Feature", geometry: { coordinates: ["x"] }, properties: {} },
       ],
     });
     expect(events).toHaveLength(1);
@@ -58,12 +71,18 @@ describe("parseAircraft", () => {
       onGround: false,
       squawk: "2745",
     });
-    expect(events[0].timeMs).toBe(1_765_900_000_000);
+    expect(events[0].timeMs).toBe(Date.parse("2025-12-16T12:00:00Z"));
   });
 
-  it("builds a clamped bbox query", () => {
+  it("returns empty for malformed bodies", () => {
+    expect(parseAircraft(null)).toEqual([]);
+    expect(parseAircraft({ features: "nope" })).toEqual([]);
+  });
+
+  it("routes through our cached aircraft proxy endpoint with a clamped bbox", () => {
+    expect(aircraftFeed.transport).toBe("proxy");
     const url = aircraftFeed.url([-200, -90, 200, 90]);
-    expect(url).toContain("lamin=-85.000");
-    expect(url).toContain("lomax=180.000");
+    expect(url).toContain("/api/v1/aircraft/positions");
+    expect(url).toContain("bbox=-180.000,-85.000,180.000,85.000");
   });
 });

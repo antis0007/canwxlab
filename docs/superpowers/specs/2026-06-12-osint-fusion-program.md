@@ -131,3 +131,12 @@ LOC budget, either justify in one line or schedule the refactor.
   Design consequence recorded: every future feed definition must declare
   `transport: "direct" | "proxy"` so CORS posture is explicit, not
   discovered in production.
+- r4: Phase 1.1 landed — but the generic passthrough was NOT built. Reuse
+  beat new plumbing: the API already had `/api/v1/aircraft/positions`
+  (OpenSky wrapped with TTL cache + rate-limit handling), so the aircraft
+  feed targets that and the parser reads its GeoJSON. `transport` field
+  added as the law mandated (aircraft = proxy). Verified live: AIR fetches
+  our proxy 200, no CORS. **Revised guidance:** before adding the generic
+  passthrough in Phase 5, check whether a typed cached endpoint already
+  exists for the source — prefer it. Build the generic passthrough only
+  for feeds with no existing server route (FIRMS, GDELT).

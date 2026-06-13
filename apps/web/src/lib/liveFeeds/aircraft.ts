@@ -1,10 +1,12 @@
-/** OpenSky Network live aircraft state vectors — anonymous access, bbox
- * gated. Feed definition for the liveFeeds kernel; parsing only.
+/** Live aircraft state vectors via our own cached aircraft endpoint
+ * (transport: proxy). OpenSky forbids direct browser fetches (CORS) and its
+ * anonymous quota is tight, so the server adapter owns the upstream fetch,
+ * caching, and rate-limit handling; the browser just polls our GeoJSON.
  *
- * Anonymous quota is tight (~400 requests/day), so the cadence is 30 s and
- * the kernel only polls while the layer is enabled. Positions between polls
- * are dead-reckoned by the layer builder. */
+ * Cadence is 30 s and the kernel only polls while the layer is enabled.
+ * Positions between polls are dead-reckoned by the layer builder. */
 
+import { API_BASE_URL } from "../api";
 import type { FeedDefinition, LonLatBounds } from "./feedClient";
 
 export interface AircraftState {
@@ -25,61 +27,68 @@ export interface AircraftState {
   squawk: string | null;
 }
 
-// OpenSky /states/all row layout (positional array per aircraft).
-const ICAO24 = 0;
-const CALLSIGN = 1;
-const TIME_POSITION = 3;
-const LONGITUDE = 5;
-const LATITUDE = 6;
-const BARO_ALTITUDE = 7;
-const ON_GROUND = 8;
-const VELOCITY = 9;
-const TRUE_TRACK = 10;
-const SQUAWK = 14;
+interface AircraftFeature {
+  geometry?: { coordinates?: [number, number] };
+  properties?: {
+    icao24?: string;
+    callsign?: string;
+    baro_altitude_m?: number | null;
+    velocity_ms?: number | null;
+    heading_deg?: number | null;
+    on_ground?: boolean;
+    squawk?: string | null;
+    observed_at?: string | null;
+  };
+}
 
 export function parseAircraft(body: unknown): AircraftState[] {
-  const states = (body as { states?: unknown[] })?.states;
-  if (!Array.isArray(states)) return [];
+  const features = (body as { features?: unknown[] })?.features;
+  if (!Array.isArray(features)) return [];
 
   const out: AircraftState[] = [];
-  for (const raw of states) {
-    if (!Array.isArray(raw)) continue;
-    // Explicit null check: Number(null) is 0, which would teleport
-    // position-less aircraft to the gulf of Guinea.
-    if (raw[LONGITUDE] == null || raw[LATITUDE] == null) continue;
-    const lon = Number(raw[LONGITUDE]);
-    const lat = Number(raw[LATITUDE]);
+  for (const feature of features as AircraftFeature[]) {
+    const coords = feature?.geometry?.coordinates;
+    if (!Array.isArray(coords)) continue;
+    const lon = Number(coords[0]);
+    const lat = Number(coords[1]);
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
-    const positionTime = Number(raw[TIME_POSITION]);
+    const p = feature.properties ?? {};
+    const observedMs = p.observed_at ? Date.parse(p.observed_at) : Number.NaN;
     out.push({
-      id: String(raw[ICAO24] ?? `${lon},${lat}`),
-      callsign: String(raw[CALLSIGN] ?? "").trim(),
+      id: String(p.icao24 || `${lon},${lat}`),
+      callsign: String(p.callsign ?? "").trim(),
       lon,
       lat,
-      altitudeM: Number.isFinite(Number(raw[BARO_ALTITUDE])) ? Number(raw[BARO_ALTITUDE]) : null,
-      velocityMps: Number(raw[VELOCITY]) || 0,
-      headingDeg: Number(raw[TRUE_TRACK]) || 0,
-      onGround: Boolean(raw[ON_GROUND]),
-      timeMs: Number.isFinite(positionTime) ? positionTime * 1000 : Date.now(),
-      squawk: raw[SQUAWK] ? String(raw[SQUAWK]) : null,
+      altitudeM: typeof p.baro_altitude_m === "number" ? p.baro_altitude_m : null,
+      velocityMps: typeof p.velocity_ms === "number" ? p.velocity_ms : 0,
+      headingDeg: typeof p.heading_deg === "number" ? p.heading_deg : 0,
+      onGround: Boolean(p.on_ground),
+      timeMs: Number.isFinite(observedMs) ? observedMs : Date.now(),
+      squawk: p.squawk ? String(p.squawk) : null,
     });
   }
   return out;
 }
 
-function clampedBboxQuery(bbox: LonLatBounds): string {
+function bboxQuery(bbox: LonLatBounds): string {
   const west = Math.max(-180, bbox[0]);
   const south = Math.max(-85, bbox[1]);
   const east = Math.min(180, bbox[2]);
   const north = Math.min(85, bbox[3]);
-  return `lamin=${south.toFixed(3)}&lomin=${west.toFixed(3)}&lamax=${north.toFixed(3)}&lomax=${east.toFixed(3)}`;
+  // The aircraft endpoint takes minLon,minLat,maxLon,maxLat (EPSG:4326).
+  return `bbox=${west.toFixed(3)},${south.toFixed(3)},${east.toFixed(3)},${north.toFixed(3)}`;
+}
+
+function apiBase(): string {
+  return API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
 }
 
 export const aircraftFeed: FeedDefinition<AircraftState> = {
   id: "opensky-aircraft",
   intervalMs: 30 * 1000,
+  transport: "proxy",
   url: (bbox) => (bbox
-    ? `https://opensky-network.org/api/states/all?${clampedBboxQuery(bbox)}`
-    : "https://opensky-network.org/api/states/all"),
+    ? `${apiBase()}/api/v1/aircraft/positions?${bboxQuery(bbox)}`
+    : `${apiBase()}/api/v1/aircraft/positions`),
   parse: parseAircraft,
 };
