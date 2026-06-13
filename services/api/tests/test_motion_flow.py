@@ -1,5 +1,7 @@
 """Unit tests for the server-side dense optical flow module."""
 
+from datetime import UTC, datetime, timedelta
+
 import numpy as np
 import pytest
 
@@ -7,6 +9,8 @@ from canwxlab_api.motion_flow import (
     FLOW_ENCODE_SCALE,
     compute_flow,
     encode_flow_rgba,
+    parse_time_extent,
+    snap_to_grid,
 )
 
 
@@ -65,3 +69,34 @@ def test_encode_flow_rgba_roundtrip() -> None:
     assert rgba[0, 0, 2] == pytest.approx(204, abs=1)
     # Alpha = occlusion = inverse confidence in the client shader.
     assert rgba[0, 0, 3] == pytest.approx(51, abs=1)
+
+
+def test_parse_time_extent_interval() -> None:
+    parsed = parse_time_extent("2026-06-10T20:20:00Z/2026-06-13T02:20:00Z/PT10M")
+    assert parsed is not None
+    start, end, step = parsed
+    assert start == datetime(2026, 6, 10, 20, 20, tzinfo=UTC)
+    assert end == datetime(2026, 6, 13, 2, 20, tzinfo=UTC)
+    assert step == timedelta(minutes=10)
+
+
+def test_parse_time_extent_rejects_comma_list() -> None:
+    assert parse_time_extent("2026-06-10T20:20:00Z,2026-06-10T20:30:00Z") is None
+
+
+def test_snap_to_grid_rounds_to_nearest_and_clamps() -> None:
+    start = datetime(2026, 6, 13, 1, 0, tzinfo=UTC)
+    end = datetime(2026, 6, 13, 2, 20, tzinfo=UTC)
+    step = timedelta(minutes=10)
+
+    # Off-grid :18:30 → nearest grid time :20:00.
+    target = datetime(2026, 6, 13, 1, 18, 30, tzinfo=UTC)
+    assert snap_to_grid(target, start, end, step) == datetime(2026, 6, 13, 1, 20, tzinfo=UTC)
+
+    # Past the end clamps to the last grid time.
+    future = datetime(2026, 6, 13, 2, 48, 30, tzinfo=UTC)
+    assert snap_to_grid(future, start, end, step) == datetime(2026, 6, 13, 2, 20, tzinfo=UTC)
+
+    # Before the start clamps to start.
+    past = datetime(2026, 6, 13, 0, 30, tzinfo=UTC)
+    assert snap_to_grid(past, start, end, step) == start

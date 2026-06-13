@@ -47,6 +47,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Custom response headers the browser must read cross-origin (e.g. the
+    # motion-field dimensions); without this they are stripped by CORS.
+    expose_headers=["X-Motion-Width", "X-Motion-Height"],
 )
 
 

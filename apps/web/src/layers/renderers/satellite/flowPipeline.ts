@@ -667,6 +667,11 @@ export class FlowPipeline {
     return this.pairs.get(pairKey)?.status ?? null;
   }
 
+  /** True once a server-computed motion field replaced local estimation. */
+  isServerField(pairKey: string): boolean {
+    return this.pairs.get(pairKey)?.serverFieldAdopted === true;
+  }
+
   get(pairKey: string): FlowResult | null {
     const state = this.pairs.get(pairKey);
     if (!state || state.status !== "ready") return null;

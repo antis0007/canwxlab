@@ -55,10 +55,16 @@ export function fetchMotionField(url: string, signal?: AbortSignal): Promise<Ser
     try {
       const response = await fetch(url, { signal });
       if (!response.ok) return null;
-      const width = Number(response.headers.get("X-Motion-Width"));
-      const height = Number(response.headers.get("X-Motion-Height"));
       const buffer = await response.arrayBuffer();
-      if (!Number.isFinite(width) || !Number.isFinite(height) || buffer.byteLength !== width * height * 4) {
+      const texelCount = buffer.byteLength / 4;
+      // Prefer the dimension headers, but the field is always square, so fall
+      // back to sqrt(texels) when a proxy or CORS policy drops the headers.
+      const headerW = Number(response.headers.get("X-Motion-Width"));
+      const headerH = Number(response.headers.get("X-Motion-Height"));
+      const side = Math.sqrt(texelCount);
+      const width = Number.isFinite(headerW) && headerW > 0 ? headerW : side;
+      const height = Number.isFinite(headerH) && headerH > 0 ? headerH : side;
+      if (!Number.isInteger(width) || !Number.isInteger(height) || buffer.byteLength !== width * height * 4) {
         return null;
       }
       return { width, height, data: new Uint8Array(buffer) };

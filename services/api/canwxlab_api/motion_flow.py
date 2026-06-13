@@ -14,6 +14,8 @@ milliseconds, and results are cached alongside the imagery.
 from __future__ import annotations
 
 import io
+import re
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 from PIL import Image
@@ -24,6 +26,42 @@ DEFAULT_GRID = 256
 PYRAMID_LEVELS = 4
 WINDOW_RADIUS = 3
 ITERATIONS = 3
+
+
+_ISO_DURATION = re.compile(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?")
+
+
+def parse_time_extent(extent: str) -> tuple[datetime, datetime, timedelta] | None:
+    """Parse a WMS ``start/end/PTnM`` time-dimension extent into
+    (start, end, step). Returns None for comma-list or unparseable extents."""
+    parts = extent.strip().split("/")
+    if len(parts) != 3:
+        return None
+    try:
+        start = datetime.fromisoformat(parts[0].replace("Z", "+00:00")).astimezone(UTC)
+        end = datetime.fromisoformat(parts[1].replace("Z", "+00:00")).astimezone(UTC)
+    except ValueError:
+        return None
+    match = _ISO_DURATION.fullmatch(parts[2].strip())
+    if not match or not any(match.groups()):
+        return None
+    hours, minutes, seconds = (int(g) if g else 0 for g in match.groups())
+    step = timedelta(hours=hours, minutes=minutes, seconds=seconds)
+    if step.total_seconds() <= 0:
+        return None
+    return start, end, step
+
+
+def snap_to_grid(target: datetime, start: datetime, end: datetime, step: timedelta) -> datetime:
+    """Snap a target time to the nearest grid time within [start, end]."""
+    if target <= start:
+        return start
+    if target >= end:
+        # Largest grid time at or before end.
+        steps = int((end - start) / step)
+        return start + steps * step
+    steps = round((target - start) / step)
+    return start + steps * step
 
 
 def luma_from_png(png_bytes: bytes, size: int = DEFAULT_GRID) -> np.ndarray:

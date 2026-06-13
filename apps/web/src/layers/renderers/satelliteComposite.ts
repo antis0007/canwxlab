@@ -1460,6 +1460,8 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
             key,
             animated: pair.next.timeMs > pair.prev.timeMs,
             flowStatus: state.flowPipeline?.status(key) ?? null,
+            serverField: state.flowPipeline?.isServerField(key) ?? false,
+            serverRequested: this._serverFieldRequested.has(key),
             frames: entry.frameStore.activeFrames().length,
           };
         }),
