@@ -1733,6 +1733,30 @@ button:focus-visible {
   background-color: rgba(120, 180, 255, 0.18);
 }
 
+/* OSINT event pins: clickable markers seeding the fusion timeline. */
+.wb-tl-event-pin {
+  position: absolute;
+  top: -3px;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  padding: 0;
+  border: 1px solid rgba(10, 14, 22, 0.85);
+  border-radius: 50%;
+  transform: rotate(45deg);
+  cursor: pointer;
+  z-index: 6;
+  transition: transform 0.1s ease;
+}
+.wb-tl-event-pin:hover {
+  transform: rotate(45deg) scale(1.4);
+  z-index: 7;
+}
+.wb-tl-event-pin-warning { background: #e8c040; }
+.wb-tl-event-pin-critical { background: #ff5d5d; box-shadow: 0 0 5px rgba(255, 93, 93, 0.7); }
+.wb-tl-event-pin-info { background: #78b4ff; }
+.wb-tl-event-pin-aircraft-emergency { border-radius: 1px; }
+
 .wb-tl-play.is-buffering {
   animation: wb-tl-buffering-pulse 1.1s ease-in-out infinite;
 }

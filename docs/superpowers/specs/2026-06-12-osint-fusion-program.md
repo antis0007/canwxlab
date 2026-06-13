@@ -67,13 +67,15 @@ Acceptance: toggling EQ shows last-24 h earthquakes pulsing by recency;
 toggling AIR shows live aircraft moving smoothly between polls; killing the
 network degrades both to visible "degraded" status without console spam.
 
-### Phase 2 — Fusion timeline
+### Phase 2 — Fusion timeline  ✅ implemented (r5)
 
-Events as timeline pins: a `TimelineEventRange[]` prop (reuse the
-warning-range rendering) mapping quakes/alert onsets/aircraft emergencies
-(squawk 7500/7600/7700) onto the scrubber. Clicking a pin seeks the
-timeline; the archive replays the weather at that instant. New module
-`time/eventPins.ts` (pure mapping, ≤ 80 LOC). No new render machinery.
+Events as timeline pins. Pure module `time/eventPins.ts`:
+`quakesToPins` (M≥4.5, M6+ critical), `aircraftEmergenciesToPins`
+(squawk 7500/7600/7700 → human reason), `placeEventPins` (position by
+time, drop off-window, dedupe by id), `frameForEventTime` (seek target).
+BottomTimeline renders clickable diamond/square markers; clicking seeks
+the timeline so the archive replays the weather at that instant. Alert
+onsets deferred (alerts lack a clean onset time in the current model).
 
 ### Phase 3 — Orbital layer
 
@@ -131,6 +133,13 @@ LOC budget, either justify in one line or schedule the refactor.
   Design consequence recorded: every future feed definition must declare
   `transport: "direct" | "proxy"` so CORS posture is explicit, not
   discovered in production.
+- r5: Phase 2 landed. eventPins is pure + fully unit-tested; the timeline
+  render reused the warning-range machinery as planned (one new prop pair,
+  no new layout). Verified live: 16 USGS quake pins placed, clicking seeks
+  289→11 (a real M4.5+ event ~22 h back), archive replays that weather.
+  Lesson: pins recompute on (feed events, window) but NOT the 1 Hz
+  dead-reckon tick — keep derived-timeline memos off the animation clock.
+  **Next:** Phase 3 orbital layer, or widen pins (lightning when added).
 - r4: Phase 1.1 landed — but the generic passthrough was NOT built. Reuse
   beat new plumbing: the API already had `/api/v1/aircraft/positions`
   (OpenSky wrapped with TTL cache + rate-limit handling), so the aircraft

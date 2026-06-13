@@ -48,6 +48,13 @@ import type maplibregl from "maplibre-gl";
 import { useLiveFeed } from "./lib/liveFeeds/useLiveFeed";
 import { quakesFeed } from "./lib/liveFeeds/quakes";
 import { aircraftFeed } from "./lib/liveFeeds/aircraft";
+import {
+  aircraftEmergenciesToPins,
+  frameForEventTime,
+  placeEventPins,
+  quakesToPins,
+  type TimelineEventPin,
+} from "./time/eventPins";
 import type { LonLatBounds } from "./lib/liveFeeds/feedClient";
 import { createAircraftLayers, createQuakeLayer } from "./layers/renderers/osint";
 import { EMPTY_ARCHIVE_SUMMARY, getArchiveSummary } from "./lib/archiveIndex";
@@ -408,6 +415,32 @@ export default function App() {
     onProgress: (progress, timelineMs) => satelliteProgressRef.current(progress, timelineMs),
     getBufferedRanges: () => satelliteBufferedRangesRef.current,
   });
+
+  // Phase 2: live OSINT events pinned to the timeline. Recomputed only when
+  // feed events or the visible window change, not on the 1 Hz dead-reckon tick.
+  const eventPins = useMemo(() => {
+    const pins: TimelineEventPin[] = [];
+    if (osintQuakesEnabled) pins.push(...quakesToPins(quakeFeedState.events));
+    if (osintAircraftEnabled) pins.push(...aircraftEmergenciesToPins(aircraftFeedState.events));
+    return placeEventPins(
+      pins,
+      playbackState.timelineState.replayStartMs,
+      playbackState.frameCount,
+      TIMELINE_FRAME_INTERVAL_MS,
+    );
+  }, [
+    osintQuakesEnabled, osintAircraftEnabled, quakeFeedState.events, aircraftFeedState.events,
+    playbackState.timelineState.replayStartMs, playbackState.frameCount,
+  ]);
+
+  const seekToTime = useCallback((timeMs: number) => {
+    setFrame(frameForEventTime(
+      timeMs,
+      playbackState.timelineState.replayStartMs,
+      playbackState.frameCount,
+      TIMELINE_FRAME_INTERVAL_MS,
+    ));
+  }, [setFrame, playbackState.timelineState.replayStartMs, playbackState.frameCount]);
 
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
@@ -1250,6 +1283,8 @@ export default function App() {
             onOpenGifExport={() => setGifExportOpen(true)}
             warningRanges={timelineWarningRanges}
             bufferedRanges={satelliteBufferedRanges}
+            eventPins={eventPins}
+            onSeekToTime={seekToTime}
             timelineState={playbackState.timelineState}
             solarReference={timelineSolarReference}
           />

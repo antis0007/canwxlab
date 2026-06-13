@@ -8,6 +8,7 @@ import {
   TIMELINE_VIEW_DAY_OPTIONS,
 } from "../../time/timelineWindow";
 import { SOLAR_BAND_COLORS, solarBandForAltitudeDeg, solarElevationDeg } from "../../time/solarBands";
+import type { PlacedEventPin } from "../../time/eventPins";
 
 export { frameFromTimelinePct } from "../../time/timelineWindow";
 
@@ -60,6 +61,10 @@ interface BottomTimelineProps {
   warningRanges?: TimelineWarningRange[];
   /** Buffered satellite time ranges (video-player style shading). */
   bufferedRanges?: TimelineBufferedRange[];
+  /** OSINT event markers placed on the track (quakes, aircraft emergencies). */
+  eventPins?: PlacedEventPin[];
+  /** Seek to an event's time when its pin is clicked. */
+  onSeekToTime?: (timeMs: number) => void;
   timelineState: PlanetaryTimelineState;
   solarReference?: {
     latitude: number;
@@ -370,6 +375,8 @@ export function BottomTimeline({
   onOpenGifExport,
   warningRanges = [],
   bufferedRanges = [],
+  eventPins = [],
+  onSeekToTime,
   timelineState,
   solarReference,
 }: BottomTimelineProps) {
@@ -720,6 +727,18 @@ export function BottomTimeline({
             title={timelineState.forecastEnabled ? "Forecast horizon" : "Forecast locked at live time"}
             aria-hidden="true"
           />
+
+          {eventPins.map((pin) => (
+            <button
+              key={pin.id}
+              type="button"
+              className={`wb-tl-event-pin wb-tl-event-pin-${pin.severity} wb-tl-event-pin-${pin.kind}`}
+              style={{ left: `${pin.leftPct}%` }}
+              title={`${pin.label} · ${new Date(pin.timeMs).toISOString().slice(0, 16).replace("T", " ")}Z`}
+              aria-label={`Jump to event: ${pin.label}`}
+              onClick={(e) => { e.stopPropagation(); onSeekToTime?.(pin.timeMs); }}
+            />
+          ))}
 
           {hoverPct !== null && (
             <>
