@@ -57,6 +57,8 @@ import {
 } from "./time/eventPins";
 import type { LonLatBounds } from "./lib/liveFeeds/feedClient";
 import { createAircraftLayers, createQuakeLayer } from "./layers/renderers/osint";
+import { orbitsFeed } from "./lib/liveFeeds/orbits";
+import { createOrbitLayers } from "./layers/renderers/orbits";
 import { EMPTY_ARCHIVE_SUMMARY, getArchiveSummary } from "./lib/archiveIndex";
 import { buildSourceContractViews } from "./lib/planetaryCatalog";
 import type { ArchiveSummary } from "./types/planetary";
@@ -328,6 +330,7 @@ export default function App() {
   // ── OSINT live feeds (spec: 2026-06-12-osint-fusion-program.md) ─────────
   const [osintQuakesEnabled, setOsintQuakesEnabled] = useState(false);
   const [osintAircraftEnabled, setOsintAircraftEnabled] = useState(false);
+  const [osintOrbitsEnabled, setOsintOrbitsEnabled] = useState(false);
   const [viewBboxString, setViewBboxString] = useState<string | null>(null);
   const viewBbox = useMemo<LonLatBounds | null>(() => {
     if (!viewBboxString) return null;
@@ -339,15 +342,18 @@ export default function App() {
 
   const quakeFeedState = useLiveFeed(quakesFeed, osintQuakesEnabled, null);
   const aircraftFeedState = useLiveFeed(aircraftFeed, osintAircraftEnabled, viewBbox);
+  // Stable feed definition (useLiveFeed keys its lifecycle on identity).
+  const orbitFeedDef = useMemo(() => orbitsFeed("stations"), []);
+  const orbitFeedState = useLiveFeed(orbitFeedDef, osintOrbitsEnabled, null);
 
   // Aircraft dead-reckon between polls: tick the layer clock at 1 Hz while
   // visible so darts move smoothly without re-fetching.
   const [osintNowMs, setOsintNowMs] = useState(() => Date.now());
   useEffect(() => {
-    if (!osintAircraftEnabled && !osintQuakesEnabled) return;
+    if (!osintAircraftEnabled && !osintQuakesEnabled && !osintOrbitsEnabled) return;
     const id = window.setInterval(() => setOsintNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [osintAircraftEnabled, osintQuakesEnabled]);
+  }, [osintAircraftEnabled, osintQuakesEnabled, osintOrbitsEnabled]);
 
   const osintLayers = useMemo(() => {
     const layers: unknown[] = [];
@@ -358,8 +364,14 @@ export default function App() {
     if (osintAircraftEnabled) {
       layers.push(...createAircraftLayers(aircraftFeedState.events, osintNowMs));
     }
+    if (osintOrbitsEnabled) {
+      layers.push(...createOrbitLayers(orbitFeedState.events, osintNowMs));
+    }
     return layers;
-  }, [osintQuakesEnabled, osintAircraftEnabled, quakeFeedState.events, aircraftFeedState.events, osintNowMs]);
+  }, [
+    osintQuakesEnabled, osintAircraftEnabled, osintOrbitsEnabled,
+    quakeFeedState.events, aircraftFeedState.events, orbitFeedState.events, osintNowMs,
+  ]);
   const [globeSupported, setGlobeSupported] = useState(false);
   const [globeCapabilityChecked, setGlobeCapabilityChecked] = useState(false);
   const [inspectorState, setInspectorState] = useState<{
@@ -1050,10 +1062,17 @@ export default function App() {
             enabled: osintAircraftEnabled,
             statusText: `OpenSky live aircraft — ${osintAircraftEnabled ? `${aircraftFeedState.status.state}${aircraftFeedState.status.lastError ? `: ${aircraftFeedState.status.lastError}` : ""}` : "off"}`,
           },
+          {
+            id: "orbits",
+            label: "ORB",
+            enabled: osintOrbitsEnabled,
+            statusText: `Satellites (SGP4, stations) — ${osintOrbitsEnabled ? `${orbitFeedState.status.state}${orbitFeedState.status.lastError ? `: ${orbitFeedState.status.lastError}` : ""} · ${orbitFeedState.events.length} sats` : "off"}`,
+          },
         ]}
         onSetOsintToggle={(id, enabled) => {
           if (id === "quakes") setOsintQuakesEnabled(enabled);
           if (id === "aircraft") setOsintAircraftEnabled(enabled);
+          if (id === "orbits") setOsintOrbitsEnabled(enabled);
         }}
       />
 

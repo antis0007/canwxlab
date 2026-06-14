@@ -2,7 +2,7 @@
 
 Date: 2026-06-12
 Status: Phase 1 implemented; later phases are designs awaiting their cycle.
-Revision: 2 (see Revision Log — this spec updates itself as phases land)
+Revision: 6 (see Revision Log — this spec updates itself as phases land)
 
 ## Vision
 
@@ -77,12 +77,18 @@ BottomTimeline renders clickable diamond/square markers; clicking seeks
 the timeline so the archive replays the weather at that instant. Alert
 onsets deferred (alerts lack a clean onset time in the current model).
 
-### Phase 3 — Orbital layer
+### Phase 3 — Orbital layer  ✅ implemented (r6)
 
-SGP4 (satellite.js) over the existing TLE endpoint: live subpoints +
-ground-track ribbons for selected constellations; pass prediction for the
-clicked location ("next overhead: …"). Modules: `lib/orbits/propagate.ts`
-(pure), `layers/renderers/orbits.ts`. Track decimation per Algorithms.
+SGP4 (satellite.js) over a real CelesTrak TLE endpoint: live subpoints +
+ground-track ribbons. Server adapter `adapters/cosmic_celestrak.py` sources
+allow-listed groups (stations, weather, gps-ops, …) with disk+memo daily
+cache and serves stale-on-failure; route `/api/v1/orbits/tle`. Pure client
+modules `lib/orbits/propagate.ts` (subPoint, groundTrackSegments split at the
+antimeridian, RDP decimation) and `layers/renderers/orbits.ts` (altitude-regime
+colors, subpoint dots + track ribbons, `maxTracks` cap). Feed `liveFeeds/
+orbits.ts` (transport: proxy, 6 h cadence) parses TLE records into propagatable
+satrecs once. Toggle ORB; default group "stations". Pass prediction
+("next overhead") deferred to a follow-up.
 
 ### Phase 4 — Anomaly watch (self-improving loop)
 
@@ -140,6 +146,18 @@ LOC budget, either justify in one line or schedule the refactor.
   Lesson: pins recompute on (feed events, window) but NOT the 1 Hz
   dead-reckon tick — keep derived-timeline memos off the animation clock.
   **Next:** Phase 3 orbital layer, or widen pins (lightning when added).
+- r6: Phase 3 landed. SGP4 client-side over a real CelesTrak proxy; the stub
+  adapter became a caching adapter (allow-list + disk/memo + stale-on-failure).
+  Runtime lessons: (1) satellite.js v7 ships a node-only WASM build that breaks
+  the browser bundle — pinned to pure-JS v5 (identical SGP4 API). Design
+  consequence: any future orbital math dep must be vetted for a browser ESM
+  path before adoption. (2) twoline2satrec is lenient (returns a junk satrec
+  for non-TLE input) so `toSatellite` guards the `1 `/`2 ` line prefixes before
+  propagating. (3) Ground tracks must be split at the antimeridian or PathLayer
+  draws a full-width smear. Verified live: /api/v1/orbits/tle returns 25
+  stations with the current ISS epoch; ORB toggle reads "live · 25 sats".
+  **Next:** pass prediction ("next overhead" for a clicked point) and group
+  selection in the UI; consider Phase 4 anomaly watch.
 - r4: Phase 1.1 landed — but the generic passthrough was NOT built. Reuse
   beat new plumbing: the API already had `/api/v1/aircraft/positions`
   (OpenSky wrapped with TTL cache + rate-limit handling), so the aircraft

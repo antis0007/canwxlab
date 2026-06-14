@@ -16,6 +16,7 @@ from canwxlab_api.routes import (
     layers,
     motion,
     observations,
+    orbits,
     plugins,
     simulations,
     sources,
@@ -89,6 +90,7 @@ app.include_router(observations.router)
 app.include_router(alerts.router)
 app.include_router(eccc.router)
 app.include_router(motion.router)
+app.include_router(orbits.router)
 app.include_router(cosmic.router)
 app.include_router(plugins.router)
 app.include_router(simulations.router)
