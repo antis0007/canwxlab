@@ -293,20 +293,23 @@ vec2 hermiteDisplacement(vec2 totalFlow, vec2 startVelocity, vec2 endVelocity, f
   return h01 * totalFlow + h10 * startVelocity + h11 * endVelocity;
 }
 
+/* Hard temporal switch for paths WITHOUT usable motion. This is intentionally
+ * not a fade: if flow is absent or untrusted, crisp frame replacement is less
+ * misleading than inventing motion by cross-dissolving cloud pixels. */
+float hardFrameSwitch(float t) {
+  return step(0.5, t);
+}
+
 float cloudSignal(vec4 texel) {
   float luma = dot(texel.rgb, vec3(0.2126, 0.7152, 0.0722));
   float chroma = max(max(texel.r, texel.g), texel.b) - min(min(texel.r, texel.g), texel.b);
   return texel.a * max(luma, chroma);
 }
 
-vec4 advectedCloudSample(vec4 prevWarp, vec4 nextWarp, float t) {
-  // Motion-compensated temporal blend. Both inputs are already warped along the
-  // flow to the intermediate parcel position, so they align spatially: blending
-  // them reads as continuous video motion, NOT a double-image ghost (classic
-  // ghosting comes from blending un-warped frames). The smoothstep weight has
-  // zero slope at t=0 and t=1, so the appearance transition is C1-continuous
-  // across keyframes — no velocity kink, no pop.
-  return mix(prevWarp, nextWarp, smoothstep(0.0, 1.0, t));
+vec4 advectedCloudSample(vec4 prevWarp, vec4 nextWarp) {
+  float prevSignal = cloudSignal(prevWarp);
+  float nextSignal = cloudSignal(nextWarp);
+  return prevSignal >= nextSignal ? prevWarp : nextWarp;
 }
 
 vec4 sampleMorph(int idx, vec2 merc) {
@@ -369,14 +372,14 @@ vec4 sampleMorph(int idx, vec2 merc) {
     flowUV = mix(globalFlowUV, denseFlowUv, denseWeight);
   }
 
-  // Without trustworthy motion we cannot warp, so fall back to a smooth
-  // temporal cross-fade. A hard mid-interval switch was crisper but produced
-  // the visible keyframe pop; seamless playback is the requirement, so we
-  // accept a brief dissolve where flow is absent (e.g. categorical cloud-type
-  // class interiors that defeat optical flow).
+  // Even without trustworthy motion, never dissolve across the whole
+  // interval: a narrow mid-interval switch keeps pixels crisp on both sides
+  // (categorical products like cloud-type defeat optical flow inside class
+  // interiors, which made this branch the dominant look).
+  float frameSwitch = hardFrameSwitch(t);
   float flowConf = max(globalConf, denseConf * flowBlend);
   if (flowConf < 0.05) {
-    return mix(prevSample, nextSample, smoothstep(0.0, 1.0, t));
+    return frameSwitch < 0.5 ? prevSample : nextSample;
   }
 
   // Symmetric optical-flow morphing with C1 temporal continuity across
@@ -405,7 +408,7 @@ vec4 sampleMorph(int idx, vec2 merc) {
   // A dissolve turns real motion into fading pixels; the helper returns one
   // carried texel, so confident motion is visual advection rather than a
   // temporal transition.
-  vec4 result = advectedCloudSample(prevWarp, nextWarp, t);
+  vec4 result = advectedCloudSample(prevWarp, nextWarp);
 
   // Forward-backward occlusion: where the flow directions disagree, the cloud
   // is forming or dissipating. Warping would stretch it; fading would ghost it.
@@ -416,7 +419,7 @@ vec4 sampleMorph(int idx, vec2 merc) {
   }
 
   if (result.a < 0.01) {
-    result = mix(prevSample, nextSample, smoothstep(0.0, 1.0, t));
+    result = frameSwitch < 0.5 ? prevSample : nextSample;
   }
 
   // Cloud/background separation: static clear-sky pixels render from the
