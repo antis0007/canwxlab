@@ -69,8 +69,13 @@ def test_manifest_and_frame_roundtrip(tmp_path: Path, monkeypatch) -> None:
         frame_interp.set_interpolator_factory(None)
 
 
-def test_manifest_degrades_when_model_unavailable(tmp_path: Path, monkeypatch) -> None:
-    frame_interp.set_interpolator_factory(None)  # back to default (no backend)
+def test_manifest_degrades_when_backend_fails_to_load(tmp_path: Path, monkeypatch) -> None:
+    # The default backend (CPU splat) is always available; simulate a backend
+    # that fails to load (e.g. a misconfigured GPU model) → honest degradation.
+    def _broken_factory():
+        raise RuntimeError("model weights not found")
+
+    frame_interp.set_interpolator_factory(_broken_factory)
 
     class _Settings:
         cache_dir = str(tmp_path)
@@ -88,3 +93,4 @@ def test_manifest_degrades_when_model_unavailable(tmp_path: Path, monkeypatch) -
         assert "reason" in manifest
     finally:
         app.dependency_overrides.clear()
+        frame_interp.set_interpolator_factory(None)

@@ -155,21 +155,20 @@ def load_interpolator() -> Interpolator:
     if _LOAD_FAILED is not None:
         raise InterpUnavailable(_LOAD_FAILED)
 
-    factory = _FACTORY_OVERRIDE or _load_rife
+    factory = _FACTORY_OVERRIDE or _load_default
     try:
         _INTERPOLATOR = factory()
-    except Exception as exc:  # torch/CUDA/model-weights absent
+    except Exception as exc:  # backend genuinely unavailable
         _LOAD_FAILED = str(exc)
         logger.warning("frame interpolator unavailable: %s", exc)
         raise InterpUnavailable(_LOAD_FAILED) from exc
     return _INTERPOLATOR
 
 
-def _load_rife() -> Interpolator:
-    """Load the RIFE PyTorch backend (requires the optional ``interp`` extra
-    and CUDA on the host). Imported lazily so the base service never depends on
-    torch."""
-    raise InterpUnavailable(
-        "no neural interpolation backend installed; install the GPU 'interp' "
-        "extra (torch + RIFE weights) and register it via set_interpolator_factory"
-    )
+def _load_default() -> Interpolator:
+    """Default backend: the CPU forward-splat interpolator (always available,
+    no GPU). A neural FILM/RIFE backend can replace it on a GPU host via
+    ``set_interpolator_factory`` for higher quality."""
+    from canwxlab_api.interp_splat import ForwardSplatInterpolator
+
+    return ForwardSplatInterpolator()
