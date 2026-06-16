@@ -44,17 +44,20 @@ function storedFrame(gridKey: string, timeMs: number): StoredFrame {
 }
 
 describe("satellite motion quality gates", () => {
-  it("does not cross-fade warped clouds when confident motion is available", () => {
+  it("blends motion-compensated (warped) frames for seamless video, never raw frames (anti-ghost)", () => {
     const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "satelliteComposite.ts"), "utf8");
     const helper = source.slice(
       source.indexOf("vec4 advectedCloudSample("),
       source.indexOf("vec4 sampleMorph("),
     );
-    expect(helper).toContain("return prevSignal >= nextSignal ? prevWarp : nextWarp;");
-    expect(helper).not.toContain("mix(");
-    expect(source).toContain("result = advectedCloudSample(prevWarp, nextWarp);");
-    expect(source).not.toContain("vec4 result = mix(prevWarp, nextWarp, t);");
-    expect(source).not.toContain("mix(prevWarp, nextWarp, smoothstep");
+    // Seamless playback requires a temporal blend of the two warped frames.
+    expect(helper).toContain("mix(prevWarp, nextWarp, smoothstep(0.0, 1.0, t))");
+    // Anti-ghost invariant: the confident path blends WARPED inputs (prevWarp/
+    // nextWarp), which are spatially aligned by the flow — never the raw,
+    // un-warped prevSample/nextSample (that would double-image).
+    expect(helper).not.toContain("prevSample");
+    expect(helper).not.toContain("nextSample");
+    expect(source).toContain("result = advectedCloudSample(prevWarp, nextWarp, t);");
   });
 
   it("classifies visible products separately from IR/cloud products", () => {

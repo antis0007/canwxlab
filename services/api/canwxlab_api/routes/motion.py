@@ -12,6 +12,7 @@ disk keyed by (layer, bbox, size, t0, t1) — a pair is computed exactly once.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from pathlib import Path
@@ -129,9 +130,15 @@ async def get_motion_field(
     if cache_file.exists():
         body = cache_file.read_bytes()
     else:
-        prev = await _fetch_luma(layer, bbox, size, t0, adapter)
-        nxt = await _fetch_luma(layer, bbox, size, t1, adapter)
-        u, v, conf = compute_flow(prev, nxt)
+        # Fetch the two frames concurrently (independent proxy requests) rather
+        # than serially — halves the network wait on a cold pair.
+        prev, nxt = await asyncio.gather(
+            _fetch_luma(layer, bbox, size, t0, adapter),
+            _fetch_luma(layer, bbox, size, t1, adapter),
+        )
+        # compute_flow is CPU-bound NumPy; run it off the event loop so it does
+        # not block frame-proxy requests on a single-worker server.
+        u, v, conf = await asyncio.to_thread(compute_flow, prev, nxt)
         body = encode_flow_rgba(u, v, conf)
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         cache_file.write_bytes(body)

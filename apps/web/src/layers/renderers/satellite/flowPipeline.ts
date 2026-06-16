@@ -517,7 +517,11 @@ export class FlowPipeline {
     }, {
       uFlowPrevTex: prevTex,
       uFlowNextTex: nextTex,
-      uInitialFlowTex: seed?.texture ?? lkOut.texture,
+      // When there is no seed the shader gates the sample off (uHasInitialFlow
+      // = 0), but binding lkOut here — the active render target — still trips
+      // the driver's framebuffer/texture feedback-loop check every frame. Bind
+      // an input texture that is never the target instead.
+      uInitialFlowTex: seed?.texture ?? prevTex,
     });
 
     this.drawPass(models.smooth, smoothOut, {
