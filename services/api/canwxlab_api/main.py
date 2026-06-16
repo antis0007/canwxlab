@@ -13,6 +13,7 @@ from canwxlab_api.routes import (
     cosmic,
     eccc,
     evidence,
+    interp,
     layers,
     motion,
     observations,
@@ -90,6 +91,7 @@ app.include_router(observations.router)
 app.include_router(alerts.router)
 app.include_router(eccc.router)
 app.include_router(motion.router)
+app.include_router(interp.router)
 app.include_router(orbits.router)
 app.include_router(cosmic.router)
 app.include_router(plugins.router)
