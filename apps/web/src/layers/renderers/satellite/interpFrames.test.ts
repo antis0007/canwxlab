@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { interpManifestUrl, parseInterpManifest, resolveFrameUrl } from "./interpFrames";
+import { interpManifestUrl, parseInterpManifest, resolveFrameUrl, wmsLayerName } from "./interpFrames";
+
+describe("wmsLayerName", () => {
+  it("extracts the first LAYERS value, case-insensitive and URL-decoded", () => {
+    expect(wmsLayerName("https://x/wms?SERVICE=WMS&LAYERS=GOES-East_2km_NightIR&TIME={time}")).toBe(
+      "GOES-East_2km_NightIR",
+    );
+    expect(wmsLayerName("https://x/wms?layers=A%2DB,C")).toBe("A-B");
+    expect(wmsLayerName("https://x/wms?service=WMS")).toBeNull();
+  });
+});
 
 describe("interpManifestUrl", () => {
   it("builds a manifest URL with bbox, ISO times, size and depth", () => {

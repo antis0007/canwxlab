@@ -122,6 +122,9 @@ interface MapViewProps {
   satelliteReadinessRef?: React.MutableRefObject<(timeMs: number) => Promise<void>>;
   /** Show AMV-style derived cloud motion vectors over the satellite layer. */
   motionVectorsVisible?: boolean;
+  /** Play server-synthesized interpolated frames instead of the shader morph
+   * (seamless cloud video; falls back to the morph when unavailable). */
+  satelliteInterpEnabled?: boolean;
   /** Feature layers composed by the app (OSINT feeds, future overlays).
    * MapView renders them above its own layers — spec R1: the renderer does
    * not grow a prop per feature. */
@@ -558,6 +561,7 @@ export function MapView({
   onMapReady,
   satelliteReadinessRef,
   motionVectorsVisible = false,
+  satelliteInterpEnabled = false,
   extraDeckLayers,
   onVisibleBboxChange,
 }: MapViewProps) {
@@ -1038,6 +1042,10 @@ export function MapView({
     // the effect fires exactly when the timeline advances to a new frame slot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [satelliteWmsSig]);
+
+  useEffect(() => {
+    satelliteLayerRef.current?.setInterpEnabled(satelliteInterpEnabled);
+  }, [satelliteInterpEnabled]);
 
   const satelliteCompositeLayer = useMemo(() => {
     const configs = renderPlan

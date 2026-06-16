@@ -34,6 +34,8 @@ import {
   type MotionVectorSample,
 } from "./satellite/motionField";
 import { fetchMotionField, motionFieldUrl, motionSatelliteFor } from "./satellite/serverMotion";
+import { wmsLayerName } from "./satellite/interpFrames";
+import { InterpPlayback } from "./satellite/interpPlayback";
 import { templateTimeMs } from "./satellite/wmsRequest";
 
 export type { BufferedRange } from "./satellite/frameGrid";
@@ -82,6 +84,9 @@ interface SatEntry {
   config: SatelliteCompositeConfig;
   frameStore: FrameStore;
   availableTimesMs: number[];
+  /** Lazily created when interp playback is enabled; plays server-synthesized
+   * frames for the active keyframe interval. */
+  interp?: InterpPlayback;
 }
 
 interface CompositorState {
@@ -914,6 +919,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
    * no frame store changed and the playhead stayed in the same frame slot. */
   private _lastDrawGateKey = "";
   private _serverFieldRequested = new Set<string>();
+  private _interpEnabled = false;
 
   private _drawGateKey(state: CompositorState, timelineMs: number): string {
     let revisions = "";
@@ -1007,6 +1013,55 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
         },
       }),
     };
+  }
+
+  /** Enable/disable playback of server-synthesized interpolated frames. When
+   * off (default) the renderer behaves exactly as before — the shader morph.
+   * When on, each satellite slot draws the nearest synthesized frame for the
+   * current time if one is ready, else falls back to the morph. */
+  setInterpEnabled(on: boolean): void {
+    if (on === this._interpEnabled) return;
+    this._interpEnabled = on;
+    if (!on) {
+      const state = this.state as unknown as CompositorState | undefined;
+      for (const entry of state?.entries ?? []) {
+        entry.interp?.dispose();
+        entry.interp = undefined;
+      }
+    }
+    this.setNeedsRedraw();
+  }
+
+  /** Nearest ready synthesized frame for an entry at `timelineMs`, or null.
+   * Lazily constructs the per-entry controller and points it at the current
+   * keyframe interval (synthesis is cached server-side per interval). */
+  private _interpFrameFor(
+    entry: SatEntry,
+    prev: StoredFrame,
+    next: StoredFrame,
+    timelineMs: number,
+    device: Device,
+  ): { gpuTexture: Texture; mercBounds: [number, number, number, number] } | null {
+    const layer = wmsLayerName(entry.config.wmsUrlTemplate);
+    if (!layer) return null;
+    if (!entry.interp) {
+      const fetchFrame = createGpuFetchFrame(device);
+      entry.interp = new InterpPlayback({
+        decode: (url, signal) =>
+          fetchFrame({ timeMs: 0, url, mercBounds: prev.mercBounds, texSize: [prev.width, prev.height], signal }),
+        onChange: () => this.setNeedsRedraw(),
+      });
+    }
+    entry.interp.update({
+      layerId: layer,
+      mercBounds: prev.mercBounds,
+      t0Ms: prev.timeMs,
+      t1Ms: next.timeMs,
+      size: prev.width,
+    });
+    const frame = entry.interp.frameAt(timelineMs);
+    if (!frame) return null;
+    return { gpuTexture: (frame.texture as GpuFrameTexture).gpuTexture, mercBounds: frame.mercBounds };
   }
 
   setWmsUrlTemplates(templates: Record<string, string>): void {
@@ -1170,6 +1225,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
     for (const old of state.entries) {
       if (!newSats.some((satellite) => satellite.id === old.config.id)) {
         old.frameStore.destroy();
+        old.interp?.dispose();
       }
     }
 
@@ -1361,6 +1417,37 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       if (entry && pair) {
         const { prev, next } = pair;
         const animated = next.timeMs > prev.timeMs;
+
+        // Interp playback (gated): draw the nearest server-synthesized frame
+        // statically (prev == next, phase 0) — a real frame, no morph, no
+        // cross-fade. Falls through to the morph when none is ready.
+        if (this._interpEnabled && animated && state.device) {
+          const interp = this._interpFrameFor(entry, prev, next, timelineMs, state.device);
+          if (interp) {
+            const [sx, sy, sz] = subPointCartesian(entry.config.subPoint[0], entry.config.subPoint[1]);
+            const chord = chordParams(entry.config.coverageRadiusDeg, entry.config.featherRadiusDeg);
+            satParams.push(sx, sy, sz, chord.maxChord);
+            satFeather.push(chord.featherStartChord);
+            prevBounds.push(...interp.mercBounds);
+            nextBounds.push(...interp.mercBounds);
+            globalFlowU.push(0, 0, 0, 0);
+            incomingGlobalFlow.push(0, 0, 0, 0);
+            outgoingGlobalFlow.push(0, 0, 0, 0);
+            satOpacity.push(entry.config.opacity);
+            hasPrevTex.push(1);
+            hasNextTex.push(1);
+            hasFlowTex.push(0);
+            hasBgMask.push(0);
+            requiresStableVisibleLight.push(isVisibleSatelliteMotionSource(entry.config.id) ? 1 : 0);
+            timeProgress.push(0);
+            bindings[`uPrevTex${i}`] = interp.gpuTexture;
+            bindings[`uNextTex${i}`] = interp.gpuTexture;
+            bindings[`uFlowTex${i}`] = state.fallbackTexture!;
+            bindings[`uBgMaskTex${i}`] = state.fallbackTexture!;
+            continue;
+          }
+        }
+
         // Raw, unclamped ratio: the morph shader handles phase<0 (backward) and
         // phase>1 (continuous live-edge extrapolation) deliberately, so do NOT
         // clamp here — clamping freezes motion at the live edge.
@@ -1490,7 +1577,10 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       window.clearTimeout(state.idlePumpHandle);
       state.idlePumpHandle = null;
     }
-    for (const entry of state.entries ?? []) entry.frameStore.destroy();
+    for (const entry of state.entries ?? []) {
+      entry.frameStore.destroy();
+      entry.interp?.dispose();
+    }
     state.flowPipeline?.destroy();
     state.fallbackTexture?.destroy();
     state.model?.destroy();

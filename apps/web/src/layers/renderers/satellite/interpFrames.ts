@@ -29,6 +29,16 @@ function apiBase(): string {
   return API_BASE_URL.endsWith("/") ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
 }
 
+/** Extract the WMS LAYERS value from a GetMap URL template — the layer name the
+ * interp endpoint must fetch to synthesize the displayed product. Null if the
+ * template has no LAYERS parameter. */
+export function wmsLayerName(template: string): string | null {
+  const match = /[?&]layers=([^&]+)/i.exec(template);
+  if (!match) return null;
+  const value = decodeURIComponent(match[1]).split(",")[0].trim();
+  return value || null;
+}
+
 function isoUtc(ms: number): string {
   return new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 }

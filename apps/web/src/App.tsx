@@ -331,6 +331,7 @@ export default function App() {
   const [osintQuakesEnabled, setOsintQuakesEnabled] = useState(false);
   const [osintAircraftEnabled, setOsintAircraftEnabled] = useState(false);
   const [osintOrbitsEnabled, setOsintOrbitsEnabled] = useState(false);
+  const [satelliteInterpEnabled, setSatelliteInterpEnabled] = useState(false);
   const [viewBboxString, setViewBboxString] = useState<string | null>(null);
   const viewBbox = useMemo<LonLatBounds | null>(() => {
     if (!viewBboxString) return null;
@@ -1068,11 +1069,18 @@ export default function App() {
             enabled: osintOrbitsEnabled,
             statusText: `Satellites (SGP4, stations) — ${osintOrbitsEnabled ? `${orbitFeedState.status.state}${orbitFeedState.status.lastError ? `: ${orbitFeedState.status.lastError}` : ""} · ${orbitFeedState.events.length} sats` : "off"}`,
           },
+          {
+            id: "interp",
+            label: "INTRP",
+            enabled: satelliteInterpEnabled,
+            statusText: `Neural/splat cloud interpolation — ${satelliteInterpEnabled ? "on (synthesized frames; falls back to morph)" : "off"}`,
+          },
         ]}
         onSetOsintToggle={(id, enabled) => {
           if (id === "quakes") setOsintQuakesEnabled(enabled);
           if (id === "aircraft") setOsintAircraftEnabled(enabled);
           if (id === "orbits") setOsintOrbitsEnabled(enabled);
+          if (id === "interp") setSatelliteInterpEnabled(enabled);
         }}
       />
 
@@ -1200,6 +1208,7 @@ export default function App() {
             onMapReady={(map) => { mapInstanceRef.current = map; }}
             satelliteReadinessRef={satelliteReadinessRef}
             motionVectorsVisible={motionVectorsVisible}
+            satelliteInterpEnabled={satelliteInterpEnabled}
             extraDeckLayers={osintLayers}
             onVisibleBboxChange={setViewBboxString}
           />
