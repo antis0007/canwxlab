@@ -78,9 +78,12 @@ class ForwardSplatInterpolator:
         luma_a = _to_luma(a)
         luma_b = _to_luma(b)
 
-        # Bidirectional flow: a→b moves a's pixels forward; b→a moves b's.
-        u_f, v_f, conf_f = compute_flow(luma_a, luma_b)
-        u_b, v_b, conf_b = compute_flow(luma_b, luma_a)
+        # Bidirectional flow: a→b moves a's pixels forward; b→a moves b's. We
+        # already solve both directions here, so skip compute_flow's own
+        # forward/backward consistency pass (it would solve each direction
+        # twice). densify stays on for full-frame coverage.
+        u_f, v_f, conf_f = compute_flow(luma_a, luma_b, consistency=False)
+        u_b, v_b, conf_b = compute_flow(luma_b, luma_a, consistency=False)
 
         acc_color = np.zeros((h, w, 3), dtype=np.float32)
         acc_w = np.zeros((h, w), dtype=np.float32)

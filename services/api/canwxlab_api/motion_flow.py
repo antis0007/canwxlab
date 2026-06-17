@@ -220,14 +220,23 @@ def densify_flow(
     return out_u, out_v, out_conf
 
 
-def compute_flow(prev: np.ndarray, nxt: np.ndarray,
-                 levels: int = PYRAMID_LEVELS,
-                 densify: bool = True) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Coarse-to-fine dense flow prev→next in pixels at full grid resolution.
+def _median3x3(arr: np.ndarray) -> np.ndarray:
+    """3×3 median — rejects isolated outlier vectors so the field is locally
+    consistent (LK alone produces speckle in low-texture cloud interiors)."""
+    padded = np.pad(arr, 1, mode="edge")
+    h, w = arr.shape
+    stack = np.stack(
+        [padded[i : i + h, j : j + w] for i in range(3) for j in range(3)], axis=0
+    )
+    return np.median(stack, axis=0).astype(np.float32)
 
-    With ``densify`` (default), the field is hole-filled so every pixel carries
-    a motion vector — the morph then flows the whole frame instead of freezing
-    low-confidence regions."""
+
+def _solve_flow(
+    prev: np.ndarray, nxt: np.ndarray, levels: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Coarse-to-fine LK, with a per-level median that keeps the field
+    consistent as it is refined. Returns the backward sampling map (prev(x+u) =
+    next(x)) — callers negate for forward motion."""
     pyr_prev = [prev]
     pyr_next = [nxt]
     for _ in range(levels - 1):
@@ -243,10 +252,48 @@ def compute_flow(prev: np.ndarray, nxt: np.ndarray,
             u = _upsample_flow(u, p.shape) * 2.0
             v = _upsample_flow(v, p.shape) * 2.0
         u, v, conf = _lk_refine(p, n, u, v, WINDOW_RADIUS, ITERATIONS)
+        # Reject outlier vectors before they propagate to the next finer level.
+        u = _median3x3(u)
+        v = _median3x3(v)
+    return u, v, conf
+
+
+def compute_flow(prev: np.ndarray, nxt: np.ndarray,
+                 levels: int = PYRAMID_LEVELS,
+                 densify: bool = True,
+                 consistency: bool = True) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Coarse-to-fine dense flow prev→next in pixels at full grid resolution.
+
+    Robustifications for live satellite animation, where naive LK gives
+    inconsistent/wrong vectors over large cloud motion and smooth interiors:
+      - per-level **median** rejects outlier vectors (consistent field);
+      - **forward/backward consistency** (default) downweights vectors whose
+        reverse flow disagrees — i.e. occlusions and bad correspondences — so
+        wrong motion is not trusted or diffused;
+      - **densify** (default) hole-fills the trusted flow so the whole frame
+        flows instead of freezing.
+    """
+    u, v, conf = _solve_flow(prev, nxt, levels)
+
+    if consistency:
+        # Backward flow next→prev (as a backward sampling map for `nxt`).
+        ub, vb, _ = _solve_flow(nxt, prev, levels)
+        # Forward maps pixel x of prev to x+(u,v) in next; the backward flow
+        # sampled there should send it back, so (u,v)+(ub,vb)|warp ≈ 0.
+        ub_at = _warp(ub, u, v)
+        vb_at = _warp(vb, u, v)
+        fb_err = np.hypot(u + ub_at, v + vb_at)
+        # Tolerance scales with motion magnitude (sub-pixel resampling noise on
+        # fast motion is expected); >~2 px disagreement collapses confidence.
+        tol = 1.5 + 0.15 * np.hypot(u, v)
+        conf = conf * np.clip(1.0 - fb_err / np.maximum(tol, 1e-3), 0.0, 1.0)
 
     # _lk_refine solves prev(x + u) = next(x): u is the backward sampling map.
     # The public contract is forward motion prev→next, so negate once here.
-    return -u, -v, conf
+    u, v = -u, -v
+    if densify:
+        u, v, conf = densify_flow(u, v, conf)
+    return u, v, conf
 
 
 def encode_flow_rgba(u: np.ndarray, v: np.ndarray, conf: np.ndarray) -> bytes:

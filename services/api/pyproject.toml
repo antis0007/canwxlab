@@ -23,13 +23,17 @@ dev = [
   "respx>=0.21,<1.0",
   "ruff>=0.6,<1.0"
 ]
-# Neural frame interpolation (cloud video). Install on a CUDA host:
-#   pip install -e '.[interp]'
-# then register a backend at startup via frame_interp.set_interpolator_factory.
-# torch is intentionally NOT a base dependency — the service degrades to the
-# shader morph when this extra is absent.
+# Neural frame interpolation (cloud video): RAFT optical flow (torchvision) +
+# forward splat. CPU wheels work out of the box; on a CUDA host install the
+# matching CUDA build of torch for GPU acceleration:
+#   pip install -e '.[interp]'                                  # CPU
+#   pip install torch torchvision --index-url \
+#     https://download.pytorch.org/whl/cu124                    # CUDA
+# torch is intentionally NOT a base dependency — the service falls back to the
+# pure-NumPy Lucas-Kanade splat when this extra is absent.
 interp = [
   "torch>=2.2",
+  "torchvision>=0.17",
 ]
 
 [tool.ruff]

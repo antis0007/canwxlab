@@ -22,8 +22,8 @@ from __future__ import annotations
 import hashlib
 import io
 import logging
-from pathlib import Path
-from typing import Callable, Protocol
+from collections.abc import Callable
+from typing import Protocol
 
 import numpy as np
 
@@ -166,9 +166,21 @@ def load_interpolator() -> Interpolator:
 
 
 def _load_default() -> Interpolator:
-    """Default backend: the CPU forward-splat interpolator (always available,
-    no GPU). A neural FILM/RIFE backend can replace it on a GPU host via
-    ``set_interpolator_factory`` for higher quality."""
-    from canwxlab_api.interp_splat import ForwardSplatInterpolator
+    """Default backend, best available without manual setup:
 
-    return ForwardSplatInterpolator()
+    1. RAFT neural optical flow + forward splat (interp_raft) when torch +
+       torchvision are installed — accurate dense flow, GPU-accelerated when a
+       CUDA device is present.
+    2. Otherwise the pure-NumPy Lucas-Kanade forward splat (always available).
+
+    A different model can still be injected via ``set_interpolator_factory``.
+    """
+    try:
+        from canwxlab_api.interp_raft import RaftInterpolator
+
+        return RaftInterpolator()
+    except Exception as exc:  # torch/torchvision/weights absent
+        logger.info("RAFT backend unavailable (%s); using LK forward-splat", exc)
+        from canwxlab_api.interp_splat import ForwardSplatInterpolator
+
+        return ForwardSplatInterpolator()

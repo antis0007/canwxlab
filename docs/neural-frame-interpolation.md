@@ -27,32 +27,30 @@ keyframe t1 ─┘            (GPU, off the event loop)         │
 - **Honest degradation**: with no backend installed the manifest returns
   `available: false` and the client falls back to the shader morph.
 
-## Enabling the model on a GPU host
+## Backends (resolved by `frame_interp._load_default`)
 
-1. Install the extra: `pip install -e '.[interp]'` (pulls torch).
-2. Implement an `Interpolator` and register it at startup, e.g. in a small
-   startup hook:
+1. **RAFT neural flow + forward splat** (`interp_raft.RaftInterpolator`) — the
+   default when torch + torchvision are installed. RAFT (torchvision) is a
+   learned dense optical-flow network that handles the large cloud motion and
+   smooth interiors that Lucas-Kanade gets wrong; the accurate flow drives a
+   confidence-weighted forward splat to synthesize the intermediate frame.
+   Runs on CUDA when available, CPU otherwise. Weights auto-download (cached).
+2. **Lucas-Kanade forward splat** (`interp_splat.ForwardSplatInterpolator`) —
+   pure NumPy, always available, used when the `interp` extra is absent. Same
+   splat, weaker flow.
+3. Any custom model via `set_interpolator_factory` (e.g. a FILM/RIFE checkpoint
+   implementing `Interpolator.midpoint`).
 
-```python
-import numpy as np, torch
-from canwxlab_api.frame_interp import set_interpolator_factory
+### Enabling RAFT
 
-class RifeInterpolator:
-    def __init__(self):
-        self.model = load_rife_model().cuda().eval()  # your RIFE/FILM weights
-
-    @torch.inference_mode()
-    def midpoint(self, a: np.ndarray, b: np.ndarray) -> np.ndarray:
-        ta = torch.from_numpy(a).permute(2, 0, 1)[None].float().cuda() / 255
-        tb = torch.from_numpy(b).permute(2, 0, 1)[None].float().cuda() / 255
-        mid = self.model(ta, tb, timestep=0.5)        # FILM/RIFE forward
-        out = (mid[0].clamp(0, 1) * 255).byte().permute(1, 2, 0).cpu().numpy()
-        return out
-
-set_interpolator_factory(RifeInterpolator)  # lazy: constructed on first use
+```
+pip install -e '.[interp]'                                   # CPU
+# or, on a CUDA host, the matching CUDA build:
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 ```
 
-The factory is constructed once, lazily, on the first synthesis request.
+No code change needed — `_load_default` picks RAFT automatically and falls back
+to the LK splat if torch is missing or fails to load.
 
 ## Why this hits the quality bar
 

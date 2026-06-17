@@ -128,10 +128,15 @@ async def interp_manifest(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     key = pair_cache_key(layer, bbox, size, t0, t1, depth)
-    base = f"/api/v1/interp/frame?layer={layer}&bbox={bbox}&size={size}&t0={t0}&t1={t1}&depth={depth}"
+    base = (
+        f"/api/v1/interp/frame?layer={layer}&bbox={bbox}&size={size}"
+        f"&t0={t0}&t1={t1}&depth={depth}"
+    )
 
     try:
-        await _ensure_synthesized(layer, bbox, size, t0, t1, depth, settings.cache_dir, adapter)
+        await _ensure_synthesized(
+            layer, bbox, size, t0, t1, depth, settings.cache_dir, adapter
+        )
     except InterpUnavailable as exc:
         # Honest degradation: client falls back to the shader morph.
         return {"available": False, "reason": str(exc), "layer": layer, "key": key}
@@ -159,13 +164,20 @@ async def interp_frame(
 ) -> Response:
     settings = get_settings()
     try:
-        out_dir = await _ensure_synthesized(layer, bbox, size, t0, t1, depth, settings.cache_dir, adapter)
+        out_dir = await _ensure_synthesized(
+            layer, bbox, size, t0, t1, depth, settings.cache_dir, adapter
+        )
     except InterpUnavailable as exc:
-        raise HTTPException(status_code=503, detail={"reason": "interp_unavailable", "message": str(exc)}) from exc
+        raise HTTPException(
+            status_code=503,
+            detail={"reason": "interp_unavailable", "message": str(exc)},
+        ) from exc
 
     path = _frame_file(out_dir, frac)
     if not path.exists():
-        raise HTTPException(status_code=404, detail={"reason": "frame_not_in_sequence", "frac": frac})
+        raise HTTPException(
+            status_code=404, detail={"reason": "frame_not_in_sequence", "frac": frac}
+        )
     return Response(
         content=path.read_bytes(),
         media_type="image/png",

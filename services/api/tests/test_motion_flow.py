@@ -40,6 +40,33 @@ def test_recovers_known_translation() -> None:
     assert mean_v == pytest.approx(shift_y, abs=1.0)
 
 
+def test_consistency_keeps_coherent_motion_but_rejects_incoherent() -> None:
+    size = 96
+    prev = gaussian_blob_field(size, 40, 50)
+    coherent = gaussian_blob_field(size, 45, 47)  # clean translation
+    rng = np.random.default_rng(0)
+    incoherent = (prev + rng.normal(0, 0.5, prev.shape)).astype(np.float32)  # no real motion match
+
+    _, _, conf_ok = compute_flow(prev, coherent)
+    _, _, conf_bad = compute_flow(prev, incoherent)
+
+    signal = prev > 0.05
+    mean_ok = float((conf_ok * signal).sum() / max(signal.sum(), 1))
+    mean_bad = float((conf_bad * signal).sum() / max(signal.sum(), 1))
+    # Coherent motion survives the forward/backward check; incoherent collapses.
+    assert mean_ok > mean_bad
+    assert mean_ok > 0.05
+
+
+def test_median_rejects_outlier_vector() -> None:
+    from canwxlab_api.motion_flow import _median3x3
+
+    field = np.zeros((9, 9), dtype=np.float32)
+    field[4, 4] = 50.0  # lone spike
+    out = _median3x3(field)
+    assert out[4, 4] == 0.0  # median of neighborhood kills the outlier
+
+
 def test_zero_motion_yields_near_zero_flow() -> None:
     prev = gaussian_blob_field(128, 60, 60)
     u, v, conf = compute_flow(prev, prev.copy())
