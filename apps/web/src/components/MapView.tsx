@@ -29,6 +29,8 @@ import { Starfield, type StarProjection } from "./Starfield";
 import { StarInfoCard } from "./StarInfoCard";
 import type { Star } from "../lib/celestialSphere";
 import type { StarExposure } from "../layers/types";
+import { resolvePlaceAt } from "../lib/placeResolver";
+import type { SelectedEntity } from "../types/entities";
 import { createDiffBitmapLayer, type DiffOverlayPayload } from "../layers/renderers/diffBitmap";
 import {
   createSatelliteCompositeLayer,
@@ -131,6 +133,10 @@ interface MapViewProps {
   extraDeckLayers?: unknown[];
   /** Visible viewport as "west,south,east,north" lon/lat, for bbox-gated feeds. */
   onVisibleBboxChange?: (bbox: string | null) => void;
+  /** Fire when user clicks on a deck.gl entity (quake/aircraft) or place. */
+  onEntityClick?: (entity: SelectedEntity) => void;
+  /** Fire when user clicks on a star. */
+  onStarClick?: (star: Star) => void;
 }
 
 interface BasemapPreset {
@@ -564,6 +570,8 @@ export function MapView({
   satelliteInterpEnabled = false,
   extraDeckLayers,
   onVisibleBboxChange,
+  onEntityClick,
+  onStarClick,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -594,10 +602,14 @@ export function MapView({
   const onDiagnosticsRef = useRef(onDiagnostics);
   const prevDiagnosticsRef = useRef<string>("");
   const onCameraChangeRef = useRef(onCameraChange);
+  const onEntityClickRef = useRef(onEntityClick);
+  const onStarClickRef = useRef(onStarClick);
   useEffect(() => { onInspectRef.current = onInspect; });
   useEffect(() => { onGlobeSupportDetectedRef.current = onGlobeSupportDetected; });
   useEffect(() => { onDiagnosticsRef.current = onDiagnostics; });
   useEffect(() => { onCameraChangeRef.current = onCameraChange; });
+  useEffect(() => { onEntityClickRef.current = onEntityClick; });
+  useEffect(() => { onStarClickRef.current = onStarClick; });
 
   // Live camera + time refs for the celestial starfield (avoids React re-renders on every drag frame).
   const liveCameraRef = useRef<CameraState | null>(null);
@@ -634,7 +646,6 @@ export function MapView({
 
   // Last-frame star projections (CSS-pixel space) for click hit-testing.
   const starProjectionsRef = useRef<StarProjection[]>([]);
-  const [selectedStar, setSelectedStar] = useState<Star | null>(null);
 
   // ORBITAL-TODO: Auto-transition to OrbitalView when zoom drops below ~0. The MapLibre
   //   globe runs out of meaningful basemap below zoom 2; below zoom 0 we should hide MapLibre,
@@ -649,8 +660,6 @@ export function MapView({
   //   Sun position comes from /api/cosmic/ephemeris (Horizons-backed). Terminator is a
   //   great-circle 90° from the sub-solar point — draw with deck.gl GeoJsonLayer.
   void starProjectionsRef;
-  void selectedStar;
-  void setSelectedStar;
 
   const activeLayers = useMemo(
     () => layers.filter((layer) => {
@@ -1279,6 +1288,7 @@ export function MapView({
 
     const map = new maplibregl.Map(mapOptions);
     map.dragRotate.disable();
+    map.doubleClickZoom.disable();
     (map.touchZoomRotate as any)?.disableRotation?.();
 
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
@@ -1337,13 +1347,66 @@ export function MapView({
           if (d < hitRadius && (!best || d < best.dist)) best = { dist: d, star: p.star };
         }
         if (best) {
-          setSelectedStar(best.star);
+          onStarClickRef.current?.(best.star);
           return; // suppress normal inspect
         }
       }
+      // Deck.gl entity pick (quake, aircraft)
+      const deckInstance = (overlayRef.current as any)?._deck;
+      if (deckInstance) {
+        const picked = deckInstance.pickObject({ x: event.point.x, y: event.point.y, radius: 8 });
+        if (picked?.object && picked?.layer) {
+          const layerId: string = picked.layer.id ?? "";
+          const obj = picked.object;
+          if (layerId === "osint-quakes" && typeof obj.id === "string" && typeof obj.lon === "number") {
+            onEntityClickRef.current?.({
+              kind: "quake", id: obj.id,
+              lon: obj.lon, lat: obj.lat, data: obj,
+            });
+            return;
+          }
+          if (layerId === "osint-aircraft" && obj.state) {
+            const s = obj.state;
+            onEntityClickRef.current?.({
+              kind: "aircraft", id: s.id,
+              lon: s.lon, lat: s.lat, data: s,
+            });
+            return;
+          }
+        }
+      }
+      // Place resolution
       const longitude = event.lngLat.lng;
       const latitude = event.lngLat.lat;
-      inspectAtLocation(longitude, latitude, [event.point.x, event.point.y]);
+      const point: [number, number] = [event.point.x, event.point.y];
+      resolvePlaceAt(longitude, latitude, map, point).then((place) => {
+        if (place) {
+          onEntityClickRef.current?.({
+            kind: "place",
+            id: `place:${place.name}:${latitude.toFixed(3)},${longitude.toFixed(3)}`,
+            lon: longitude, lat: latitude, data: place,
+          });
+        } else {
+          inspectAtLocation(longitude, latitude, point);
+        }
+      });
+      return; // inspectAtLocation called async above if no place
+    });
+
+    map.on("dblclick", (event) => {
+      const deckInstance = (overlayRef.current as any)?._deck;
+      if (!deckInstance) return;
+      const picked = deckInstance.pickObject({ x: event.point.x, y: event.point.y, radius: 12 });
+      if (picked?.object && picked?.layer) {
+        const layerId: string = picked.layer.id ?? "";
+        if (layerId === "osint-aircraft" && picked.object.state) {
+          const s = picked.object.state;
+          onEntityClickRef.current?.({
+            kind: "aircraft", id: s.id,
+            lon: s.lon, lat: s.lat, data: s,
+          });
+        }
+      }
     });
 
     map.on("load", () => {
@@ -1610,7 +1673,6 @@ export function MapView({
           projectionsRef={starProjectionsRef}
         />
       )}
-      {selectedStar && <StarInfoCard star={selectedStar} onClose={() => setSelectedStar(null)} />}
       <div ref={containerRef} className="map-container" />
       {contextMenu && (
         <>
