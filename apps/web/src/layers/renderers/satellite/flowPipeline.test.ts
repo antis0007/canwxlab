@@ -23,6 +23,7 @@ function pairRequest(key: string, prevTimeMs: number, overrides: Partial<FlowPai
     prevTimeMs,
     nextTimeMs: prevTimeMs + MIN10,
     mercWidthM: 2_000_000,
+    prevMercBounds: [-1_000_000, -1_000_000, 1_000_000, 1_000_000],
     globalFlow: [0.01, 0, 0.8],
     visibleProduct: true,
     ...overrides,

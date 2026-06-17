@@ -314,6 +314,10 @@ export interface FlowPairRequest {
   nextTimeMs: number;
   /** Mercator width of the frame BBOX, for the native-resolution cap. */
   mercWidthM: number;
+  /** Exact mercator bounds of the pair's prev frame. The server motion field
+   * MUST be requested at these bounds so it co-registers with the frame the
+   * shader samples it against — otherwise the warp lands off the clouds. */
+  prevMercBounds: [number, number, number, number];
   /** Global motion seed [u, v, confidence]; zeros when not yet estimated. */
   globalFlow: [number, number, number];
   visibleProduct: boolean;

@@ -1284,6 +1284,7 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
           prevTimeMs: prev.timeMs,
           nextTimeMs: next.timeMs,
           mercWidthM: Math.abs(prev.mercBounds[2] - prev.mercBounds[0]),
+          prevMercBounds: prev.mercBounds,
           globalFlow: [globalFlow[0], globalFlow[1], globalFlow[2]],
           visibleProduct: visible,
         });
@@ -1301,12 +1302,11 @@ export class SatelliteCompositeLayer extends Layer<SatelliteCompositeLayerProps>
       if (!satellite) continue;
       this._serverFieldRequested.add(request.key);
       if (this._serverFieldRequested.size > 256) this._serverFieldRequested.clear();
-      const prevBounds = state.entries
-        .flatMap((e) => e.frameStore.activeFrames())
-        .find((f) => f.timeMs === request.prevTimeMs)?.mercBounds;
+      // Use the pair's OWN prev bounds (not a timeMs lookup across all grids,
+      // which could grab the base-band world frame and mis-register the flow).
       const url = motionFieldUrl({
         satellite,
-        mercBounds: prevBounds ?? [0, 0, 1, 1],
+        mercBounds: request.prevMercBounds,
         t0Ms: request.prevTimeMs,
         t1Ms: request.nextTimeMs,
       });
