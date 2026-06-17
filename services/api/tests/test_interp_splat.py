@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 from PIL import Image, ImageFilter
 
-from canwxlab_api.interp_splat import ForwardSplatInterpolator, _splat
+from canwxlab_api.interp_splat import ForwardSplatInterpolator, _splat, warp_midpoint
 
 MARGIN = 12
 
@@ -67,6 +67,27 @@ def test_splat_is_not_a_crossfade() -> None:
     err = np.abs(_interior(warped) - _interior(shifted)).mean()
     assert err < 6.0
     assert _interior(warped).std() > _interior(crossfade).std()
+
+
+def test_warp_midpoint_is_crackfree_and_moves_halfway() -> None:
+    size, shift = 96, 8
+    a = _texture(size)
+    b = np.roll(a, shift, axis=1)
+    ones = np.ones((size, size), dtype=np.float32)
+    # Uniform flow: a→b is +shift in x; b→a is -shift.
+    u_f = np.full((size, size), float(shift), np.float32)
+    u_b = np.full((size, size), float(-shift), np.float32)
+    z = np.zeros((size, size), np.float32)
+
+    mid = warp_midpoint(a, b, u_f, z, ones, u_b, z, ones)
+    ref_half = np.roll(a, shift // 2, axis=1).astype(np.float32)
+
+    err_half = np.abs(_interior(mid) - _interior(ref_half)).mean()
+    err_source = np.abs(_interior(mid) - _interior(a)).mean()
+    assert err_half < err_source       # content moved toward the midpoint
+    assert err_half < 4.0
+    # Crack-free: backward warp leaves no zero/black holes in the interior.
+    assert _interior(mid).min() > 0
 
 
 def test_static_scene_is_preserved_end_to_end() -> None:

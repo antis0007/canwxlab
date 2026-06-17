@@ -68,6 +68,55 @@ def _splat(
             np.add.at(flat_w, idx, wv)
 
 
+def _backward_warp(img: np.ndarray, fx: np.ndarray, fy: np.ndarray) -> np.ndarray:
+    """Bilinear backward warp: output(x) = img(x + (fx, fy)). Sampling (not
+    scatter) → no cracks or pile-ups, so no harsh seams at motion boundaries."""
+    h, w = img.shape[:2]
+    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
+    sx = np.clip(xs + fx, 0, w - 1.001)
+    sy = np.clip(ys + fy, 0, h - 1.001)
+    x0 = sx.astype(np.int64)
+    y0 = sy.astype(np.int64)
+    x1 = x0 + 1
+    y1 = y0 + 1
+    wx = sx - x0
+    wy = sy - y0
+    if img.ndim == 3:
+        wx = wx[..., None]
+        wy = wy[..., None]
+    top = img[y0, x0] * (1 - wx) + img[y0, x1] * wx
+    bot = img[y1, x0] * (1 - wx) + img[y1, x1] * wx
+    return top * (1 - wy) + bot * wy
+
+
+def warp_midpoint(
+    frame_a: np.ndarray,
+    frame_b: np.ndarray,
+    u_f: np.ndarray, v_f: np.ndarray, conf_f: np.ndarray,
+    u_b: np.ndarray, v_b: np.ndarray, conf_b: np.ndarray,
+) -> np.ndarray:
+    """Synthesize the t=0.5 frame by backward-warping BOTH frames to the
+    mid-time and blending by carried confidence.
+
+    Both warps place cloud content at the same intermediate position, so where
+    the flow is good they coincide and stay crisp (not a cross-fade); the blend
+    is confidence-weighted so the better-tracked frame dominates and disoccluded
+    regions (low confidence on one side) come from the other. Backward sampling
+    means the result has no splat cracks — the source of the "harsh lines".
+    """
+    a = frame_a.astype(np.float32)
+    b = frame_b.astype(np.float32)
+    # a moves +flow_f toward b; at t=0.5 sample a half-way back along its motion.
+    wa = _backward_warp(a, -0.5 * u_f, -0.5 * v_f)
+    wb = _backward_warp(b, -0.5 * u_b, -0.5 * v_b)
+    ca = _backward_warp(conf_f.astype(np.float32), -0.5 * u_f, -0.5 * v_f)
+    cb = _backward_warp(conf_b.astype(np.float32), -0.5 * u_b, -0.5 * v_b)
+    eps = 1e-3
+    alpha = ((ca + eps) / (ca + cb + 2 * eps))[..., None]
+    out = wa * alpha + wb * (1.0 - alpha)
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
 class ForwardSplatInterpolator:
     """Midpoint synthesis by confidence-weighted forward splatting."""
 
@@ -79,22 +128,9 @@ class ForwardSplatInterpolator:
         luma_b = _to_luma(b)
 
         # Bidirectional flow: a→b moves a's pixels forward; b→a moves b's. We
-        # already solve both directions here, so skip compute_flow's own
-        # forward/backward consistency pass (it would solve each direction
-        # twice). densify stays on for full-frame coverage.
+        # solve both directions here, so skip compute_flow's own forward/
+        # backward consistency pass. densify stays on for full-frame coverage.
         u_f, v_f, conf_f = compute_flow(luma_a, luma_b, consistency=False)
         u_b, v_b, conf_b = compute_flow(luma_b, luma_a, consistency=False)
-
-        acc_color = np.zeros((h, w, 3), dtype=np.float32)
-        acc_w = np.zeros((h, w), dtype=np.float32)
-        _splat(a, u_f, v_f, conf_f + _BASE_WEIGHT, 0.5, acc_color, acc_w)
-        _splat(b, u_b, v_b, conf_b + _BASE_WEIGHT, 0.5, acc_color, acc_w)
-
-        covered = acc_w > 1e-6
-        out = np.empty((h, w, 3), dtype=np.float32)
-        np.divide(acc_color, acc_w[..., None], out=out, where=covered[..., None])
-        # Disocclusion holes: fill from frame a (a single real source, not a
-        # fade). Rare once both frames splat with the baseline weight.
-        if not covered.all():
-            out[~covered] = a[~covered]
-        return np.clip(out, 0, 255).astype(np.uint8)
+        # Backward-warp synthesis (crack-free) rather than forward splat.
+        return warp_midpoint(a, b, u_f, v_f, conf_f, u_b, v_b, conf_b)

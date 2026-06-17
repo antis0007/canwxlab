@@ -18,7 +18,7 @@ import logging
 
 import numpy as np
 
-from canwxlab_api.interp_splat import _BASE_WEIGHT, _splat
+from canwxlab_api.interp_splat import warp_midpoint
 
 logger = logging.getLogger(__name__)
 
@@ -63,34 +63,27 @@ class RaftInterpolator:
         flow = preds[-1][0].permute(1, 2, 0).cpu().numpy()  # H,W,2 (u,v) px
         return flow[:h, :w, :]
 
-    def midpoint(self, frame_a: np.ndarray, frame_b: np.ndarray) -> np.ndarray:
-        a = np.ascontiguousarray(frame_a)
-        b = np.ascontiguousarray(frame_b)
-        h, w = a.shape[:2]
-        fwd = self._flow(a, b)
-        bwd = self._flow(b, a)
-        u_f, v_f = fwd[..., 0], fwd[..., 1]
-        u_b, v_b = bwd[..., 0], bwd[..., 1]
-
-        # Forward/backward consistency → confidence in [0,1]. Sample the backward
-        # flow at the forward-mapped position; a consistent match cancels.
+    @staticmethod
+    def _fb_confidence(
+        u_f: np.ndarray, v_f: np.ndarray, u_b: np.ndarray, v_b: np.ndarray
+    ) -> np.ndarray:
+        """Forward/backward consistency → [0,1]: sample the reverse flow at the
+        forward-mapped position; a true match cancels, occlusions don't."""
+        h, w = u_f.shape
         ys, xs = np.mgrid[0:h, 0:w]
         mx = np.clip(xs + u_f, 0, w - 1).astype(np.int64)
         my = np.clip(ys + v_f, 0, h - 1).astype(np.int64)
         fb = np.hypot(u_f + u_b[my, mx], v_f + v_b[my, mx])
-        conf_f = np.clip(1.0 - fb / 2.5, 0.05, 1.0).astype(np.float32)
-        conf_b = conf_f  # symmetric enough for splat weighting
+        return np.clip(1.0 - fb / 2.5, 0.05, 1.0).astype(np.float32)
 
-        acc_color = np.zeros((h, w, 3), dtype=np.float32)
-        acc_w = np.zeros((h, w), dtype=np.float32)
-        wf = (conf_f + _BASE_WEIGHT).astype(np.float32)
-        wb = (conf_b + _BASE_WEIGHT).astype(np.float32)
-        _splat(a, u_f.astype(np.float32), v_f.astype(np.float32), wf, 0.5, acc_color, acc_w)
-        _splat(b, u_b.astype(np.float32), v_b.astype(np.float32), wb, 0.5, acc_color, acc_w)
-
-        covered = acc_w > 1e-6
-        out = np.empty((h, w, 3), dtype=np.float32)
-        np.divide(acc_color, acc_w[..., None], out=out, where=covered[..., None])
-        if not covered.all():
-            out[~covered] = a[~covered]
-        return np.clip(out, 0, 255).astype(np.uint8)
+    def midpoint(self, frame_a: np.ndarray, frame_b: np.ndarray) -> np.ndarray:
+        a = np.ascontiguousarray(frame_a)
+        b = np.ascontiguousarray(frame_b)
+        fwd = self._flow(a, b)
+        bwd = self._flow(b, a)
+        u_f, v_f = fwd[..., 0].astype(np.float32), fwd[..., 1].astype(np.float32)
+        u_b, v_b = bwd[..., 0].astype(np.float32), bwd[..., 1].astype(np.float32)
+        conf_f = self._fb_confidence(u_f, v_f, u_b, v_b)
+        conf_b = self._fb_confidence(u_b, v_b, u_f, v_f)
+        # Crack-free backward-warp synthesis (no splat seams / harsh lines).
+        return warp_midpoint(a, b, u_f, v_f, conf_f, u_b, v_b, conf_b)
