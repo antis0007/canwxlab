@@ -3328,3 +3328,60 @@ input[type="number"]::-webkit-inner-spin-button {
   color: var(--wb-muted);
   font-size: 10px;
 }
+
+/* ===== WINDOW TRAY (minimized strip above timeline) ===== */
+.wb-tray {
+  position: fixed;
+  bottom: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: rgba(9, 13, 20, 0.88);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--wb-line);
+  border-radius: 4px;
+  z-index: 600;
+  max-width: calc(100vw - 48px);
+  overflow-x: auto;
+  scrollbar-width: none;
+  pointer-events: auto;
+}
+.wb-tray::-webkit-scrollbar { display: none; }
+.wb-tray-chip {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--wb-line);
+  border-radius: 3px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.wb-tray-chip-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--wb-panel);
+  color: var(--wb-text);
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.wb-tray-chip-btn:hover { background: var(--wb-panel-hi); color: var(--wb-accent); }
+.wb-tray-chip-icon { font-size: 11px; }
+.wb-tray-chip-close {
+  padding: 3px 5px;
+  background: transparent;
+  color: var(--wb-muted);
+  border: none;
+  border-left: 1px solid var(--wb-line);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.wb-tray-chip-close:hover { color: var(--wb-err); background: rgba(255,61,96,0.12); }
