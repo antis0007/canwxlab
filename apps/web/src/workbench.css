@@ -3385,3 +3385,7 @@ input[type="number"]::-webkit-inner-spin-button {
   line-height: 1;
 }
 .wb-tray-chip-close:hover { color: var(--wb-err); background: rgba(255,61,96,0.12); }
+
+/* ── Quake magnitude color ── */
+.wb-ep-quake-mag { color: var(--wb-warn); }
+.wb-ep-quake-mag.critical { color: var(--wb-err); }
