@@ -171,6 +171,21 @@ export class FrameStore {
     });
     if (scrubbing) wanted = wanted.slice(0, 2);
 
+    // Stop wasting bandwidth/decode on in-flight frames that are no longer
+    // wanted — the playhead drifted or the loop window shrank so they fell out
+    // of the prefetch set (old-grid and scrubbed-past fetches are aborted
+    // above; this catches the same-grid, still-on-screen-grid-but-out-of-window
+    // case). Base-band archive fetches are exempt (separate cheap budget).
+    const wantedSet = new Set(wanted);
+    for (const [key, request] of Array.from(this.inFlight)) {
+      if (key.startsWith(BASE_BAND_GRID_KEY)) continue;
+      if (!key.startsWith(gridKey)) continue;
+      if (!wantedSet.has(request.timeMs)) {
+        request.controller.abort();
+        this.inFlight.delete(key);
+      }
+    }
+
     for (const timeMs of wanted) {
       if (this.inFlight.size >= MAX_IN_FLIGHT_PER_SATELLITE) break;
       const key = frameMapKey(gridKey, timeMs);

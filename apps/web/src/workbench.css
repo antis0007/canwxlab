@@ -966,6 +966,27 @@ details.wb-section[open] > summary .wb-section-chevron {
   to   { background-position: -200% 0; }
 }
 
+/* Indeterminate: a fixed-width segment sweeps across the track when there is
+   no measurable progress yet, so the bar always reads as actively working. */
+.wb-satellite-loading-track.is-indeterminate .wb-satellite-loading-fill {
+  width: 35%;
+  transition: none;
+  animation: wb-sat-loading-shimmer 1.4s linear infinite,
+             wb-sat-loading-sweep 1.15s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes wb-sat-loading-sweep {
+  from { transform: translateX(-120%); }
+  to   { transform: translateX(320%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-satellite-loading-fill { animation: none; }
+  .wb-satellite-loading-track.is-indeterminate .wb-satellite-loading-fill {
+    width: 100%; animation: none;
+  }
+}
+
 .wb-satellite-loading-meta {
   display: flex;
   align-items: center;

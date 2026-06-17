@@ -605,6 +605,15 @@ export default function App() {
     return `Loading satellite imagery — ${satelliteLoadingPercent}%`;
   }, [satelliteLoadingState, satelliteLoadingPercent]);
 
+  // Indeterminate while there is no measurable progress yet (fetching the first
+  // frames / computing flow): show a moving stripe so the bar reads as active
+  // instead of a frozen 0% sliver.
+  const satelliteLoadingIndeterminate = Boolean(
+    satelliteLoadingState
+      && satelliteLoadingState.phase !== "ready"
+      && satelliteLoadingPercent < 3,
+  );
+
   const showSatelliteLoading = Boolean(
     satelliteLoadingState
       && satelliteLoadingState.totalSatellites > 0
@@ -1140,15 +1149,15 @@ export default function App() {
           {showSatelliteLoading && satelliteLoadingState && (
             <div className="wb-satellite-loading" role="status" aria-live="polite">
               <div
-                className="wb-satellite-loading-track"
+                className={`wb-satellite-loading-track${satelliteLoadingIndeterminate ? " is-indeterminate" : ""}`}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-valuenow={satelliteLoadingPercent}
+                aria-valuenow={satelliteLoadingIndeterminate ? undefined : satelliteLoadingPercent}
                 role="progressbar"
               >
                 <div
                   className="wb-satellite-loading-fill"
-                  style={{ width: `${satelliteLoadingPercent}%` }}
+                  style={satelliteLoadingIndeterminate ? undefined : { width: `${satelliteLoadingPercent}%` }}
                 />
               </div>
               <div className="wb-satellite-loading-meta">

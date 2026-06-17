@@ -97,6 +97,29 @@ describe("FrameStore", () => {
     expect(mainCalls(fetchFrame).length).toBe(10);
   });
 
+  it("aborts in-flight fetches that fall out of the loop window (same grid, no scrub)", async () => {
+    const signals = new Map<number, AbortSignal>();
+    const fetchFrame = vi.fn((req: FrameFetchRequest) => {
+      if (req.mercBounds[0] >= -19_000_000) signals.set(req.timeMs, req.signal); // main band only
+      return new Promise<never>(() => {}); // stay in-flight so we can observe abort
+    });
+    const { store } = makeStore({ fetchFrame });
+    const view = { ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] as [number, number, number, number] };
+
+    // Playhead at times[9], full window → fetches around times[9] start and stay
+    // pending (9,10,8,11,12,7 within the 6 in-flight budget).
+    store.update({ ...view, playheadMs: times[9] });
+    expect(signals.has(times[8])).toBe(true);
+
+    // Same grid, same playhead (no scrub), but shrink the window to [9,10].
+    store.update({ ...view, playheadMs: times[9], loopStartMs: times[9], loopEndMs: times[10] });
+
+    // Out-of-window in-flight aborted; still-wanted ones kept.
+    expect(signals.get(times[8])!.aborted).toBe(true);
+    expect(signals.get(times[7])!.aborted).toBe(true);
+    expect(signals.get(times[9])!.aborted).toBe(false);
+  });
+
   it("framesAt returns the bracketing pair for a mid-interval time", async () => {
     const { store } = makeStore();
     store.update({ ...baseUpdate, viewBounds: [-9e6, 4e6, -7e6, 5.5e6] });
