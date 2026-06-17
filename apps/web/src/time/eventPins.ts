@@ -15,6 +15,8 @@ export interface TimelineEventPin {
   label: string;
   kind: EventPinKind;
   severity: EventPinSeverity;
+  lon?: number;
+  lat?: number;
 }
 
 export interface PlacedEventPin extends TimelineEventPin {
@@ -41,6 +43,8 @@ export function quakesToPins(quakes: QuakeEvent[], minMagnitude = 4.5): Timeline
       kind: "quake",
       // ≥6.0 is a serious quake; flag it critical.
       severity: q.magnitude >= 6.0 ? "critical" : "warning",
+      lon: q.lon,
+      lat: q.lat,
     });
   }
   return pins;

@@ -32,7 +32,11 @@ export function quakeColor(magnitude: number, eventTimeMs: number, nowMs: number
   return [255, 215, 90, alpha];
 }
 
-export function createQuakeLayer(quakes: QuakeEvent[], nowMs: number) {
+export function createQuakeLayer(
+  quakes: QuakeEvent[],
+  nowMs: number,
+  opts?: { onPick?: (q: QuakeEvent) => void },
+) {
   if (quakes.length === 0) return null;
   return new ScatterplotLayer<QuakeEvent>({
     id: "osint-quakes",
@@ -50,6 +54,7 @@ export function createQuakeLayer(quakes: QuakeEvent[], nowMs: number) {
     filled: true,
     radiusUnits: "meters",
     pickable: true,
+    onClick: opts?.onPick ? (info) => { if (info.object) opts.onPick!(info.object); return true; } : undefined,
   });
 }
 
@@ -104,7 +109,11 @@ export function buildAircraftDarts(states: AircraftState[], nowMs: number, headi
   });
 }
 
-export function createAircraftLayers(states: AircraftState[], nowMs: number) {
+export function createAircraftLayers(
+  states: AircraftState[],
+  nowMs: number,
+  opts?: { onPick?: (s: AircraftState) => void },
+) {
   if (states.length === 0) return [];
   const darts = buildAircraftDarts(states, nowMs);
   return [
@@ -125,6 +134,9 @@ export function createAircraftLayers(states: AircraftState[], nowMs: number) {
       getRadius: 3.5,
       radiusUnits: "pixels",
       pickable: true,
+      onClick: opts?.onPick
+        ? (info) => { if (info.object) opts.onPick!(info.object.state); return true; }
+        : undefined,
     }),
   ];
 }
