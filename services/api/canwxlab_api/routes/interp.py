@@ -40,6 +40,7 @@ from canwxlab_api.frame_interp import (
     synthesize_sequence,
 )
 from canwxlab_api.routes.eccc import get_wms_image
+from canwxlab_api.routes.motion import _snap_to_source_grid
 
 logger = logging.getLogger(__name__)
 
@@ -93,10 +94,16 @@ async def _ensure_synthesized(
             return out_dir
 
         interp = load_interpolator()  # raises InterpUnavailable if absent
-        frame_a, frame_b = await asyncio.gather(
-            _fetch_rgb(layer, bbox, size, t0, adapter),
-            _fetch_rgb(layer, bbox, size, t1, adapter),
-        )
+        try:
+            frame_a, frame_b = await asyncio.gather(
+                _fetch_rgb(layer, bbox, size, t0, adapter),
+                _fetch_rgb(layer, bbox, size, t1, adapter),
+            )
+        except HTTPException as exc:
+            # A keyframe is unavailable (e.g. off-grid time after snapping, or a
+            # data gap). Degrade so the client keeps the morph instead of a hard
+            # error / blank pair.
+            raise InterpUnavailable(f"source frame unavailable: {exc.detail}") from exc
         # Model synthesis is GPU/CPU heavy — keep it off the event loop.
         sequence = await asyncio.to_thread(synthesize_sequence, frame_a, frame_b, depth, interp)
 
@@ -121,6 +128,10 @@ async def interp_manifest(
     adapter: WeatherSourceAdapter = Depends(get_source_adapter),
 ) -> dict[str, Any]:
     settings = get_settings()
+    # Snap to the product's published time grid; the client's frame times rarely
+    # land exactly on it and GeoMet rejects off-grid times ("time outside valid
+    # hours") → otherwise the pair fails and no animation is produced.
+    t0, t1 = await _snap_to_source_grid(layer, t0, t1, adapter)
     try:
         t0_ms = _iso_to_ms(t0)
         t1_ms = _iso_to_ms(t1)
@@ -163,6 +174,9 @@ async def interp_frame(
     adapter: WeatherSourceAdapter = Depends(get_source_adapter),
 ) -> Response:
     settings = get_settings()
+    # Same grid snap as the manifest so the cache key matches (idempotent for
+    # the already-snapped times the manifest's frame URLs carry).
+    t0, t1 = await _snap_to_source_grid(layer, t0, t1, adapter)
     try:
         out_dir = await _ensure_synthesized(
             layer, bbox, size, t0, t1, depth, settings.cache_dir, adapter
