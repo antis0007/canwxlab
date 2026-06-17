@@ -65,6 +65,8 @@ interface BottomTimelineProps {
   eventPins?: PlacedEventPin[];
   /** Seek to an event's time when its pin is clicked. */
   onSeekToTime?: (timeMs: number) => void;
+  /** Fired when an event pin is clicked (allows fly-to for quakes). */
+  onPinClick?: (pin: PlacedEventPin) => void;
   timelineState: PlanetaryTimelineState;
   solarReference?: {
     latitude: number;
@@ -377,6 +379,7 @@ export function BottomTimeline({
   bufferedRanges = [],
   eventPins = [],
   onSeekToTime,
+  onPinClick,
   timelineState,
   solarReference,
 }: BottomTimelineProps) {
@@ -736,7 +739,11 @@ export function BottomTimeline({
               style={{ left: `${pin.leftPct}%` }}
               title={`${pin.label} · ${new Date(pin.timeMs).toISOString().slice(0, 16).replace("T", " ")}Z`}
               aria-label={`Jump to event: ${pin.label}`}
-              onClick={(e) => { e.stopPropagation(); onSeekToTime?.(pin.timeMs); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSeekToTime?.(pin.timeMs);
+                onPinClick?.(pin);
+              }}
             />
           ))}
 

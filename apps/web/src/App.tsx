@@ -12,6 +12,15 @@ import { LeftSidebar } from "./components/workbench/LeftSidebar";
 import { RightInspector } from "./components/workbench/RightInspector";
 import { TopBar } from "./components/workbench/TopBar";
 import { HourlyForecastPanel } from "./components/workbench/HourlyForecastPanel";
+import { useSelection } from "./hooks/useSelection";
+import { useWindowManager } from "./hooks/useWindowManager";
+import type { SelectedEntity } from "./types/entities";
+import { createSelectionPinLayer } from "./layers/renderers/selectionPin";
+import { WindowTray } from "./components/WindowTray";
+import { QuakeDetailPanel } from "./components/panels/QuakeDetailPanel";
+import { AircraftDetailPanel } from "./components/panels/AircraftDetailPanel";
+import { PlaceDetailPanel } from "./components/panels/PlaceDetailPanel";
+import { StarInfoCard } from "./components/StarInfoCard";
 import { useAnimationTimeline } from "./layers/animation";
 import { useLayerEngine } from "./layers/layerEngine";
 import type { CameraState, LayerDefinition, LayerDiagnostics, LayerRuntimeState, RendererFeatureValue, ViewMode } from "./layers/types";
@@ -295,6 +304,35 @@ function buildTimelineWarningRanges(input: {
 export default function App() {
   useAppLogging();
 
+  // ── PKM Window Manager hooks ────────────────────────────────────────────
+  const selectionApi = useSelection();
+  const wm = useWindowManager();
+  const [panelExtraLayersMap, setPanelExtraLayersMap] = useState<Map<string, unknown[]>>(new Map());
+
+  const handlePanelExtraLayers = useCallback((id: string, layers: unknown[]) => {
+    setPanelExtraLayersMap((prev) => {
+      const next = new Map(prev);
+      if (layers.length === 0) next.delete(id);
+      else next.set(id, layers);
+      return next;
+    });
+  }, []);
+
+  const handleEntityClick = useCallback((entity: SelectedEntity) => {
+    selectionApi.select(entity);
+    wm.open(entity);
+  }, [selectionApi, wm]);
+
+  const handleFlyTo = useCallback((lon: number, lat: number, zoom = 8) => {
+    setCameraTarget({
+      longitude: lon,
+      latitude: lat,
+      zoom,
+      bearing: 0,
+      pitch: 0,
+    });
+  }, []);
+
   const [sourceReport, setSourceReport] = useState<SourceStatusResponse | null>(null);
   const [sources, setSources] = useState<DataSource[]>(fallbackSources);
   const [backendLayers, setBackendLayers] = useState<WeatherLayer[]>(fallbackLayers);
@@ -359,11 +397,15 @@ export default function App() {
   const osintLayers = useMemo(() => {
     const layers: unknown[] = [];
     if (osintQuakesEnabled) {
-      const layer = createQuakeLayer(quakeFeedState.events, osintNowMs);
+      const layer = createQuakeLayer(quakeFeedState.events, osintNowMs, {
+        onPick: (q) => handleEntityClick({ kind: "quake", id: q.id, lon: q.lon, lat: q.lat, data: q }),
+      });
       if (layer) layers.push(layer);
     }
     if (osintAircraftEnabled) {
-      layers.push(...createAircraftLayers(aircraftFeedState.events, osintNowMs));
+      layers.push(...createAircraftLayers(aircraftFeedState.events, osintNowMs, {
+        onPick: (s) => handleEntityClick({ kind: "aircraft", id: s.id, lon: s.lon, lat: s.lat, data: s }),
+      }));
     }
     if (osintOrbitsEnabled) {
       layers.push(...createOrbitLayers(orbitFeedState.events, osintNowMs));
@@ -372,6 +414,7 @@ export default function App() {
   }, [
     osintQuakesEnabled, osintAircraftEnabled, osintOrbitsEnabled,
     quakeFeedState.events, aircraftFeedState.events, orbitFeedState.events, osintNowMs,
+    handleEntityClick,
   ]);
   const [globeSupported, setGlobeSupported] = useState(false);
   const [globeCapabilityChecked, setGlobeCapabilityChecked] = useState(false);
@@ -454,6 +497,19 @@ export default function App() {
       TIMELINE_FRAME_INTERVAL_MS,
     ));
   }, [setFrame, playbackState.timelineState.replayStartMs, playbackState.frameCount]);
+
+  const seekToPin = useCallback((pin: import("./time/eventPins").PlacedEventPin) => {
+    seekToTime(pin.timeMs);
+    if (pin.lon !== undefined && pin.lat !== undefined && pin.kind === "quake") {
+      handleFlyTo(pin.lon, pin.lat, 7);
+    }
+  }, [seekToTime, handleFlyTo]);
+
+  const extraDeckLayers = useMemo(() => {
+    const panelLayers = Array.from(panelExtraLayersMap.values()).flat();
+    const pinLayer = createSelectionPinLayer(selectionApi.selection);
+    return [...osintLayers, ...panelLayers, ...(pinLayer ? [pinLayer] : [])];
+  }, [osintLayers, panelExtraLayersMap, selectionApi.selection]);
 
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
@@ -1218,8 +1274,16 @@ export default function App() {
             satelliteReadinessRef={satelliteReadinessRef}
             motionVectorsVisible={motionVectorsVisible}
             satelliteInterpEnabled={satelliteInterpEnabled}
-            extraDeckLayers={osintLayers}
+            extraDeckLayers={extraDeckLayers}
             onVisibleBboxChange={setViewBboxString}
+            onEntityClick={handleEntityClick}
+            onStarClick={(star) => handleEntityClick({
+              kind: "star",
+              id: `star:${star.name}`,
+              lon: 0,
+              lat: 0,
+              data: star,
+            })}
           />
 
           {areaSelectMode && (
@@ -1322,6 +1386,7 @@ export default function App() {
             bufferedRanges={satelliteBufferedRanges}
             eventPins={eventPins}
             onSeekToTime={seekToTime}
+            onPinClick={seekToPin}
             timelineState={playbackState.timelineState}
             solarReference={timelineSolarReference}
           />
@@ -1402,6 +1467,67 @@ export default function App() {
             }}
           />
         )}
+
+      {/* PKM Window Manager */}
+      <WindowTray wm={wm} />
+      {wm.windows.map((win) => {
+        if (win.minimized) return null;
+        if (win.kind === "quake") {
+          const entity = win.entity as SelectedEntity & { kind: "quake" };
+          return (
+            <QuakeDetailPanel
+              key={win.id}
+              entity={entity}
+              wm={wm}
+              win={win}
+              onSeekToTime={seekToTime}
+              onFlyTo={handleFlyTo}
+            />
+          );
+        }
+        if (win.kind === "aircraft") {
+          const entity = win.entity as SelectedEntity & { kind: "aircraft" };
+          return (
+            <AircraftDetailPanel
+              key={win.id}
+              entity={entity}
+              wm={wm}
+              win={win}
+              liveStates={aircraftFeedState.events}
+              nowMs={osintNowMs}
+              onFlyTo={handleFlyTo}
+              onExtraLayers={handlePanelExtraLayers}
+            />
+          );
+        }
+        if (win.kind === "place") {
+          const entity = win.entity as SelectedEntity & { kind: "place" };
+          return (
+            <PlaceDetailPanel
+              key={win.id}
+              entity={entity}
+              wm={wm}
+              win={win}
+              onFlyTo={handleFlyTo}
+              onInspectWeather={(lon, lat) => {
+                setCameraTarget({ longitude: lon, latitude: lat, zoom: 8, bearing: 0, pitch: 0 });
+              }}
+            />
+          );
+        }
+        if (win.kind === "star") {
+          const entity = win.entity as SelectedEntity & { kind: "star" };
+          return (
+            <StarInfoCard
+              key={win.id}
+              star={entity.data}
+              wm={wm}
+              win={win}
+            />
+          );
+        }
+        return null;
+      })}
       </section>
     </main>
   );
