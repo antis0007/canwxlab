@@ -314,10 +314,15 @@ export class FrameStore {
     }
 
     if (mainFrames.length > MAX_RETAINED_FRAMES) {
+      // Protect frames near the playhead for BOTH the current grid and the one
+      // just left, so a zoom round-trip (out then back in) reuses already-loaded
+      // higher-fidelity imagery instead of refetching it.
+      const nearPlayhead = (t: number) =>
+        Math.abs(t - playheadMs) <= this.options.frameIntervalMs * 2;
       const candidates = mainFrames.map((frame) => ({
         timeMs: frame.timeMs,
-        protected: frame.gridKey === this.currentGridKey
-          && Math.abs(frame.timeMs - playheadMs) <= this.options.frameIntervalMs * 2,
+        protected: nearPlayhead(frame.timeMs)
+          && (frame.gridKey === this.currentGridKey || frame.gridKey === this.previousGridKey),
         frame,
       }));
 
