@@ -54,7 +54,7 @@ export function createQuakeLayer(
     filled: true,
     radiusUnits: "meters",
     pickable: true,
-    onClick: opts?.onPick ? (info) => { if (info.object) opts.onPick!(info.object); return true; } : undefined,
+    onClick: opts?.onPick ? (info) => { if (info.object) opts?.onPick?.(info.object); return true; } : undefined,
   });
 }
 
@@ -135,7 +135,7 @@ export function createAircraftLayers(
       radiusUnits: "pixels",
       pickable: true,
       onClick: opts?.onPick
-        ? (info) => { if (info.object) opts.onPick!(info.object.state); return true; }
+        ? (info) => { if (info.object) opts?.onPick?.(info.object.state); return true; }
         : undefined,
     }),
   ];

@@ -1389,6 +1389,9 @@ export function MapView({
         } else {
           inspectAtLocation(longitude, latitude, point);
         }
+      }).catch(() => {
+        // Network error or abort: fall through to weather inspect
+        inspectAtLocation(longitude, latitude, point);
       });
       return; // inspectAtLocation called async above if no place
     });
