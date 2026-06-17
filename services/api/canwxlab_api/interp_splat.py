@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from canwxlab_api.motion_flow import compute_flow
+from canwxlab_api.motion_flow import _blur, compute_flow
 
 # Baseline weight so zero-confidence pixels still deposit (avoids holes); real
 # confidence rides on top so trustworthy motion dominates overlaps.
@@ -89,6 +89,28 @@ def _backward_warp(img: np.ndarray, fx: np.ndarray, fy: np.ndarray) -> np.ndarra
     return top * (1 - wy) + bot * wy
 
 
+# Cloud fields at a global satellite view move coherently; raw optical flow has
+# noisy local spikes that read as unnatural fast motion in small areas. Low-pass
+# the field so motion is system-scale (this averages spikes into the coherent
+# flow while leaving large-scale translation intact); a generous magnitude cap
+# is only an outlier safety net.
+_MAX_DISP_FRAC = 0.12
+_SMOOTH_FRAC = 0.04
+
+
+def regularize_flow(u: np.ndarray, v: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Low-pass a flow field so motion is globally coherent (no localized
+    over-fast warping); clamp gross outliers as a safety net."""
+    h, w = u.shape
+    sigma = max(1.0, _SMOOTH_FRAC * min(h, w))
+    su = _blur(u, sigma)
+    sv = _blur(v, sigma)
+    mag = np.hypot(su, sv)
+    cap = _MAX_DISP_FRAC * min(h, w)
+    scale = np.minimum(1.0, cap / np.maximum(mag, 1e-3)).astype(np.float32)
+    return (su * scale).astype(np.float32), (sv * scale).astype(np.float32)
+
+
 def warp_midpoint(
     frame_a: np.ndarray,
     frame_b: np.ndarray,
@@ -106,13 +128,21 @@ def warp_midpoint(
     """
     a = frame_a.astype(np.float32)
     b = frame_b.astype(np.float32)
+    # Regularize so localized spikes don't warp fast/unnaturally.
+    u_f, v_f = regularize_flow(u_f, v_f)
+    u_b, v_b = regularize_flow(u_b, v_b)
     # a moves +flow_f toward b; at t=0.5 sample a half-way back along its motion.
     wa = _backward_warp(a, -0.5 * u_f, -0.5 * v_f)
     wb = _backward_warp(b, -0.5 * u_b, -0.5 * v_b)
     ca = _backward_warp(conf_f.astype(np.float32), -0.5 * u_f, -0.5 * v_f)
     cb = _backward_warp(conf_b.astype(np.float32), -0.5 * u_b, -0.5 * v_b)
     eps = 1e-3
-    alpha = ((ca + eps) / (ca + cb + 2 * eps))[..., None]
+    alpha = (ca + eps) / (ca + cb + 2 * eps)
+    # Smooth the blend weight: raw per-pixel confidence is patchy, so a hard
+    # alpha cuts oval blob seams with sharp colour boundaries between the two
+    # warped frames. Low-passing alpha makes the cross-over gradual and seamless.
+    h, w = u_f.shape
+    alpha = _blur(alpha, max(1.0, 0.05 * min(h, w)))[..., None]
     out = wa * alpha + wb * (1.0 - alpha)
     return np.clip(out, 0, 255).astype(np.uint8)
 
