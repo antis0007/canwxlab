@@ -1,16 +1,11 @@
 import type { Star } from "../lib/celestialSphere";
-import { DraggablePanel } from "./DraggablePanel";
-
-// COSMIC-TODO(A): On open, fire a debounced fetch to the API:
-//   GET /api/cosmic/star/{hipId}        → richer Hipparcos/Gaia astrometry
-//   GET /api/cosmic/exoplanets/{host}   → NASA Exoplanet Archive live results
-// Show a small "loading…" spinner while in flight; cache responses per session.
-// Render extra fields when present (parallax, radial velocity, age, metallicity).
-// See docs/cosmic-scope-roadmap.md §3.2 and §9 Phase A.
+import type { WindowManager, ManagedWindow } from "../hooks/useWindowManager";
+import { WindowShell } from "./WindowShell";
 
 interface StarInfoCardProps {
   star: Star;
-  onClose: () => void;
+  wm: WindowManager;
+  win: ManagedWindow;
 }
 
 function fmt(n: number | undefined, digits = 2): string {
@@ -19,51 +14,52 @@ function fmt(n: number | undefined, digits = 2): string {
   return n.toFixed(digits);
 }
 
-export function StarInfoCard({ star, onClose }: StarInfoCardProps) {
+export function StarInfoCard({ star, wm, win }: StarInfoCardProps) {
   const simbadQuery = encodeURIComponent(star.name);
   const wikiQuery = encodeURIComponent(star.name + " (star)");
 
   return (
-    <DraggablePanel
+    <WindowShell
+      id={win.id}
       title={star.name}
-      subtitle={star.bayer ? `${star.bayer}${star.constellation ? ` · ${star.constellation}` : ""}` : null}
-      onClose={onClose}
-      storageKey="star-info"
-      width={300}
-      defaultPosition={{ x: typeof window !== "undefined" ? Math.max(24, window.innerWidth - 320) : 24, y: 60 }}
-      className="wb-star-card"
-      ariaLabel={`Star info: ${star.name}`}
+      subtitle={star.bayer ? `${star.bayer}${star.constellation ? ` · ${star.constellation}` : ""}` : undefined}
+      icon="★"
+      zIndex={win.zIndex}
+      initialPosition={win.position}
+      initialSize={win.size}
+      onClose={() => wm.close(win.id)}
+      onMinimize={() => wm.minimize(win.id)}
+      onFocus={() => wm.bringToFront(win.id)}
+      onMove={(pos) => wm.move(win.id, pos)}
+      onResize={(size) => wm.resize(win.id, size)}
+      wm={wm}
     >
-      <dl className="wb-star-card-grid">
-        <dt>App. mag</dt>           <dd>{fmt(star.mag)}</dd>
-        <dt>Distance</dt>           <dd>{star.distanceLy != null ? `${fmt(star.distanceLy, 1)} ly` : "—"}</dd>
-        <dt>Spectral</dt>           <dd>{star.spectralType ?? "—"}</dd>
-        <dt>Mass</dt>               <dd>{star.massSolar != null ? `${fmt(star.massSolar)} M☉` : "—"}</dd>
-        <dt>Radius</dt>             <dd>{star.radiusSolar != null ? `${fmt(star.radiusSolar)} R☉` : "—"}</dd>
-        <dt>Luminosity</dt>         <dd>{star.luminositySolar != null ? `${fmt(star.luminositySolar, 0)} L☉` : "—"}</dd>
-        <dt>RA</dt>                 <dd>{fmt(star.ra, 3)}°</dd>
-        <dt>Dec</dt>                <dd>{fmt(star.dec, 3)}°</dd>
+      <dl className="wb-ep-grid">
+        <dt>App. mag</dt>   <dd>{fmt(star.mag)}</dd>
+        <dt>Distance</dt>   <dd>{star.distanceLy != null ? `${fmt(star.distanceLy, 1)} ly` : "—"}</dd>
+        <dt>Spectral</dt>   <dd>{star.spectralType ?? "—"}</dd>
+        <dt>Mass</dt>       <dd>{star.massSolar != null ? `${fmt(star.massSolar)} M☉` : "—"}</dd>
+        <dt>Radius</dt>     <dd>{star.radiusSolar != null ? `${fmt(star.radiusSolar)} R☉` : "—"}</dd>
+        <dt>Luminosity</dt> <dd>{star.luminositySolar != null ? `${fmt(star.luminositySolar, 0)} L☉` : "—"}</dd>
+        <dt>RA</dt>         <dd>{fmt(star.ra, 3)}°</dd>
+        <dt>Dec</dt>        <dd>{fmt(star.dec, 3)}°</dd>
         {star.hostsExoplanets && (
           <>
             <dt>Exoplanets</dt>
-            <dd>{star.exoplanets?.length ? star.exoplanets.join(", ") : "Confirmed (per NASA Exoplanet Archive)"}</dd>
+            <dd>{star.exoplanets?.length ? star.exoplanets.join(", ") : "Confirmed (per NASA)"}</dd>
           </>
         )}
       </dl>
 
-      {star.notes && <p className="wb-star-card-notes">{star.notes}</p>}
+      {star.notes && <p style={{ fontSize: 10, color: "var(--wb-muted)", marginTop: 6 }}>{star.notes}</p>}
 
-      <footer className="wb-star-card-links">
+      <div className="wb-ep-links">
         <a href={`https://simbad.u-strasbg.fr/simbad/sim-basic?Ident=${simbadQuery}`} target="_blank" rel="noreferrer">SIMBAD</a>
         <a href={`https://en.wikipedia.org/wiki/Special:Search?search=${wikiQuery}`} target="_blank" rel="noreferrer">Wikipedia</a>
         {star.hostsExoplanets && (
-          <a
-            href={`https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=PSCompPars&constraint=hostname%20like%20%27${simbadQuery}%27`}
-            target="_blank"
-            rel="noreferrer"
-          >NASA Exoplanet Archive</a>
+          <a href={`https://exoplanetarchive.ipac.caltech.edu/cgi-bin/TblView/nph-tblView?app=ExoTbls&config=PSCompPars&constraint=hostname%20like%20%27${simbadQuery}%27`} target="_blank" rel="noreferrer">NASA Exoplanet Archive</a>
         )}
-      </footer>
-    </DraggablePanel>
+      </div>
+    </WindowShell>
   );
 }
