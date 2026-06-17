@@ -147,9 +147,87 @@ def _upsample_flow(u: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
     return np.asarray(img, dtype=np.float32)
 
 
+SOLID_CONF = 0.08
+
+
+def _box1d(arr: np.ndarray, radius: int, axis: int) -> np.ndarray:
+    """Edge-padded moving average along one axis via integral image (O(n))."""
+    n = arr.shape[axis]
+    pad = [(0, 0)] * arr.ndim
+    pad[axis] = (radius, radius)
+    padded = np.pad(arr, pad, mode="edge")
+    cs = np.cumsum(padded, axis=axis, dtype=np.float32)
+    zero_shape = list(cs.shape)
+    zero_shape[axis] = 1
+    cs = np.concatenate([np.zeros(zero_shape, dtype=np.float32), cs], axis=axis)
+    hi = [slice(None)] * arr.ndim
+    lo = [slice(None)] * arr.ndim
+    hi[axis] = slice(2 * radius + 1, 2 * radius + 1 + n)
+    lo[axis] = slice(0, n)
+    return (cs[tuple(hi)] - cs[tuple(lo)]) / (2 * radius + 1)
+
+
+def _blur(arr: np.ndarray, sigma: float, passes: int = 3) -> np.ndarray:
+    """Separable box blur repeated `passes` times — a fast Gaussian approx in
+    pure NumPy (PIL GaussianBlur rejects float 'F' images here)."""
+    radius = max(1, int(round(sigma)))
+    out = arr.astype(np.float32)
+    for _ in range(passes):
+        out = _box1d(out, radius, 0)
+        out = _box1d(out, radius, 1)
+    return out
+
+
+def densify_flow(
+    u: np.ndarray, v: np.ndarray, conf: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Fill the flow into low-confidence regions so the whole frame has a motion
+    vector — not just the strongly-textured patches LK trusts.
+
+    LK confidence collapses in smooth cloud interiors and clear sky, leaving
+    most of the frame at zero flow. The morph shader then freezes those pixels
+    (hard frame switch), so only small patches animate and the rest looks static
+    and jumpy. We diffuse the confident flow outward by normalized convolution
+    (Gaussian-weighted by confidence) and apply a confidence floor wherever
+    confident motion exists nearby, so the morph advects continuously across the
+    frame. High-confidence pixels are kept exactly (motion is not smeared where
+    LK already knows it).
+    """
+    w = np.clip(conf, 0.0, 1.0).astype(np.float32)
+    sigma = max(2.0, min(u.shape) / 16.0)
+    denom = _blur(w, sigma) + 1e-4
+    filled_u = _blur(u * w, sigma) / denom
+    filled_v = _blur(v * w, sigma) / denom
+    coverage = _blur(w, sigma)  # ~local mean confidence in [0,1]
+
+    # Smooth blend (no hard threshold) between measured flow where LK is
+    # confident and diffused flow where it is not. A hard mask would leave sharp
+    # seams along confidence edges — visible as crisp warping boundaries; the
+    # smoothstep ramp makes the field continuous so the warp has no seams.
+    t = np.clip(w / SOLID_CONF, 0.0, 1.0)
+    trust = (t * t * (3.0 - 2.0 * t)).astype(np.float32)
+    out_u = (filled_u * (1.0 - trust) + u * trust).astype(np.float32)
+    out_v = (filled_v * (1.0 - trust) + v * trust).astype(np.float32)
+    # Floor (0.06) clears the shader's static gate so the morph engages where
+    # real motion is nearby; capped (0.45) so diffused motion is applied gently.
+    # Only where confident flow actually exists nearby (coverage > eps) — a
+    # globally featureless field stays zero-confidence (clear sky / water must
+    # not be coaxed into motion; the background mask keeps it still).
+    filled_conf = np.where(
+        coverage > 0.01, np.clip(coverage * 1.5, 0.06, 0.45), 0.0
+    ).astype(np.float32)
+    out_conf = (filled_conf * (1.0 - trust) + w * trust).astype(np.float32)
+    return out_u, out_v, out_conf
+
+
 def compute_flow(prev: np.ndarray, nxt: np.ndarray,
-                 levels: int = PYRAMID_LEVELS) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Coarse-to-fine dense flow prev→next in pixels at full grid resolution."""
+                 levels: int = PYRAMID_LEVELS,
+                 densify: bool = True) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Coarse-to-fine dense flow prev→next in pixels at full grid resolution.
+
+    With ``densify`` (default), the field is hole-filled so every pixel carries
+    a motion vector — the morph then flows the whole frame instead of freezing
+    low-confidence regions."""
     pyr_prev = [prev]
     pyr_next = [nxt]
     for _ in range(levels - 1):

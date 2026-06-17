@@ -8,6 +8,7 @@ import pytest
 from canwxlab_api.motion_flow import (
     FLOW_ENCODE_SCALE,
     compute_flow,
+    densify_flow,
     encode_flow_rgba,
     parse_time_extent,
     snap_to_grid,
@@ -50,7 +51,31 @@ def test_zero_motion_yields_near_zero_flow() -> None:
 def test_flat_field_has_zero_confidence() -> None:
     flat = np.full((64, 64), 0.5, dtype=np.float32)
     _u, _v, conf = compute_flow(flat, flat)
+    # Densify must NOT coax a featureless field into motion: no confident flow
+    # anywhere → confidence stays zero, so the morph leaves it static.
     assert float(conf.max()) == pytest.approx(0.0, abs=1e-3)
+
+
+def test_densify_fills_low_confidence_regions_smoothly() -> None:
+    size = 48
+    u = np.zeros((size, size), dtype=np.float32)
+    v = np.zeros((size, size), dtype=np.float32)
+    conf = np.zeros((size, size), dtype=np.float32)
+    # A confident motion patch in the center; everything else unknown.
+    u[20:28, 20:28] = 4.0
+    conf[20:28, 20:28] = 0.9
+
+    du, dv, dconf = densify_flow(u, v, conf)
+
+    # Center kept (measured motion not smeared away).
+    assert du[24, 24] == pytest.approx(4.0, abs=0.6)
+    assert dconf[24, 24] == pytest.approx(0.9, abs=0.1)
+    # Nearby-but-unknown region inherits motion and clears the static gate.
+    assert du[16, 24] > 0.3
+    assert dconf[16, 24] >= 0.06
+    # Far featureless corner is not coaxed into motion.
+    assert dconf[0, 0] == pytest.approx(0.0, abs=1e-3)
+    assert np.all(np.isfinite(du)) and np.all(np.isfinite(dv))
 
 
 def test_encode_flow_rgba_roundtrip() -> None:
